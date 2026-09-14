@@ -30,6 +30,18 @@ Full training series: [doee.dc.gov/publication/training-documents-stormwater-man
 | 10 | Detention Requirements | [PPTX](docs/doee%20presentation/10_Detention%20Requirements.pptx) | [Online](https://octo.quickbase.com/up/bjezqk3qc/a/r350/e6/v0) | [YouTube](https://www.youtube.com/watch?v=h80xvYCUzq8) | [Summary](summary/doee_presentation/10_Detention_Requirements.md) |
 | 11 | Reconstruction of Existing PROW | [PPTX](docs/doee%20presentation/11_Reconstruction%20of%20Existing%20PROW.pptx) | [Online](https://octo.quickbase.com/up/bjezqk3qc/a/r351/e6/v0) | [YouTube](https://www.youtube.com/watch?v=USlwoC4ULiU) | [Summary](summary/doee_presentation/11_Reconstruction_Existing_PROW.md) |
 
+## DOEE Spreadsheet Calculators
+
+Official DOEE/DDOT calculation tools required for SWMP submissions.
+
+| File | Description | Local | Summary |
+|---|---|---|---|
+| 2020 General Retention Compliance Calculator | Primary SWMP compliance tool — SWRv by SDA, BMP credits, detention check | [XLSX](docs/doee_spreadsheet_calculators/2020%20General%20Retention%20Compliance%20Calculator%202-5-21.xlsx) | [Summary](summary/doee_spreadsheet_calculators/General_Retention_Compliance_Calculator.md) |
+| 2020 SWMP-BMP Calc Spreadsheet | BMP storage volume (Sv) and retention volume (Rv) calculator per BMP type | [XLSM](docs/doee_spreadsheet_calculators/2020%20SWMP-BMP%20Calc%20Spreadsheet%2011-30-2020.xlsm) | [Summary](summary/doee_spreadsheet_calculators/SWMP_BMP_Calc_Spreadsheet.md) |
+| 2019 Rainwater Harvesting Storage Volume Calculator | Cistern sizing via 20-year daily demand simulation | [XLSX](docs/doee_spreadsheet_calculators/2019%20Rainwater%20Harvesting%20Storage%20Volume%20Calculator%205-07-26.xlsx) | [Summary](summary/doee_spreadsheet_calculators/Rainwater_Harvesting_Storage_Volume_Calculator.md) |
+| DDOT MEP Worksheet | PROW Maximum Extent Practicable documentation — 4-step, 3-phase process | [XLSX](docs/doee_spreadsheet_calculators/DDOT%20MEP%20Worksheet%20012019.xlsx) | [Summary](summary/doee_spreadsheet_calculators/DDOT_MEP_Worksheet.md) |
+| SWDB Template for PROW Information (July 2025) | DOEE Stormwater Database submission form for PROW projects | [XLSX](docs/doee_spreadsheet_calculators/SWDB%20Template%20for%20PROW%20Information_SWMP%20July%202025%20-%20final%20locked.xlsx) | [Summary](summary/doee_spreadsheet_calculators/SWDB_Template_PROW.md) |
+
 ## Analysis & Working Documents
 
 | Document | Description |
