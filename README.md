@@ -50,3 +50,4 @@ Official DOEE/DDOT calculation tools required for SWMP submissions.
 | [SWM Sizing from Research](summary/SWM_sizing_from_research.md) | Sizing requirements from supplemental research |
 | [SWM Design Example](summary/SWM_design_example.md) | Design example with scenario calculations and BMP comparison |
 | [MEP PROW — Existing vs Proposed](summary/MEP_PROW_existing_vs_proposed.md) | Comparison of existing vs proposed conditions for PROW MEP |
+| [MSI — Major Substantial Improvement](summary/MSI_Major_Substantial_Improvement.md) | Definition, cost/size trigger thresholds, SWRv requirements, and comparison to MLD — cited from 21 DCMR § 599 and Guidebook |
