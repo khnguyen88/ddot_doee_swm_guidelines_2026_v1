@@ -115,6 +115,29 @@ Refer to DDOT Green Infrastructure Standards Section 04 (Plant List) for the cur
 
 ---
 
+## Utility Clearances (DC Water GIUPG and DDOT 33.14.6)
+
+**Sources:**
+- *DC Water Green Infrastructure Utility Protection Guidelines*, July 2013, Version 1.0 — `DC_Water_Green_Infrastructure_Utility_Protection_Guidelines_2013.pdf`
+  - Dwg 1 of 8 "Water and Sewer Clearances for Trees" (PDF p. 2)
+- *DDOT Green Infrastructure Standards* (2014) — `2014-0421-DDOT Green Infrastructure Standards.pdf`, §33.14.6 (pp. D-21–D-23)
+
+**DC Water general rule (Dwg 1 of 8, PDF p. 2):** Structural/proprietary devices — including precast concrete tree boxes, structural soil framing systems, and cast-in-place walls — shall not be placed within **5 ft horizontally** of the outer edge of any DC Water utility. Exception: utility > 15 ft below finished grade, or otherwise approved by DC Water.
+
+| Element | Utility | Horizontal Clearance | Vertical | Notes | Source |
+|---------|---------|---------------------|---------|-------|--------|
+| Tree trunk (breast height) | Water or sewer main | 3 ft min (outer edge of tree at breast height to outer edge of utility) | — | | DC Water GIUPG Dwg 1 of 8 (PDF p. 2) |
+| Tree trunk (breast height) | Service lateral | 3 ft min | — | | DC Water GIUPG Dwg 1 of 8 (PDF p. 2) |
+| Precast concrete tree box | Water or sewer main | 5 ft min (face of box to outer edge of utility) | — | Exception if utility > 15 ft deep or DC Water approval | DC Water GIUPG Dwg 1 of 8 (PDF p. 2) |
+| Any structural/proprietary device | Any DC Water utility | 5 ft min | — | Includes soil framing systems and cast-in-place walls | DC Water GIUPG General Rule (PDF p. 1) |
+| Communications/power (in conduit) | — | None | None | May run through LID | DDOT §33.14.6.1 (p. D-21) |
+| Communications/power (no conduit) | — | 2 ft min | 6 in min | | DDOT §33.14.6.1 (p. D-21) |
+| Gas | — | 12 in from underdrains | 4 ft to road; 3 ft in ditches | Shield + sleeve if < 6 in vertical from facility | DDOT §33.14.6.2 (p. D-22) |
+
+*For full sewer/water membrane trigger rules applicable when tree space includes bioretention media (B-3 classification), see `summary/design/bmp/tree_planter_box.md` and `summary/design/utility_clearances.md`.*
+
+---
+
 ## Key Cross-References
 
 - DDOT GI Standards Section 04 (`summary/chapters/ddot_gi/04_plant_list.md`) — Approved species list

@@ -75,17 +75,31 @@ A bioswale is a drainage channel or linear infiltration basin, typically vegetat
 
 ---
 
-## Utility Clearances (DDOT 33.14.6)
+## Utility Clearances (DDOT 33.14.6 and DC Water GIUPG)
 
-| Utility Type | Horizontal Clearance | Vertical Clearance | Notes |
-|-------------|---------------------|--------------------|-------|
-| Communications/power (concrete conduit) | No restriction | No restriction | May run through bioswale |
-| Communications/power (no conduit) | 2 ft min | 6 in min | |
-| Gas line | 12 in min from underdrains | 4 ft min top-of-gas to road surface; 3 ft in ditches | Protective shield/sleeve required if < 6 in |
-| Water/sewer main | — | 12 in min between LID bottom and main | Impermeable liner required if < 5 ft vertical clearance (extend 3 ft horizontally) |
-| Street light conduit/pole | No restriction | No restriction | Can run through LID |
-| Fire hydrant (sidewalk side) | 3 ft min around hydrant | — | |
-| Fire hydrant (street side) | 4 ft into street × 20 ft along street | — | Access zone may be permeable pavement |
+**Sources:**
+- *DC Water Green Infrastructure Utility Protection Guidelines*, July 2013, Version 1.0 — `DC_Water_Green_Infrastructure_Utility_Protection_Guidelines_2013.pdf`
+  - Dwg 2 of 8 "Sewer Clearances for Bioretention and Bioswales" (PDF p. 3)
+  - Dwg 3 of 8 "Water Clearances for Bioretention and Bioswales" (PDF p. 4)
+  - Dwg 4 of 8 "Utility Surface Structures for Bioretention and Bioswales" (PDF p. 5)
+- *DDOT Green Infrastructure Standards* (2014) — `2014-0421-DDOT Green Infrastructure Standards.pdf`, §33.14.6 (pp. D-21–D-23)
+
+| Utility Type | Horizontal Clearance | Vertical Clearance | Notes | Source |
+|-------------|---------------------|--------------------|-------|--------|
+| Communications/power (concrete conduit) | No restriction | No restriction | May run through bioswale | DDOT §33.14.6.1 (p. D-21) |
+| Communications/power (no conduit) | 2 ft min | 6 in min | | DDOT §33.14.6.1 (p. D-21) |
+| Gas line | 12 in min from underdrains | 4 ft min top-of-gas to road surface; 3 ft in ditches | Protective shield/sleeve required if < 6 in vertical from facility | DDOT §33.14.6.2 (p. D-22) |
+| Sewer main | — | 12 in min | Full perimeter impermeable membrane + underdrain required if vertical clearance < 5 ft OR if sewer main is within 3 ft horizontal of facility | DC Water GIUPG Dwg 2 of 8 (PDF p. 3) |
+| Sewer lateral (parallel) | — | 12 in min | Same liner trigger as sewer main; if membrane not used, sewer must be lined manhole-to-manhole | DC Water GIUPG Dwg 2 of 8 (PDF p. 3) |
+| Sewer lateral (crossing within facility) | 3 ft each side of pipe | — | Impermeable membrane + underdrain on 3 ft each side of pipe for full width of facility | DC Water GIUPG Dwg 2 of 8 (PDF p. 3) |
+| Water main | — | 12 in min | No liner trigger; clearance applies to mains only | DC Water GIUPG Dwg 3 of 8 (PDF p. 4) |
+| Water service lateral | — | No minimum; 18 in soil cover required | Shall not be exposed; may run through LID facility; pipes > 2 in diameter treated as water mains | DC Water GIUPG Dwg 3 of 8 (PDF p. 4); DDOT §33.14.6.3 (p. D-22) |
+| Street light conduit/pole | No restriction | No restriction | Can run through LID | DDOT §33.14.6.4 (p. D-22) |
+| Utility pole | Not allowed in bioretention unless additional pole stabilization is provided | — | | DDOT §33.14.6.1 (p. D-21) |
+| Manhole | Not within bioretention | — | | DDOT §33.14.6.1 (p. D-21) |
+| Utility surface structure (cleanout, valve box) | 8 in min around structure | 12 in min below BMP grade | Concrete collar top matches roadside curb elevation and must be above ponding depth | DC Water GIUPG Dwg 4 of 8 (PDF p. 5) |
+| Fire hydrant (sidewalk side) | 3 ft min around hydrant | — | | DDOT §33.14.6.5 (p. D-23) |
+| Fire hydrant (street side) | 4 ft × 20 ft access area | — | Access zone may be permeable pavement | DDOT §33.14.6.5 (p. D-23) |
 
 ---
 

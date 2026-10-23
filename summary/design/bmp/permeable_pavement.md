@@ -106,13 +106,19 @@
 
 ---
 
-## Check Dams (Sloped Installations — DDOT 33.14.4.4)
+## Check Dams / Stepped Reservoir (Sloped Installations — DDOT 33.14.4.4)
 
-| Option | Bottom Slope | Notes |
-|--------|-------------|-------|
-| Continuous bottom slope | ≤ 2% | Preferred on gentle grades |
-| Terraced invert | ≤ 2% between steps; step height 6–12 in typical | Check dams can be PVC, acrylic, concrete, or waterproof membrane |
-| Check dam spacing | Per 2-yr, 24-hr storm sucharge limit | Transverse underdrain may be needed at each dam |
+DDOT §33.14.4.4 defines three permissible reservoir profile scenarios. Select based on site topography, utility conflicts, budget, and other constraints.
+
+**Note:** These scenarios govern the **subsurface reservoir layer only.** The wearing surface slope limit of **< 5%** (DOEE §3.5.1) applies independently and is not relaxed by any reservoir profile option.
+
+| Scenario | Reservoir Bottom Slope | Step / Dam Details | Sizing Criterion |
+|----------|----------------------|-------------------|-----------------|
+| **1. Continuous slope** | ≤ 2% | No steps required | Preferred on gentle grades |
+| **2. Terraced invert (step stone reservoir)** | ≤ 2% between steps | Step height generally **6–12 in**; can vary to meet design requirements | Steps must prevent surcharging wearing surface under 2-yr, 24-hr storm at low end |
+| **3. Check dams — variable bottom slope** | Variable; no fixed cap | Dam materials: waterproof membrane, PVC sheeting, acrylic sheeting, concrete (membrane/sheeting preferred) | Dams located so **2-yr, 24-hr runoff does not surcharge the wearing surface at the low end** |
+
+**Transverse underdrain:** May be needed at each step or check dam if the base of a step does not slope to the longitudinal underdrain, or where pavement width requires it.
 
 ---
 

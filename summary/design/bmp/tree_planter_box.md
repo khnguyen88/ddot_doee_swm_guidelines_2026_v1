@@ -110,16 +110,33 @@ When engineered tree pits include ponding volume, they qualify as DOEE "Engineer
 
 ---
 
-## Utility Clearances — same as all LID facilities (DDOT 33.14.6)
+## Utility Clearances (DDOT 33.14.6 and DC Water GIUPG)
 
-| Utility | Horizontal | Vertical |
-|---------|-----------|----------|
-| Communications/power (in conduit) | None | None |
-| Communications/power (no conduit) | 2 ft min | 6 in min |
-| Gas | 12 in from underdrains | 4 ft top-of-gas to road; 3 ft in ditches |
-| Water/sewer | Liner if < 5 ft vertical | 12 in min LID bottom to main |
-| Street light conduit/pole | None | None |
-| Manholes | Not within bioretention | — |
+**Sources:**
+- *DC Water Green Infrastructure Utility Protection Guidelines*, July 2013, Version 1.0 — `DC_Water_Green_Infrastructure_Utility_Protection_Guidelines_2013.pdf`
+  - Dwg 1 of 8 "Water and Sewer Clearances for Trees" (PDF p. 2)
+  - Dwg 2 of 8 "Sewer Clearances for Bioretention and Bioswales" (PDF p. 3)
+  - Dwg 3 of 8 "Water Clearances for Bioretention and Bioswales" (PDF p. 4)
+- *DDOT Green Infrastructure Standards* (2014) — `2014-0421-DDOT Green Infrastructure Standards.pdf`, §33.14.6 (pp. D-21–D-23)
+
+**DC Water general rule (Dwg 1 of 8, PDF p. 2):** Precast concrete tree boxes (structural/proprietary devices) shall not be placed within **5 ft horizontally** of the outer edge of any DC Water utility. Exception: utility > 15 ft below finished grade, or otherwise approved by DC Water.
+
+| Utility | Horizontal | Vertical | Notes | Source |
+|---------|-----------|----------|-------|--------|
+| Precast concrete tree box to water/sewer main | **5 ft min** (face of box to outer edge of utility) | — | Applies to any precast or structural proprietary device; exception if utility > 15 ft deep | DC Water GIUPG Dwg 1 of 8 (PDF p. 2) |
+| Tree trunk (breast height) to water/sewer main | 3 ft min (outer edge of tree at breast height to outer edge of utility) | — | | DC Water GIUPG Dwg 1 of 8 (PDF p. 2) |
+| Tree trunk (breast height) to service lateral | 3 ft min | — | | DC Water GIUPG Dwg 1 of 8 (PDF p. 2) |
+| Communications/power (in conduit) | None | None | | DDOT §33.14.6.1 (p. D-21) |
+| Communications/power (no conduit) | 2 ft min | 6 in min | | DDOT §33.14.6.1 (p. D-21) |
+| Gas | 12 in from underdrains | 4 ft top-of-gas to road; 3 ft in ditches | Shield + sleeve if < 6 in vertical from facility | DDOT §33.14.6.2 (p. D-22) |
+| Sewer main | — | 12 in min | Full perimeter liner + underdrain if < 5 ft vertical OR sewer within 3 ft horizontal of facility | DC Water GIUPG Dwg 2 of 8 (PDF p. 3) |
+| Sewer lateral (crossing) | 3 ft each side of pipe | — | Impermeable membrane + underdrain on 3 ft each side for full width | DC Water GIUPG Dwg 2 of 8 (PDF p. 3) |
+| Water main | — | 12 in min | No liner trigger; applies to mains only | DC Water GIUPG Dwg 3 of 8 (PDF p. 4) |
+| Water service lateral | — | No minimum; 18 in soil cover required | Shall not be exposed; may run through LID facility; pipes > 2 in diameter treated as water mains | DC Water GIUPG Dwg 3 of 8 (PDF p. 4); DDOT §33.14.6.3 (p. D-22) |
+| Street light conduit/pole | None | None | | DDOT §33.14.6.4 (p. D-22) |
+| Manholes | Not within bioretention | — | | DDOT §33.14.6.1 (p. D-21) |
+| Fire hydrant (sidewalk side) | 3 ft min around hydrant | — | | DDOT §33.14.6.5 (p. D-23) |
+| Fire hydrant (street side) | 4 ft × 20 ft access area | — | | DDOT §33.14.6.5 (p. D-23) |
 
 ---
 

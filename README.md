@@ -11,6 +11,7 @@ Reference documents and summaries for DC stormwater management guidelines (DOEE/
 | Stormwater Management Plan 2022 | DOEE Stormwater Management Plan, 2022 update | [PDF](docs/Stormwater%20Management%20Plan%202022.pdf) | [doee.dc.gov](https://doee.dc.gov/sites/default/files/dc/sites/ddoe/release_content/attachments/DRAFT%20Stormwater%20Management%20Plan%202022%20-%20Final%20Draft.pdf) |
 | Final SWMP (Jan 2016) | Earlier Stormwater Management Plan for historical reference | [PDF](docs/Final%20SWMP%201-15-16.pdf) | [doee.dc.gov](https://doee.dc.gov/sites/default/files/dc/sites/ddoe/publication/attachments/Final%20SWMP%201-15-16.pdf) |
 | 2014 DDOT Green Infrastructure Standards | DDOT design standards for green infrastructure in the public right-of-way | [PDF](docs/2014-Final%20DDOT%20Green%20Infrastructure%20Standards.pdf) | [ddot.dc.gov](https://ddot.dc.gov/sites/default/files/dc/sites/ddot/publication/attachments/2014-Final%20DDOT%20Green%20Infrastructure%20Standards.pdf) |
+| EISA Section 438 Technical Guidance (Dec 2009) | EPA guidance on stormwater runoff requirements for federal projects — 95th percentile storm, GI/LID tools, 9 case studies | [PDF](docs/eisa-438.pdf) | [epa.gov](https://www.epa.gov/sites/default/files/2015-10/documents/eisa_section_438_technical_guidance.pdf) |
 
 ## DOEE Training Presentations
 
@@ -51,3 +52,4 @@ Official DOEE/DDOT calculation tools required for SWMP submissions.
 | [SWM Design Example](summary/SWM_design_example.md) | Design example with scenario calculations and BMP comparison |
 | [MEP PROW — Existing vs Proposed](summary/MEP_PROW_existing_vs_proposed.md) | Comparison of existing vs proposed conditions for PROW MEP |
 | [MSI — Major Substantial Improvement](summary/MSI_Major_Substantial_Improvement.md) | Definition, cost/size trigger thresholds, SWRv requirements, and comparison to MLD — cited from 21 DCMR § 599 and Guidebook |
+| [EISA Section 438 Summary](summary/eisa-438.md) | Summary of federal stormwater requirements under EISA §438, with DC-specific worked calculation example (1.7" 95th %ile, 2.5-acre federal redevelopment) |

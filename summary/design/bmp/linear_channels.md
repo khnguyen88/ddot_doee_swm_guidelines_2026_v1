@@ -251,13 +251,15 @@ Equation 3.24 — Wet Swale Storage Volume:
 
 ## Utility Clearances for Linear Channels (§3.9.1)
 
-| Condition | Guidance |
-|-----------|---------|
-| Utilities crossing channel | Specially protected required (e.g., double-casing); avoid where possible |
-| Conflicts in PROW | Common; acceptance of conflict allowed if sufficient soil cover over utility can be assured |
-| Post-utility-maintenance | BMP must be restored to original condition after maintenance work |
-| Consult utility companies | Coordinate offsets and timing to allow maintenance with minimal BMP disturbance |
-| Replace/relocate aging infrastructure | Coordinate proactively during BMP implementation |
+**Source:** *DOEE Stormwater Management Guidebook*, January 2020 — `DOEE Stormwater Management Guidebook January 2020.pdf`, §3.9.1
+
+| Condition | Guidance | Source |
+|-----------|---------|--------|
+| Utilities crossing channel | Special protection required (e.g., encasement); avoid where possible | DOEE Guidebook §3.9.1 |
+| Conflicts in PROW | Common; acceptance of conflict allowed if sufficient soil cover over utility can be assured | DOEE Guidebook §3.9.1 |
+| Post-utility-maintenance | BMP must be restored to original condition after maintenance work | DOEE Guidebook §3.9.1 |
+| Consult utility companies | Coordinate offsets and timing to allow maintenance with minimal BMP disturbance | DOEE Guidebook §3.9.1 |
+| Replace/relocate aging infrastructure | Coordinate proactively during BMP implementation | DOEE Guidebook §3.9.1 |
 
 *For specific clearance dimensions (sewer, water, gas, communications), see `summary/design/utility_clearances.md` and `summary/DC_Water_GI_Utility_Protection_Guidelines_2013.md`.*
 
