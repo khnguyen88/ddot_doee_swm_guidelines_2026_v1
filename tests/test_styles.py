@@ -79,3 +79,48 @@ def test_cl_converts_index_to_letter():
     assert styles.cl(1) == "A"
     assert styles.cl(27) == "AA"
     assert styles.cl(53) == "BA"
+
+
+def test_lbl_writes_label_cell():
+    wb = Workbook()
+    ws = wb.active
+    styles.lbl(ws, 3, 1, "LABEL")
+    cell = ws.cell(row=3, column=1)
+    assert cell.value == "LABEL"
+    assert cell.fill.fgColor.rgb in ("00" + styles.GRY, "FF" + styles.GRY)
+    assert cell.alignment.horizontal == "left"
+
+
+def test_lbl_bold_option():
+    wb = Workbook()
+    ws = wb.active
+    styles.lbl(ws, 3, 1, "LABEL", bold=True)
+    assert ws.cell(row=3, column=1).font.bold is True
+
+
+def test_lbl_with_span_merges():
+    wb = Workbook()
+    ws = wb.active
+    styles.lbl(ws, 4, 1, "WIDE", span=3)
+    merged = [str(mr) for mr in ws.merged_cells.ranges]
+    assert "A4:C4" in merged
+
+
+def test_locked_writes_gray_cell():
+    wb = Workbook()
+    ws = wb.active
+    styles.locked(ws, 5, 1, "—")
+    cell = ws.cell(row=5, column=1)
+    assert cell.value == "—"
+    assert cell.fill.fgColor.rgb in ("00" + styles.LOCK, "FF" + styles.LOCK)
+    assert cell.alignment.horizontal == "center"
+
+
+def test_hdr_span_equal_to_c_does_not_merge():
+    """Guard regression: span=1 with c=1 must NOT create a degenerate merge."""
+    wb = Workbook()
+    ws = wb.active
+    styles.hdr(ws, 1, 1, "SINGLE", styles.BH, span=1)
+    merged = [str(mr) for mr in ws.merged_cells.ranges]
+    assert "A1:A1" not in merged
+    assert len(merged) == 0

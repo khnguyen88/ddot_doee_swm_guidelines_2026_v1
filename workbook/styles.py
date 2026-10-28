@@ -46,12 +46,13 @@ def lft() -> Alignment:
 
 def hdr(ws: Worksheet, r: int, c: int, val, bg: str,
         bold: bool = True, white: bool = True, span: int | None = None):
+    # span is the END COLUMN INDEX (inclusive), not a width.
     cell = ws.cell(row=r, column=c, value=val)
     cell.fill = fill(bg)
     cell.font = fnt(bold, white)
     cell.alignment = ctr()
     cell.border = bord()
-    if span:
+    if span is not None and span > c:
         ws.merge_cells(start_row=r, start_column=c, end_row=r, end_column=span)
         for cc in range(c + 1, span + 1):
             ws.cell(row=r, column=cc).fill = fill(bg)
@@ -78,12 +79,13 @@ def calc_c(ws: Worksheet, r: int, c: int, formula: str):
 
 def lbl(ws: Worksheet, r: int, c: int, val, bg: str = GRY,
         bold: bool = False, span: int | None = None):
+    # span is the END COLUMN INDEX (inclusive), not a width.
     cell = ws.cell(row=r, column=c, value=val)
     cell.fill = fill(bg)
     cell.font = fnt(bold)
     cell.alignment = lft()
     cell.border = bord()
-    if span:
+    if span is not None and span > c:
         ws.merge_cells(start_row=r, start_column=c, end_row=r, end_column=span)
         for cc in range(c + 1, span + 1):
             ws.cell(row=r, column=cc).fill = fill(bg)
