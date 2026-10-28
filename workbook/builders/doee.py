@@ -383,8 +383,8 @@ def build_doee_compliance(wb: Workbook) -> None:
     # Site total row
     total_r = 15
     styles.hdr(ws, total_r, 1, "SITE TOTAL", styles.BH)
-    styles.calc_c(ws, total_r, 2, "=SUM(B4:B14)")
-    styles.calc_c(ws, total_r, 3, "=SUM(C4:C14)")
+    styles.calc_c(ws, total_r, 2, "=SUM(B4:B13)")
+    styles.calc_c(ws, total_r, 3, "=SUM(C4:C13)")
     styles.calc_c(ws, total_r, 4, f"=IFERROR(C{total_r}/B{total_r},0)")
     ws.cell(row=total_r, column=4).number_format = "0%"
     styles.calc_c(ws, total_r, 5,

@@ -154,6 +154,11 @@ def _write_sda_block(ws, start_row: int, sda_index: int) -> int:
     styles.hdr(ws, r, 1, "Step 4 — Tree Credits (DDOT)", styles.BS, span=7)
     r += 1
 
+    # DDOT MEP uses simplified credits (5/20/30/40 CF by size tier combining
+    # planted and preserved). This differs from DOEE PARAMS_Trees which uses
+    # per-type credits (5/10/10/20/30/40 CF). Both sheets pull counts from
+    # the same BMP sheet rows but apply different credit values.
+
     # BMP tree columns (all referenced as BMP data cols AB-AG):
     #   AB (28) = # Planted Small   → credit 5 CF each
     #   AC (29) = # Planted Large   → credit 20 CF each

@@ -15,8 +15,8 @@ BMP_LAST = 53
 #   Compacted HSG A/B/C/D  → INDEX(PARAMS_CN, 4, 2-5)
 #
 # PARAMS_CN layout:
-#   row 1 = header; row 2 = BMP (98); row 3 = Natural; row 4 = Compacted
-#   col 1 = label;  col 2 = HSG A;    col 3 = HSG B;   col 4 = HSG C; col 5 = HSG D
+#   row 1 = Impervious (98); row 2 = BMP (98); row 3 = Natural (Woods); row 4 = Compacted (Open Space)
+#   col 1 = label;           col 2 = HSG A;    col 3 = HSG B;           col 4 = HSG C; col 5 = HSG D
 RUNOFF_ROWS = [
     ("Impervious Vehicular",     "—", "Impervious Vehicular",     None,  98),
     ("Impervious Non-Vehicular", "—", "Impervious Non-Vehicular", None,  98),
