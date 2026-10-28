@@ -72,7 +72,7 @@ def test_tr55_runoff_depth_zero_when_p_below_ia():
 
 def test_tr55_runoff_volume_cf():
     # 10,000 SF impervious at 1.7" → 1.477" * 10000 / 12 ≈ 1231 CF
-    v = calc.tr55_runoff_volume_cf(area_sf=10000, P_in=1.7, CN=98)
+    v = calc.tr55_runoff_volume_cf(area_sf=10000, P_in=1.7, cn=98)
     assert v == pytest.approx(10000 * 1.477 / 12, rel=0.01)
 
 
@@ -125,3 +125,31 @@ def test_eisa_direct_hsg_d_conservative_default():
     # No Horton params for HSG D → conservative P - 0.2
     assert calc.eisa_direct_runoff_depth("Natural (Woods)", "D", 1.7) == pytest.approx(1.5, abs=1e-9)
     assert calc.eisa_direct_runoff_depth("Compacted (Open Space)", "D", 1.7) == pytest.approx(1.5, abs=1e-9)
+
+
+def test_tr55_total_volume_cf_multi_row():
+    rows = [
+        (10000, "Impervious Vehicular", "C"),
+        (5000, "Natural (Woods)", "C"),
+    ]
+    total = calc.tr55_total_volume_cf(rows, P_in=1.7)
+    # Imp: 10000 * Q(98) / 12; Natural C: 5000 * Q(70) / 12
+    expected = (10000 * calc.tr55_runoff_depth(1.7, 98)
+                + 5000 * calc.tr55_runoff_depth(1.7, 70)) / 12
+    assert total == pytest.approx(expected, rel=1e-9)
+
+
+def test_tr55_total_volume_cf_raises_on_unknown():
+    with pytest.raises(ValueError, match="No CN entry"):
+        calc.tr55_total_volume_cf([(1000, "Unknown Land Use", "A")], P_in=1.7)
+
+
+def test_eisa_direct_total_volume_cf_multi_row():
+    rows = [
+        (10000, "Impervious Vehicular", "C"),
+        (5000, "Natural (Woods)", "A"),
+    ]
+    total = calc.eisa_direct_total_volume_cf(rows, P_in=1.7)
+    # Imp: 10000 * 1.6 / 12 = 1333.33; Natural A: 0
+    expected = 10000 * 1.6 / 12
+    assert total == pytest.approx(expected, rel=1e-6)

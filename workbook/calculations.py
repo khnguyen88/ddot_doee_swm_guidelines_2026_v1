@@ -88,17 +88,23 @@ def tr55_runoff_depth(P_in: float, cn: float) -> float:
     return (P_in - Ia) ** 2 / (P_in - Ia + S)
 
 
-def tr55_runoff_volume_cf(area_sf: float, P_in: float, CN: float) -> float:
+def tr55_runoff_volume_cf(area_sf: float, P_in: float, cn: float) -> float:
     """TR-55 runoff volume in CF for one area × CN cell."""
-    return area_sf * tr55_runoff_depth(P_in, CN) / 12.0
+    return area_sf * tr55_runoff_depth(P_in, cn) / 12.0
 
 
 def tr55_total_volume_cf(rows: Iterable[tuple[float, str, str]], P_in: float) -> float:
-    """Sum TR-55 runoff volume across a list of (area_sf, land_use, hsg) rows."""
+    """Sum TR-55 runoff volume across (area_sf, land_use, hsg) rows.
+
+    Raises ValueError if (land_use, hsg) is not in the CN table — fail fast
+    rather than silently assuming impervious.
+    """
     total = 0.0
     for area_sf, land_use, hsg in rows:
-        cn = CN.get((land_use, hsg), 98)
-        total += tr55_runoff_volume_cf(area_sf, P_in, cn)
+        key = (land_use, hsg)
+        if key not in CN:
+            raise ValueError(f"No CN entry for {key!r}")
+        total += tr55_runoff_volume_cf(area_sf, P_in, CN[key])
     return total
 
 
