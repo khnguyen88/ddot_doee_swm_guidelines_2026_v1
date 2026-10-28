@@ -5,3 +5,4 @@ docs/EISA 438 sample comps.pdf
 __pycache__/
 *.pyc
 .pytest_cache/
+manual_guidance/
