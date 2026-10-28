@@ -18,6 +18,7 @@ from workbook.builders import (
     params, project, sda, cda, bmp, correct_mep_summary,
     eisa_direct, eisa_tr55, doee,
 )
+from workbook.formats import apply_number_formats
 
 
 # Project root = parent of the `workbook/` package.
@@ -43,6 +44,9 @@ def build_workbook() -> openpyxl.Workbook:
     doee.build_doee_bmp_data(wb)
     doee.build_doee_detention(wb)
     doee.build_doee_compliance(wb)
+
+    # Final pass — apply number formats across all sheets.
+    apply_number_formats(wb)
 
     return wb
 
