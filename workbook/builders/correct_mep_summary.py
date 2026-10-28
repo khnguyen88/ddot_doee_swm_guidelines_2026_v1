@@ -53,10 +53,10 @@ _COL_WIDTHS = {
     6: 13.86,   # F
     7: 12.86,   # G
     8: 13.86,   # H
-    9: 12.86,   # I
+    9: 28.0,    # I  — wider for "Regulated Retention Volume (1.2"):" label
     10: 12.46,  # J
     11: 10.66,  # K
-    12: 16.53,  # L
+    12: 18.0,   # L  — wider for notes display
     13: 11.33,  # M
     14: 13.46,  # N
     15: 10.0,   # O
@@ -89,15 +89,15 @@ _COL_WIDTHS = {
     42: 9.13,   # AP
 }
 
-# Row heights
+# Row heights (tuned so wrapped labels fit without clipping)
 _ROW_HEIGHTS = {
     1: 24.0,
-    2: 24.75,
-    3: 17.45,
-    4: 19.25,
-    5: 19.25,
+    2: 22.0,
+    3: 36.0,
+    4: 36.0,
+    5: 22.0,
     6: 9.75,
-    7: 16.9,
+    7: 28.0,
     8: 102.75,
     9: 42.6,
     10: 48.75,
@@ -125,74 +125,112 @@ def _cl(n: int) -> str:
 # ---------------------------------------------------------------------------
 # Row 1-5: project header
 # ---------------------------------------------------------------------------
+def _label(ws, r: int, c: int, text: str, *, bold: bool = True,
+           align: str = "left", wrap: bool = True):
+    cell = ws.cell(row=r, column=c, value=text)
+    cell.font = styles.fnt(bold=bold)
+    from openpyxl.styles import Alignment
+    cell.alignment = Alignment(horizontal=align, vertical="center", wrap_text=wrap)
+    cell.border = styles.bord()
+    cell.fill = styles.fill(styles.GRY)
+    return cell
+
+
+def _input_value(ws, r: int, c: int, formula_or_value):
+    cell = ws.cell(row=r, column=c, value=formula_or_value)
+    cell.font = styles.fnt()
+    cell.alignment = styles.ctr()
+    cell.border = styles.bord()
+    cell.fill = styles.fill(styles.INP)
+    return cell
+
+
+def _calc_value(ws, r: int, c: int, formula, *, bold: bool = False,
+                number_format: str | None = None):
+    cell = ws.cell(row=r, column=c, value=formula)
+    cell.font = styles.fnt(bold=bold)
+    cell.alignment = styles.ctr()
+    cell.border = styles.bord()
+    cell.fill = styles.fill(styles.CALC)
+    if number_format:
+        cell.number_format = number_format
+    return cell
+
+
 def _write_header_rows(ws) -> None:
-    # Row 1
-    ws.cell(row=1, column=2, value="Project Name:").alignment = styles.lft()
-    ws.cell(row=1, column=8, value="Project No:").alignment = styles.lft()
-    ws.cell(row=1, column=12, value="Check One: MS4         CSS").alignment = styles.lft()
-    ws.cell(row=1, column=16, value="Check if in AWDZ:").alignment = styles.lft()
-    ws.cell(row=1, column=19, value="DOEE Plan Review No.:").alignment = styles.lft()
-    # D1 — PROJECT_Name input
-    ws.cell(row=1, column=4, value="=PROJECT_Name")
-    # J1 — PROJECT_Number
-    ws.cell(row=1, column=10, value="=PROJECT_Number")
-    # N1 — PROJECT_MS4
-    ws.cell(row=1, column=14, value="=PROJECT_MS4")
-    # R1 — PROJECT_AWDZ
-    ws.cell(row=1, column=18, value="=PROJECT_AWDZ")
-    # T1 — PROJECT_DOEEReview
-    ws.cell(row=1, column=20, value="=PROJECT_DOEEReview")
-    # Cross-references (user's formulas W1-AF1)
+    # ---- Row 1: project info labels + input value cells ----
+    _label(ws, 1, 2, "Project Name:")
+    _input_value(ws, 1, 4, "=PROJECT_Name")
+    _label(ws, 1, 8, "Project No:")
+    _input_value(ws, 1, 10, "=PROJECT_Number")
+    _label(ws, 1, 12, "Check One: MS4 / CSS")
+    _input_value(ws, 1, 14, "=PROJECT_MS4")
+    _label(ws, 1, 16, "Check if in AWDZ:")
+    _input_value(ws, 1, 18, "=PROJECT_AWDZ")
+    _label(ws, 1, 19, "DOEE Plan Review No.:")
+    _input_value(ws, 1, 20, "=PROJECT_DOEEReview")
+
+    # Cross-reference block (W1-AG1) — mirrors key fields for readability
     ws.cell(row=1, column=23, value="Project Name:")
     ws.cell(row=1, column=25, value='=IF(D1="","",D1)')
     ws.cell(row=1, column=31, value="DOEE Plan Review No.:")
     ws.cell(row=1, column=32, value='=IF(T1="","",T1)')
-    # Merge D1:G1 for project name value
-    ws.merge_cells(start_row=1, start_column=4, end_row=1, end_column=7)
-    # Merge I1:J1 for project number value
-    ws.merge_cells(start_row=1, start_column=9, end_row=1, end_column=10)
-    # Merge T1:U1 for DOEE review
-    ws.merge_cells(start_row=1, start_column=20, end_row=1, end_column=21)
-    # Merge Y1:AB1 for cross-ref
-    ws.merge_cells(start_row=1, start_column=25, end_row=1, end_column=28)
-    # Merge AF1:AG1
-    ws.merge_cells(start_row=1, start_column=32, end_row=1, end_column=33)
 
-    # Row 2
-    ws.cell(row=2, column=2, value="Summary Data: 90%/Final Design Phase")
-    ws.cell(row=2, column=12, value="Notes:")
-    ws.cell(row=2, column=23, value="=B2")
+    # Merges for input value cells
+    ws.merge_cells(start_row=1, start_column=4,  end_row=1, end_column=7)   # D1:G1 Project Name
+    ws.merge_cells(start_row=1, start_column=9,  end_row=1, end_column=10)  # I1:J1 (not used, keep for layout)
+    ws.merge_cells(start_row=1, start_column=20, end_row=1, end_column=21)  # T1:U1 DOEE Review
+    ws.merge_cells(start_row=1, start_column=25, end_row=1, end_column=28)  # Y1:AB1 mirror
+    ws.merge_cells(start_row=1, start_column=32, end_row=1, end_column=33)  # AF1:AG1 mirror
 
-    # Row 3
-    ws.cell(row=3, column=9, value='Regulated Retention Volume (1.2"):')
-    ws.cell(row=3, column=10, value="=J45")
-    ws.cell(row=3, column=11, value="CF")
-    ws.cell(row=3, column=12,
-            value="Blocks in the worksheet that are not shaded are data entry fields for the designer.")
+    # ---- Row 2: subtitle + notes label ----
+    sub = ws.cell(row=2, column=2, value="Summary Data: 90%/Final Design Phase")
+    sub.font = styles.fnt(bold=True, sz=11)
+    sub.alignment = styles.lft()
+    ws.merge_cells(start_row=2, start_column=2, end_row=2, end_column=7)
+    _label(ws, 2, 12, "Notes:")
+    ws.cell(row=2, column=23, value="=B2").font = styles.fnt(bold=True, sz=11)
+
+    # ---- Row 3: Regulated Retention Volume + first long note ----
+    _label(ws, 3, 9, 'Regulated Retention Volume (1.2"):', align="right")
+    _calc_value(ws, 3, 10, "=J45", bold=True, number_format="#,##0")
+    _label(ws, 3, 11, "CF", align="left", bold=False)
+    note3 = ws.cell(row=3, column=12,
+                    value="Blocks in the worksheet that are not shaded are data entry fields for the designer.")
+    note3.font = styles.fnt()
+    from openpyxl.styles import Alignment
+    note3.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    ws.merge_cells(start_row=3, start_column=12, end_row=3, end_column=22)  # L3:V3
+    # Mirror row 3 fields in AE/AF/AG for the right-side block
     ws.cell(row=3, column=31, value="=I3")
     ws.cell(row=3, column=32, value="=J3")
     ws.cell(row=3, column=33, value="=K3")
 
-    # Row 4
-    ws.cell(row=4, column=2, value="Disturbance Area (ac.): ")
-    ws.cell(row=4, column=5, value="=E45/43560")
-    ws.cell(row=4, column=9, value="Volume Retained:")
-    ws.cell(row=4, column=10, value="=AL45")
-    ws.cell(row=4, column=11, value="CF")
-    ws.cell(row=4, column=12,
-            value="All shaded blocks are computations internal to the worksheet and should not be edited.")
+    # ---- Row 4: Disturbance Area + Volume Retained + second long note ----
+    _label(ws, 4, 2, "Disturbance Area (ac.):", align="right")
+    _calc_value(ws, 4, 5, "=E45/43560", bold=True, number_format="0.00")
+    _label(ws, 4, 9, "Volume Retained:", align="right")
+    _calc_value(ws, 4, 10, "=AL45", bold=True, number_format="#,##0")
+    _label(ws, 4, 11, "CF", align="left", bold=False)
+    note4 = ws.cell(row=4, column=12,
+                    value="All shaded blocks are computations internal to the worksheet and should not be edited.")
+    note4.font = styles.fnt()
+    note4.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    ws.merge_cells(start_row=4, start_column=12, end_row=4, end_column=22)  # L4:V4
+    # Mirrors
     ws.cell(row=4, column=23, value="=B4")
     ws.cell(row=4, column=26, value="=E4")
     ws.cell(row=4, column=31, value="=I4")
     ws.cell(row=4, column=32, value="=J4")
     ws.cell(row=4, column=33, value="=K4")
 
-    # Row 5
-    ws.cell(row=5, column=2, value="No. of Drainage Areas:")
-    ws.cell(row=5, column=5, value="=COUNTA(A12:A44)")
-    ws.cell(row=5, column=9, value="Difference:")
-    ws.cell(row=5, column=10, value="=J4-J3")
-    ws.cell(row=5, column=11, value="CF")
+    # ---- Row 5: No. of DAs + Difference ----
+    _label(ws, 5, 2, "No. of Drainage Areas:", align="right")
+    _calc_value(ws, 5, 5, "=COUNTA(A12:A44)", bold=True, number_format="0")
+    _label(ws, 5, 9, "Difference:", align="right")
+    _calc_value(ws, 5, 10, "=J4-J3", bold=True, number_format="#,##0")
+    _label(ws, 5, 11, "CF", align="left", bold=False)
+    # Mirrors
     ws.cell(row=5, column=23, value="=B5")
     ws.cell(row=5, column=26, value="=E5")
     ws.cell(row=5, column=31, value="=I5")
@@ -204,15 +242,16 @@ def _write_header_rows(ws) -> None:
 # Row 7: Step headers
 # ---------------------------------------------------------------------------
 def _write_step_headers(ws) -> None:
+    # (start_col, end_col, text)
     steps = [
-        (2,  "Step 1:  Drainage Area and Regulated Volumes"),   # B7
-        (12, "Step 2:  Consider Infiltration"),                  # L7
-        (17, "Step 3:  Evaluate Existing Infrastructure Constraints"),  # Q7
-        (23, "Step 4:  Identify Land Conversion and BMP Placement Opportunities"),  # W7
-        (29, "Step 5: Size BMPs and Compute Achieved Retention Volumes"),  # AC7
+        (2,  11, "Step 1:  Drainage Area and Regulated Volumes"),    # B7:K7
+        (12, 16, "Step 2:  Consider Infiltration"),                   # L7:P7
+        (17, 22, "Step 3:  Evaluate Existing Infrastructure Constraints"),  # Q7:V7
+        (23, 28, "Step 4:  Identify Land Conversion and BMP Placement Opportunities"),  # W7:AB7
+        (29, 39, "Step 5: Size BMPs and Compute Achieved Retention Volumes"),  # AC7:AM7
     ]
-    for col, text in steps:
-        ws.cell(row=7, column=col, value=text)
+    for start_col, end_col, text in steps:
+        styles.hdr(ws, 7, start_col, text, styles.BH, span=end_col)
 
 
 # ---------------------------------------------------------------------------
@@ -445,166 +484,128 @@ def _write_da_rows(ws) -> None:
     BD1, BDL = BMP_D1, BMP_DL
     CD1, CDL = CDA_D1, CDA_DL
 
+    def _guard(formula_body: str, a_cell: str) -> str:
+        """Wrap a formula body with IF(A{r}="","",<body>) so blank-SDA rows stay blank."""
+        return f'=IF({a_cell}="","",{formula_body})'
+
     for i in range(DATA_LAST - DATA_FIRST + 1):
         r = DATA_FIRST + i       # Excel row number
         s = SDA_SUM1 + i         # Matching SDA summary row
+        a = f"A{r}"
 
-        # ---- User-preserved calculated columns (copy exact user formulas) ----
-        ws.cell(row=r, column=5,  value=f"=SUM(B{r}:D{r})")           # E — total within LOD
-        ws.cell(row=r, column=9,  value=f"=SUM(F{r}:H{r})")           # I — total outside LOD
-        ws.cell(row=r, column=10, value=f"=IF(E{r}=0,0,AP{r}*1.2/12*E{r})")  # J — SWRv within
-        ws.cell(row=r, column=11, value=f"=IF(I{r}=0,0,AQ{r}*1.2/12*I{r})")  # K — SWRv outside
-        ws.cell(row=r, column=18, value=f"=Q{r}*10")                  # R — small tree credit
-        ws.cell(row=r, column=20, value=f"=S{r}*20")                  # T — large tree credit
-        ws.cell(row=r, column=22, value=f"=U{r}*40")                  # V — special/heritage credit
-        ws.cell(row=r, column=31, value=f"=IF(AC{r}=0,0,AC{r}*1.7/12*AP{r})")  # AE — ceiling Sv within
-        ws.cell(row=r, column=32, value=f"=IF(AD{r}=0,0,AD{r}*1.7/12*AQ{r})")  # AF — ceiling Sv outside
-        ws.cell(row=r, column=38,
-                value=(f"=(IF((AE{r})<(AG{r}+AH{r}+AI{r}),(AE{r}),(AG{r}+AH{r}+AI{r})))"
-                       f"+AJ{r}*5+AK{r}*10+R{r}+T{r}+V{r}"))          # AL — total Sv
-        ws.cell(row=r, column=39, value=f"=AL{r}-J{r}")               # AM — overage/deficit
-        ws.cell(row=r, column=42,
-                value=f"=IF(E{r}=0,\"\",(B{r}*0.95+C{r}*0.25+D{r}*0)/E{r})")  # AP — Rv within
-        ws.cell(row=r, column=43,
-                value=f"=IF(I{r}=0,\"\",(F{r}*0.95+G{r}*0.25+H{r}*0)/I{r})")  # AQ — Rv outside
+        # ---- A: SDA_ID — uses direct = compare (NOT IFERROR, since blank refs are not errors) ----
+        ws.cell(row=r, column=1, value=f"=IF('SDA'!A{s}=\"\",\"\",'SDA'!A{s})")
 
-        # ---- Auto-populate ALL rows using IFERROR (returns "" / 0 for blank SDA rows) ----
-        if True:
-            # A — SDA ID label (IFERROR returns "" when SDA summary row is blank)
-            ws.cell(row=r, column=1, value=f"=IFERROR('SDA'!A{s},\"\")")
+        # ---- B/C/D: SDA summary direct references, guarded on A ----
+        ws.cell(row=r, column=2, value=_guard(f"'SDA'!F{s}", a))  # B
+        ws.cell(row=r, column=3, value=_guard(f"'SDA'!G{s}", a))  # C
+        ws.cell(row=r, column=4, value=_guard(f"'SDA'!H{s}", a))  # D
 
-            # B — Post Imp within LOD (SDA summary col F)
-            ws.cell(row=r, column=2, value=f"=IFERROR('SDA'!F{s},0)")
+        # ---- User-preserved calculated columns, each guarded on A ----
+        ws.cell(row=r, column=5,  value=_guard(f"SUM(B{r}:D{r})", a))  # E
+        ws.cell(row=r, column=9,  value=_guard(f"SUM(F{r}:H{r})", a))  # I
+        ws.cell(row=r, column=10, value=_guard(f"IF(E{r}=0,0,AP{r}*1.2/12*E{r})", a))  # J
+        ws.cell(row=r, column=11, value=_guard(f"IF(I{r}=0,0,AQ{r}*1.2/12*I{r})", a))  # K
+        ws.cell(row=r, column=18, value=_guard(f"Q{r}*10", a))  # R
+        ws.cell(row=r, column=20, value=_guard(f"S{r}*20", a))  # T
+        ws.cell(row=r, column=22, value=_guard(f"U{r}*40", a))  # V
+        ws.cell(row=r, column=31, value=_guard(f"IF(AC{r}=0,0,AC{r}*1.7/12*AP{r})", a))  # AE
+        ws.cell(row=r, column=32, value=_guard(f"IF(AD{r}=0,0,AD{r}*1.7/12*AQ{r})", a))  # AF
+        ws.cell(row=r, column=38, value=_guard(
+            f"(IF((AE{r})<(AG{r}+AH{r}+AI{r}),(AE{r}),(AG{r}+AH{r}+AI{r})))"
+            f"+AJ{r}*5+AK{r}*10+R{r}+T{r}+V{r}", a))  # AL
+        ws.cell(row=r, column=39, value=_guard(f"AL{r}-J{r}", a))  # AM
+        ws.cell(row=r, column=42, value=_guard(
+            f"IF(E{r}=0,\"\",(B{r}*0.95+C{r}*0.25+D{r}*0)/E{r})", a))  # AP
+        ws.cell(row=r, column=43, value=_guard(
+            f"IF(I{r}=0,\"\",(F{r}*0.95+G{r}*0.25+H{r}*0)/I{r})", a))  # AQ
 
-            # C — Post Comp within LOD (SDA summary col G)
-            ws.cell(row=r, column=3, value=f"=IFERROR('SDA'!G{s},0)")
+        # ---- SUMIFS autopop columns, each guarded on A ----
+        # F — Post Imp outside LOD
+        ws.cell(row=r, column=6, value=_guard(
+            f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$C${D1}:$C${DL},\"Impervious Vehicular\")"
+            f"+SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$C${D1}:$C${DL},\"Impervious Non-Vehicular\")",
+            a))
 
-            # D — Post Nat within LOD (SDA summary col H)
-            ws.cell(row=r, column=4, value=f"=IFERROR('SDA'!H{s},0)")
+        # G — Post Comp outside LOD
+        ws.cell(row=r, column=7, value=_guard(
+            f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$C${D1}:$C${DL},\"Compacted (Open Space)\")",
+            a))
 
-            # F — Post Imp outside LOD (SUMIFS on SDA data Post Outside LOD col H)
-            ws.cell(row=r, column=6, value=(
-                f"=IFERROR("
-                f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},A{r},'SDA'!$C${D1}:$C${DL},\"Impervious Vehicular\")"
-                f"+SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},A{r},'SDA'!$C${D1}:$C${DL},\"Impervious Non-Vehicular\")"
-                f",0)"
-            ))
+        # H — Post Nat outside LOD
+        ws.cell(row=r, column=8, value=_guard(
+            f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$C${D1}:$C${DL},\"Natural (Woods)\")",
+            a))
 
-            # G — Post Comp outside LOD
-            ws.cell(row=r, column=7, value=(
-                f"=IFERROR("
-                f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},A{r},'SDA'!$C${D1}:$C${DL},\"Compacted (Open Space)\")"
-                f",0)"
-            ))
+        # L — Conservative-dominant HSG (D > C > B > A)
+        ws.cell(row=r, column=12, value=_guard(
+            f"IFERROR(IFS("
+            f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$D${D1}:$D${DL},\"D\")>0,\"D\","
+            f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$D${D1}:$D${DL},\"C\")>0,\"C\","
+            f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$D${D1}:$D${DL},\"B\")>0,\"B\","
+            f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$D${D1}:$D${DL},\"A\")>0,\"A\","
+            f"TRUE,\"\"),\"\")",
+            a))
 
-            # H — Post Nat outside LOD
-            ws.cell(row=r, column=8, value=(
-                f"=IFERROR("
-                f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},A{r},'SDA'!$C${D1}:$C${DL},\"Natural (Woods)\")"
-                f",0)"
-            ))
+        # O — Infiltration rate derived from HSG
+        ws.cell(row=r, column=15, value=_guard(
+            f"IFS(L{r}=\"A\",2.5,L{r}=\"B\",0.3,L{r}=\"C\",0.1,L{r}=\"D\",0.05,TRUE,\"\")", a))
 
-            # L — Conservative-dominant HSG (IFS cascade: D > C > B > A)
-            ws.cell(row=r, column=12, value=(
-                f"=IFERROR(IFS("
-                f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},A{r},'SDA'!$D${D1}:$D${DL},\"D\")>0,\"D\","
-                f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},A{r},'SDA'!$D${D1}:$D${DL},\"C\")>0,\"C\","
-                f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},A{r},'SDA'!$D${D1}:$D${DL},\"B\")>0,\"B\","
-                f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},A{r},'SDA'!$D${D1}:$D${DL},\"A\")>0,\"A\","
-                f"TRUE,\"\"),\"\")"
-            ))
+        # Q — # Preserved Small
+        ws.cell(row=r, column=17, value=_guard(
+            f"SUMIFS('BMP'!$AD${BD1}:$AD${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
-            # M — blank (Water Table OK? — user judgment)
-            # N — blank (Bedrock OK? — user judgment)
+        # S — # Preserved Large
+        ws.cell(row=r, column=19, value=_guard(
+            f"SUMIFS('BMP'!$AE${BD1}:$AE${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
-            # O — Infiltration rate from HSG
-            ws.cell(row=r, column=15, value=(
-                f"=IFERROR(IFS(L{r}=\"A\",2.5,L{r}=\"B\",0.3,L{r}=\"C\",0.1,L{r}=\"D\",0.05,TRUE,\"\"),\"\")"
-            ))
+        # U — # Preserved Special + Heritage (combined per DDOT MEP)
+        ws.cell(row=r, column=21, value=_guard(
+            f"SUMIFS('BMP'!$AF${BD1}:$AF${BDL},'BMP'!$B${BD1}:$B${BDL},{a})"
+            f"+SUMIFS('BMP'!$AG${BD1}:$AG${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
-            # P — blank (Hotspot Concern? — user judgment)
+        # Y — Bioretention opp area within LOD (BMP SA_top for Bio + Dry Swale)
+        ws.cell(row=r, column=25, value=_guard(
+            f"SUMIFS('BMP'!$N${BD1}:$N${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Bioretention\")"
+            f"+SUMIFS('BMP'!$N${BD1}:$N${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Dry Swale\")",
+            a))
 
-            # Q — # Preserved Small (BMP col AD = 30)
-            ws.cell(row=r, column=17, value=(
-                f"=IFERROR(SUMIFS('BMP'!$AD${BD1}:$AD${BDL},'BMP'!$B${BD1}:$B${BDL},A{r}),0)"
-            ))
+        # AA — PP opp area within LOD
+        ws.cell(row=r, column=27, value=_guard(
+            f"SUMIFS('BMP'!$F${BD1}:$F${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Permeable Pavement\")",
+            a))
 
-            # S — # Preserved Large (BMP col AE = 31)
-            ws.cell(row=r, column=19, value=(
-                f"=IFERROR(SUMIFS('BMP'!$AE${BD1}:$AE${BDL},'BMP'!$B${BD1}:$B${BDL},A{r}),0)"
-            ))
+        # AC — Total BMP CDA within LOD
+        ws.cell(row=r, column=29, value=_guard(
+            f"SUMIFS('CDA'!$E${CD1}:$E${CDL},'CDA'!$B${CD1}:$B${CDL},{a})", a))
 
-            # U — # Preserved Special + # Preserved Heritage (BMP cols AF + AG)
-            ws.cell(row=r, column=21, value=(
-                f"=IFERROR("
-                f"SUMIFS('BMP'!$AF${BD1}:$AF${BDL},'BMP'!$B${BD1}:$B${BDL},A{r})"
-                f"+SUMIFS('BMP'!$AG${BD1}:$AG${BDL},'BMP'!$B${BD1}:$B${BDL},A{r})"
-                f",0)"
-            ))
+        # AD — Total BMP CDA outside LOD
+        ws.cell(row=r, column=30, value=_guard(
+            f"SUMIFS('CDA'!$F${CD1}:$F${CDL},'CDA'!$B${CD1}:$B${CDL},{a})", a))
 
-            # W — blank (Land Conversion area within LOD — not derivable)
-            # X — blank (Land Conversion area adjacent to LOD — not derivable)
+        # AG — Max Bioretention Sv (Bio + Dry Swale)
+        ws.cell(row=r, column=33, value=_guard(
+            f"SUMIFS('BMP'!$W${BD1}:$W${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Bioretention\")"
+            f"+SUMIFS('BMP'!$W${BD1}:$W${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Dry Swale\")",
+            a))
 
-            # Y — Bioretention opp area within LOD (BMP SA_top col N = 14, Bioretention + Dry Swale)
-            ws.cell(row=r, column=25, value=(
-                f"=IFERROR("
-                f"SUMIFS('BMP'!$N${BD1}:$N${BDL},'BMP'!$B${BD1}:$B${BDL},A{r},'BMP'!$D${BD1}:$D${BDL},\"Bioretention\")"
-                f"+SUMIFS('BMP'!$N${BD1}:$N${BDL},'BMP'!$B${BD1}:$B${BDL},A{r},'BMP'!$D${BD1}:$D${BDL},\"Dry Swale\")"
-                f",0)"
-            ))
+        # AH — Max PP Sv
+        ws.cell(row=r, column=34, value=_guard(
+            f"SUMIFS('BMP'!$K${BD1}:$K${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Permeable Pavement\")",
+            a))
 
-            # Z — blank (adjacent to LOD — not derivable)
+        # AI — Max Other Sv (Wet Swale)
+        ws.cell(row=r, column=35, value=_guard(
+            f"SUMIFS('BMP'!$AA${BD1}:$AA${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Wet Swale\")",
+            a))
 
-            # AA — PP opp area within LOD (BMP PP SA col F = 6, Permeable Pavement)
-            ws.cell(row=r, column=27, value=(
-                f"=IFERROR("
-                f"SUMIFS('BMP'!$F${BD1}:$F${BDL},'BMP'!$B${BD1}:$B${BDL},A{r},'BMP'!$D${BD1}:$D${BDL},\"Permeable Pavement\")"
-                f",0)"
-            ))
+        # AJ — # Planted Small
+        ws.cell(row=r, column=36, value=_guard(
+            f"SUMIFS('BMP'!$AB${BD1}:$AB${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
-            # AB — blank
-
-            # AC — Total BMP CDA within LOD (CDA col E = 5, by SDA_ID = col B = 2)
-            ws.cell(row=r, column=29, value=(
-                f"=IFERROR(SUMIFS('CDA'!$E${CD1}:$E${CDL},'CDA'!$B${CD1}:$B${CDL},A{r}),0)"
-            ))
-
-            # AD — Total BMP CDA outside LOD (CDA col F = 6)
-            ws.cell(row=r, column=30, value=(
-                f"=IFERROR(SUMIFS('CDA'!$F${CD1}:$F${CDL},'CDA'!$B${CD1}:$B${CDL},A{r}),0)"
-            ))
-
-            # AG — Max Bioretention Sv (BMP Bio Sv col W = 23)
-            ws.cell(row=r, column=33, value=(
-                f"=IFERROR("
-                f"SUMIFS('BMP'!$W${BD1}:$W${BDL},'BMP'!$B${BD1}:$B${BDL},A{r},'BMP'!$D${BD1}:$D${BDL},\"Bioretention\")"
-                f"+SUMIFS('BMP'!$W${BD1}:$W${BDL},'BMP'!$B${BD1}:$B${BDL},A{r},'BMP'!$D${BD1}:$D${BDL},\"Dry Swale\")"
-                f",0)"
-            ))
-
-            # AH — Max PP Sv (BMP PP Sv col K = 11)
-            ws.cell(row=r, column=34, value=(
-                f"=IFERROR("
-                f"SUMIFS('BMP'!$K${BD1}:$K${BDL},'BMP'!$B${BD1}:$B${BDL},A{r},'BMP'!$D${BD1}:$D${BDL},\"Permeable Pavement\")"
-                f",0)"
-            ))
-
-            # AI — Max Other Sv (BMP WS Sv col AA = 27, Wet Swale)
-            ws.cell(row=r, column=35, value=(
-                f"=IFERROR("
-                f"SUMIFS('BMP'!$AA${BD1}:$AA${BDL},'BMP'!$B${BD1}:$B${BDL},A{r},'BMP'!$D${BD1}:$D${BDL},\"Wet Swale\")"
-                f",0)"
-            ))
-
-            # AJ — # Planted Small (BMP col AB = 28)
-            ws.cell(row=r, column=36, value=(
-                f"=IFERROR(SUMIFS('BMP'!$AB${BD1}:$AB${BDL},'BMP'!$B${BD1}:$B${BDL},A{r}),0)"
-            ))
-
-            # AK — # Planted Large (BMP col AC = 29)
-            ws.cell(row=r, column=37, value=(
-                f"=IFERROR(SUMIFS('BMP'!$AC${BD1}:$AC${BDL},'BMP'!$B${BD1}:$B${BDL},A{r}),0)"
-            ))
+        # AK — # Planted Large
+        ws.cell(row=r, column=37, value=_guard(
+            f"SUMIFS('BMP'!$AC${BD1}:$AC${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
         # Apply calc style to all formula cells; leave blank input cells unstyled
         _style_da_row(ws, r, is_auto=True)
