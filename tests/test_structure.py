@@ -1,7 +1,7 @@
 """Integration test — full workbook has correct sheet set and order."""
 import pytest
 
-import generate_workbook
+from workbook.__main__ import build_workbook, main, DEFAULT_OUTPUT
 
 
 EXPECTED_ORDER = [
@@ -13,7 +13,7 @@ EXPECTED_ORDER = [
 
 @pytest.fixture(scope="module")
 def wb():
-    return generate_workbook.build_workbook()
+    return build_workbook()
 
 
 def test_all_twelve_sheets_present(wb):
@@ -29,9 +29,8 @@ def test_no_placeholder_sheet(wb):
     assert "PLACEHOLDER" not in wb.sheetnames
 
 
-def test_file_writes_cleanly(tmp_path, monkeypatch):
+def test_file_writes_cleanly(tmp_path):
     out = tmp_path / "test.xlsx"
-    monkeypatch.setattr(generate_workbook, "OUTPUT", out)
-    result = generate_workbook.main()
+    result = main(output_path=out)
     assert result == out
     assert out.exists()
