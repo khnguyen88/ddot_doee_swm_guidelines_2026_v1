@@ -5,7 +5,7 @@ import generate_workbook
 
 
 EXPECTED_ORDER = [
-    "PROJECT", "PARAMS", "SDA", "CDA", "BMP", "MEP_SUMMARY",
+    "PROJECT", "PARAMS", "SDA", "CDA", "BMP", "CORRECT_MEP_SUMMARY",
     "EISA_DIRECT", "EISA_TR55",
     "DOEE_SDA", "DOEE_BMP_DATA", "DOEE_DETENTION", "DOEE_COMPLIANCE",
 ]

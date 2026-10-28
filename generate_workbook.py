@@ -10,7 +10,7 @@ from pathlib import Path
 import openpyxl
 
 from workbook.builders import (
-    params, project, sda, cda, bmp, mep_summary,
+    params, project, sda, cda, bmp, correct_mep_summary,
     eisa_direct, eisa_tr55, doee,
 )
 
@@ -28,7 +28,7 @@ def build_workbook() -> openpyxl.Workbook:
     sda.build_sda_sheet(wb, n_rows=50)
     cda.build_cda_sheet(wb, n_rows=50)
     bmp.build_bmp_sheet(wb, n_rows=50)
-    mep_summary.build_mep_summary(wb, n_sdas=10)
+    correct_mep_summary.build_correct_mep_summary(wb)
     eisa_direct.build_eisa_direct(wb)
     eisa_tr55.build_eisa_tr55(wb)
     doee.build_doee_sda(wb)
