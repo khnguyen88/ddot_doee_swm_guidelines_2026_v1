@@ -537,19 +537,27 @@ def _write_da_rows(ws) -> None:
             f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$C${D1}:$C${DL},\"Natural (Woods)\")",
             a))
 
-        # L — Conservative-dominant HSG (D > C > B > A)
+        # L — Conservative-dominant HSG (D > C > B > A). Nested IF (not IFS)
+        # for compatibility with Excel 2016 and earlier.
+        def _sum_by_hsg(hsg: str) -> str:
+            return (f"SUMIFS('SDA'!$G${D1}:$G${DL},"
+                    f"'SDA'!$A${D1}:$A${DL},{a},"
+                    f"'SDA'!$D${D1}:$D${DL},\"{hsg}\")")
         ws.cell(row=r, column=12, value=_guard(
-            f"IFERROR(IFS("
-            f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$D${D1}:$D${DL},\"D\")>0,\"D\","
-            f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$D${D1}:$D${DL},\"C\")>0,\"C\","
-            f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$D${D1}:$D${DL},\"B\")>0,\"B\","
-            f"SUMIFS('SDA'!$G${D1}:$G${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$D${D1}:$D${DL},\"A\")>0,\"A\","
-            f"TRUE,\"\"),\"\")",
+            f'IF({_sum_by_hsg("D")}>0,"D",'
+            f'IF({_sum_by_hsg("C")}>0,"C",'
+            f'IF({_sum_by_hsg("B")}>0,"B",'
+            f'IF({_sum_by_hsg("A")}>0,"A",""))))',
             a))
 
-        # O — Infiltration rate derived from HSG
+        # O — Infiltration rate derived from HSG. Nested IF (not IFS) for
+        # compatibility with Excel versions older than 2019 — IFS triggers
+        # #NAME? on Excel 2016 and earlier.
         ws.cell(row=r, column=15, value=_guard(
-            f"IFS(L{r}=\"A\",2.5,L{r}=\"B\",0.3,L{r}=\"C\",0.1,L{r}=\"D\",0.05,TRUE,\"\")", a))
+            f"IF(L{r}=\"A\",2.5,"
+            f"IF(L{r}=\"B\",0.3,"
+            f"IF(L{r}=\"C\",0.1,"
+            f"IF(L{r}=\"D\",0.05,\"\"))))", a))
 
         # Q — # Preserved Small
         ws.cell(row=r, column=17, value=_guard(

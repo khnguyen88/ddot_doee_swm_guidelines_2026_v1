@@ -97,22 +97,22 @@ def test_row12_col_f_sumifs_impervious(ws):
     assert "'SDA'" in v
 
 
-def test_row12_col_l_hsg_ifs_cascade(ws):
-    # L12 has IFS cascade with "D", "C", "B", "A"
+def test_row12_col_l_hsg_cascade(ws):
+    # L12 cascades over "D", "C", "B", "A" via nested IF (Excel 2016 compatible).
     v = ws.cell(row=12, column=12).value
     assert isinstance(v, str)
-    assert "IFS" in v
+    assert "IF(" in v  # nested IF, not IFS
     assert '"D"' in v
     assert '"C"' in v
     assert '"B"' in v
     assert '"A"' in v
 
 
-def test_row12_col_o_infiltration_ifs(ws):
-    # O12 has IFS cascade with 2.5, 0.3, 0.1, 0.05
+def test_row12_col_o_infiltration_cascade(ws):
+    # O12 maps HSG letter to infil rate (2.5 / 0.3 / 0.1 / 0.05) via nested IF.
     v = ws.cell(row=12, column=15).value
     assert isinstance(v, str)
-    assert "IFS" in v
+    assert "IF(" in v
     assert "2.5" in v
     assert "0.3" in v
     assert "0.1" in v

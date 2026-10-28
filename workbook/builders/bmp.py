@@ -12,6 +12,31 @@ _ZONE_DIVIDER_COLS = (5, 13, 24, 27, 34, 39)
 
 _MEDIUM_RIGHT = Side(style="medium", color="000000")
 
+# CDA data table range (used by Ksat HSG lookup formulas)
+CDA_D1 = 4
+CDA_DL = 53
+
+
+def _cda_dominant_hsg_formula(cda_cell: str) -> str:
+    """Build an Excel formula returning the most conservative HSG present in
+    the CDA referenced by `cda_cell` (e.g. "C4").
+
+    Picks D > C > B > A so lined/clay soils are preferred when multiple HSGs
+    coexist. Uses nested IF (not IFS) for Excel 2016 compatibility.
+    """
+    def _sumifs(hsg: str) -> str:
+        return (
+            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},"
+            f"'CDA'!$A${CDA_D1}:$A${CDA_DL},{cda_cell},"
+            f"'CDA'!$D${CDA_D1}:$D${CDA_DL},\"{hsg}\")"
+        )
+    return (
+        f'IF({_sumifs("D")}>0,"D",'
+        f'IF({_sumifs("C")}>0,"C",'
+        f'IF({_sumifs("B")}>0,"B",'
+        f'IF({_sumifs("A")}>0,"A",""))))'
+    )
+
 
 BMP_TYPES = [
     "Permeable Pavement",
@@ -81,14 +106,14 @@ def _ifs_bmp_param(cell_type: str, cell_sub: str, param_col: int) -> str:
 
     Wrapped in IFERROR to suppress any residual errors on blank rows.
     """
-    arms = []
-    for bmp_type, sub_type, idx in BMP_PARAM_ROWS:
+    # Build a nested IF cascade (not IFS) for compatibility with Excel 2016
+    # and earlier, which trigger #NAME? on IFS.
+    result = '""'   # innermost fallback — matches old TRUE,"" arm
+    for bmp_type, sub_type, idx in reversed(BMP_PARAM_ROWS):
         condition = f'AND({cell_type}="{bmp_type}",{cell_sub}="{sub_type}")'
         value = f"INDEX(PARAMS_BMP,{idx},{param_col})"
-        arms.append(f"{condition},{value}")
-    # Fallback arm: always-true returns empty string
-    arms.append('TRUE,""')
-    return '=IFERROR(IFS(' + ",".join(arms) + '),"")'
+        result = f'IF({condition},{value},{result})'
+    return f'=IFERROR({result},"")'
 
 
 def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
@@ -135,10 +160,8 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
 
     data_start = 4
     data_end = data_start + n_rows - 1   # = 53 for default n_rows=50
-
-    # CDA data range (same n_rows convention as BMP/SDA)
-    CDA_D1 = 4
-    CDA_DL = data_end  # mirrors n_rows
+    # Module-level CDA_D1/CDA_DL (defined at top of file) are the CDA sheet's
+    # data range and match the default n_rows=50 case.
 
     for r in range(data_start, data_end + 1):
 
@@ -156,13 +179,7 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         _ksat_formula = (
             f"=IFERROR("
             f"IF(OR(E{r}=\"Enhanced\",E{r}=\"Underdrained Enhanced\"),"
-            f"VLOOKUP("
-            f"IFS("
-            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"D\")>0,\"D\","
-            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"C\")>0,\"C\","
-            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"B\")>0,\"B\","
-            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"A\")>0,\"A\","
-            f"TRUE,\"\"),"
+            f"VLOOKUP({_cda_dominant_hsg_formula(f'C{r}')},"
             f"PARAMS_Ksat,2,FALSE),"
             f"0),"
             f"0)"
@@ -213,13 +230,7 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         _ksat_formula_bio = (
             f"=IFERROR("
             f"IF(OR(E{r}=\"Enhanced\",E{r}=\"Enhanced w/ Underdrain\"),"
-            f"VLOOKUP("
-            f"IFS("
-            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"D\")>0,\"D\","
-            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"C\")>0,\"C\","
-            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"B\")>0,\"B\","
-            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"A\")>0,\"A\","
-            f"TRUE,\"\"),"
+            f"VLOOKUP({_cda_dominant_hsg_formula(f'C{r}')},"
             f"PARAMS_Ksat,2,FALSE),"
             f"0),"
             f"0)"
