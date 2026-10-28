@@ -119,6 +119,15 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
                styles.BH, span=39)
     ws.row_dimensions[1].height = 24
 
+    # Row 2: Ksat note bar.
+    _ksat_note = (
+        "Ksat auto-populates from PARAMS_Ksat (by CDA dominant HSG) only for Enhanced sub-types. "
+        "Standard/lined BMPs show 0 (no native-soil infiltration). "
+        "Override with a site-measured value if testing is available."
+    )
+    styles.lbl(ws, 2, 1, _ksat_note, styles.WARN, span=39)
+    ws.row_dimensions[2].height = 24
+
     # Column headers at row 3.
     for i, h in enumerate(HEADERS, 1):
         styles.hdr(ws, 3, i, h, styles.BS)
@@ -142,16 +151,21 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         for c in range(6, 9):
             styles.inp(ws, r, c)
 
-        # I (9): PP Ksat (ft/day) — pre-filled from dominant HSG of CDA (user may override)
+        # I (9): PP Ksat (ft/day) — pre-filled from dominant HSG of CDA only for Enhanced
+        #        sub-types; Standard/lined BMPs show 0 (no native-soil infiltration).
         _ksat_formula = (
-            f"=IFERROR(VLOOKUP("
+            f"=IFERROR("
+            f"IF(OR(E{r}=\"Enhanced\",E{r}=\"Underdrained Enhanced\"),"
+            f"VLOOKUP("
             f"IFS("
             f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"D\")>0,\"D\","
             f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"C\")>0,\"C\","
             f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"B\")>0,\"B\","
             f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"A\")>0,\"A\","
             f"TRUE,\"\"),"
-            f"PARAMS_Ksat,2,FALSE),\"\")"
+            f"PARAMS_Ksat,2,FALSE),"
+            f"0),"
+            f"0)"
         )
         # Style as INP (yellow) so users know they can override with a measured value
         styles.inp(ws, r, 9)
@@ -194,16 +208,21 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         # U (21): Bio d_pond — input
         styles.inp(ws, r, 21)
 
-        # V (22): Bio Ksat (ft/day) — pre-filled from dominant HSG of CDA (user may override)
+        # V (22): Bio Ksat (ft/day) — pre-filled from dominant HSG of CDA only for Enhanced
+        #         sub-types; Standard/lined BMPs show 0 (no native-soil infiltration).
         _ksat_formula_bio = (
-            f"=IFERROR(VLOOKUP("
+            f"=IFERROR("
+            f"IF(OR(E{r}=\"Enhanced\",E{r}=\"Enhanced w/ Underdrain\"),"
+            f"VLOOKUP("
             f"IFS("
             f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"D\")>0,\"D\","
             f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"C\")>0,\"C\","
             f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"B\")>0,\"B\","
             f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"A\")>0,\"A\","
             f"TRUE,\"\"),"
-            f"PARAMS_Ksat,2,FALSE),\"\")"
+            f"PARAMS_Ksat,2,FALSE),"
+            f"0),"
+            f"0)"
         )
         # Style as INP (yellow) so users know they can override with a measured value
         styles.inp(ws, r, 22)

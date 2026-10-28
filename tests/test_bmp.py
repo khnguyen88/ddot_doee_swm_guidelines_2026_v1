@@ -120,19 +120,55 @@ def test_zone_divider_col_e_row4_medium_right_border(wb):
     assert right.style == "medium", f"E4 right border style: {right.style!r}"
 
 
-def test_pp_ksat_formula_references_params_ksat_and_cda(wb):
-    """I4 (col 9) — PP Ksat auto-formula contains PARAMS_Ksat and 'CDA' references."""
-    ws = wb["BMP"]
-    f_val = ws.cell(row=4, column=9).value
-    assert isinstance(f_val, str), f"Expected formula string at I4, got {repr(f_val)}"
-    assert "PARAMS_Ksat" in f_val, f"'PARAMS_Ksat' not in I4: {f_val}"
-    assert "'CDA'" in f_val, f"\"'CDA'\" not in I4: {f_val}"
+def test_pp_ksat_only_enhanced():
+    # Col I row 4 should have an IF guarding Enhanced / Underdrained Enhanced sub-types
+    import openpyxl
+    from workbook.builders import params, project, sda, cda, bmp
+    w = openpyxl.Workbook()
+    w.remove(w.active)
+    params.build_params_sheet(w)
+    project.build_project_sheet(w)
+    sda.build_sda_sheet(w, n_rows=50)
+    cda.build_cda_sheet(w, n_rows=50)
+    bmp.build_bmp_sheet(w, n_rows=50)
+    ws = w["BMP"]
+    v = ws.cell(row=4, column=9).value  # col I = 9
+    assert "Enhanced" in v
+    assert "Underdrained Enhanced" in v
+    assert "PARAMS_Ksat" in v
 
 
-def test_bio_ksat_formula_references_params_ksat_and_cda(wb):
-    """V4 (col 22) — Bio Ksat auto-formula contains PARAMS_Ksat and 'CDA' references."""
-    ws = wb["BMP"]
-    f_val = ws.cell(row=4, column=22).value
-    assert isinstance(f_val, str), f"Expected formula string at V4, got {repr(f_val)}"
-    assert "PARAMS_Ksat" in f_val, f"'PARAMS_Ksat' not in V4: {f_val}"
-    assert "'CDA'" in f_val, f"\"'CDA'\" not in V4: {f_val}"
+def test_bio_ksat_only_enhanced():
+    # Col V = 22
+    import openpyxl
+    from workbook.builders import params, project, sda, cda, bmp
+    w = openpyxl.Workbook()
+    w.remove(w.active)
+    params.build_params_sheet(w)
+    project.build_project_sheet(w)
+    sda.build_sda_sheet(w, n_rows=50)
+    cda.build_cda_sheet(w, n_rows=50)
+    bmp.build_bmp_sheet(w, n_rows=50)
+    ws = w["BMP"]
+    v = ws.cell(row=4, column=22).value
+    assert "Enhanced" in v
+    assert "Enhanced w/ Underdrain" in v
+    assert "PARAMS_Ksat" in v
+
+
+def test_bmp_sheet_has_ksat_note():
+    # Row 2 should contain explanatory note about Ksat
+    import openpyxl
+    from workbook.builders import params, project, sda, cda, bmp
+    w = openpyxl.Workbook()
+    w.remove(w.active)
+    params.build_params_sheet(w)
+    project.build_project_sheet(w)
+    sda.build_sda_sheet(w, n_rows=50)
+    cda.build_cda_sheet(w, n_rows=50)
+    bmp.build_bmp_sheet(w, n_rows=50)
+    ws = w["BMP"]
+    note_text = ws.cell(row=2, column=1).value
+    assert note_text is not None
+    assert "Ksat" in note_text
+    assert "Enhanced" in note_text
