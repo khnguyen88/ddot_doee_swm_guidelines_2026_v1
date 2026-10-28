@@ -289,9 +289,17 @@ def _write_step_descriptions(ws) -> None:
               "required regulated volume. If a deficit exists, review BMP "
               "placements/sizes to determine if additional volume can be captured.")),
     ]
+    # Merge spans for each description to match the row 7 Step header blocks:
+    #   Step 1: B8:K8   | Step 2: L8:P8  | Step 3: Q8:V8
+    #   Step 4: W8:AB8  | Step 5a: AC8:AF8 (contrib DA) | Step 5b: AG8:AM8 (storage)
+    merge_ends = {2: 11, 12: 16, 17: 22, 23: 28, 29: 32, 33: 39}
+    from openpyxl.styles import Alignment
+    centered_wrap = Alignment(horizontal="center", vertical="center", wrap_text=True)
     for col, text in desc:
         c = ws.cell(row=8, column=col, value=text)
-        c.alignment = styles.lft()
+        c.alignment = centered_wrap
+        ws.merge_cells(start_row=8, start_column=col,
+                       end_row=8, end_column=merge_ends[col])
 
 
 # ---------------------------------------------------------------------------
