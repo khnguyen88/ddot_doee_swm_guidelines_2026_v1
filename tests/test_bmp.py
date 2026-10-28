@@ -109,3 +109,30 @@ def test_sda_compliance_summary_block(wb):
             found = True
             break
     assert found
+
+
+def test_zone_divider_col_e_row4_medium_right_border(wb):
+    """E4 (last column of ID zone) has a medium right border."""
+    from openpyxl.styles import Side
+    ws = wb["BMP"]
+    right = ws.cell(row=4, column=5).border.right
+    assert right is not None, "E4 right border is None"
+    assert right.style == "medium", f"E4 right border style: {right.style!r}"
+
+
+def test_pp_ksat_formula_references_params_ksat_and_cda(wb):
+    """I4 (col 9) — PP Ksat auto-formula contains PARAMS_Ksat and 'CDA' references."""
+    ws = wb["BMP"]
+    f_val = ws.cell(row=4, column=9).value
+    assert isinstance(f_val, str), f"Expected formula string at I4, got {repr(f_val)}"
+    assert "PARAMS_Ksat" in f_val, f"'PARAMS_Ksat' not in I4: {f_val}"
+    assert "'CDA'" in f_val, f"\"'CDA'\" not in I4: {f_val}"
+
+
+def test_bio_ksat_formula_references_params_ksat_and_cda(wb):
+    """V4 (col 22) — Bio Ksat auto-formula contains PARAMS_Ksat and 'CDA' references."""
+    ws = wb["BMP"]
+    f_val = ws.cell(row=4, column=22).value
+    assert isinstance(f_val, str), f"Expected formula string at V4, got {repr(f_val)}"
+    assert "PARAMS_Ksat" in f_val, f"'PARAMS_Ksat' not in V4: {f_val}"
+    assert "'CDA'" in f_val, f"\"'CDA'\" not in V4: {f_val}"

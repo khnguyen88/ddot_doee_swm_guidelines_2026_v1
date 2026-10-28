@@ -137,6 +137,22 @@ def test_detention_cn_defaults(wb):
         assert ws.cell(row=r, column=2).value == cn
 
 
+def test_ksat_table_values(wb):
+    """Rows 68-71 contain the default Ksat values by HSG."""
+    ws = wb["PARAMS"]
+    expected = [
+        (68, "A", 4.8),
+        (69, "B", 1.0),
+        (70, "C", 0.2),
+        (71, "D", 0.06),
+    ]
+    for row, hsg, ksat in expected:
+        assert ws.cell(row=row, column=1).value == hsg, (
+            f"Row {row} col A: expected {hsg!r}, got {ws.cell(row=row, column=1).value!r}")
+        assert ws.cell(row=row, column=2).value == pytest.approx(ksat), (
+            f"Row {row} col B: expected {ksat}, got {ws.cell(row=row, column=2).value}")
+
+
 def test_named_ranges_defined(wb):
     expected_names = {
         "PARAMS_Rv":           "'PARAMS'!$A$7:$B$11",
@@ -149,6 +165,7 @@ def test_named_ranges_defined(wb):
         "PARAMS_DetentionCN":  "'PARAMS'!$A$61:$B$64",
         "PARAMS_HortonLossB":  "'PARAMS'!$B$26",
         "PARAMS_HortonLossC":  "'PARAMS'!$C$26",
+        "PARAMS_Ksat":         "'PARAMS'!$A$68:$B$71",
     }
     actual_names = {dn.name for dn in wb.defined_names.values()}
     for name in expected_names:

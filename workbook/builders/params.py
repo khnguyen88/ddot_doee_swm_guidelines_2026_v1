@@ -144,6 +144,22 @@ def build_params_sheet(wb: Workbook) -> None:
         styles.lbl(ws, r, 1, name)
         styles.lbl(ws, r, 2, cn, styles.GRY)
 
+    # ── Section 9: Default Ksat by HSG ──
+    # Rows 66-71: spacer at 65, header at 66, col headers at 67, data at 68-71.
+    styles.hdr(ws, 66, 1, "Default Ksat by HSG (ft/day)", styles.BS, span=7)
+    for i, h in enumerate(["HSG", "Ksat (ft/day)"], 1):
+        styles.lbl(ws, 67, i, h, styles.BL, bold=True)
+    ksat_rows = [
+        ("A", 4.8),
+        ("B", 1.0),
+        ("C", 0.2),
+        ("D", 0.06),
+    ]
+    for i, (hsg, ksat) in enumerate(ksat_rows):
+        r = 68 + i
+        styles.lbl(ws, r, 1, hsg, styles.GRY, bold=True)
+        styles.lbl(ws, r, 2, ksat, styles.GRY)
+
     # ── Named ranges ──
     _add_named_ranges(wb)
 
@@ -160,6 +176,7 @@ def _add_named_ranges(wb: Workbook) -> None:
         "PARAMS_DetentionCN":  "'PARAMS'!$A$61:$B$64",
         "PARAMS_HortonLossB":  "'PARAMS'!$B$26",
         "PARAMS_HortonLossC":  "'PARAMS'!$C$26",
+        "PARAMS_Ksat":         "'PARAMS'!$A$68:$B$71",
     }
     for name, addr in ranges.items():
         wb.defined_names.add(DefinedName(name, attr_text=addr))

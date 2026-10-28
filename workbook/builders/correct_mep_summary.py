@@ -7,11 +7,11 @@ wide table (rows 1-45) with:
   Row 7:     Step header labels (5 steps across columns)
   Row 8:     Step descriptions
   Rows 9-11: Column headers (three-row header: main / sub / units)
-  Rows 12-44: 33 DA data rows (first 10 auto-populated from SDA/BMP/CDA)
+  Rows 12-44: 33 DA data rows (all 33 auto-populated from SDA/BMP/CDA)
   Row 45:    DATOTAL SUM row
 
-Auto-populates rows 12-21 (SDA-1 .. SDA-10) from upstream sheets.
-Rows 22-44 are left blank for manual overflow.
+Auto-populates ALL 33 DA rows (12-44) from upstream sheets using IFERROR
+so rows beyond the first 10 SDA summary rows return "" or 0 cleanly.
 """
 from openpyxl import Workbook
 
@@ -37,8 +37,8 @@ DATA_FIRST = 12
 DATA_LAST = 44
 TOTAL_ROW = 45
 
-# Number of DA rows to auto-populate from SDA summary
-AUTO_ROWS = 10
+# All DA rows now auto-populate (IFERROR returns "" / 0 for blank SDA rows)
+AUTO_ROWS = DATA_LAST - DATA_FIRST + 1  # = 33
 
 
 # ---------------------------------------------------------------------------
@@ -468,19 +468,19 @@ def _write_da_rows(ws) -> None:
         ws.cell(row=r, column=43,
                 value=f"=IF(I{r}=0,\"\",(F{r}*0.95+G{r}*0.25+H{r}*0)/I{r})")  # AQ — Rv outside
 
-        # ---- Auto-populate only for first AUTO_ROWS (SDA-1..SDA-10) ----
-        if i < AUTO_ROWS:
-            # A — SDA ID label
-            ws.cell(row=r, column=1, value=f"='SDA'!A{s}")
+        # ---- Auto-populate ALL rows using IFERROR (returns "" / 0 for blank SDA rows) ----
+        if True:
+            # A — SDA ID label (IFERROR returns "" when SDA summary row is blank)
+            ws.cell(row=r, column=1, value=f"=IFERROR('SDA'!A{s},\"\")")
 
             # B — Post Imp within LOD (SDA summary col F)
-            ws.cell(row=r, column=2, value=f"='SDA'!F{s}")
+            ws.cell(row=r, column=2, value=f"=IFERROR('SDA'!F{s},0)")
 
             # C — Post Comp within LOD (SDA summary col G)
-            ws.cell(row=r, column=3, value=f"='SDA'!G{s}")
+            ws.cell(row=r, column=3, value=f"=IFERROR('SDA'!G{s},0)")
 
             # D — Post Nat within LOD (SDA summary col H)
-            ws.cell(row=r, column=4, value=f"='SDA'!H{s}")
+            ws.cell(row=r, column=4, value=f"=IFERROR('SDA'!H{s},0)")
 
             # F — Post Imp outside LOD (SUMIFS on SDA data Post Outside LOD col H)
             ws.cell(row=r, column=6, value=(
@@ -607,7 +607,7 @@ def _write_da_rows(ws) -> None:
             ))
 
         # Apply calc style to all formula cells; leave blank input cells unstyled
-        _style_da_row(ws, r, i < AUTO_ROWS)
+        _style_da_row(ws, r, is_auto=True)
 
 
 def _style_da_row(ws, r: int, is_auto: bool) -> None:

@@ -73,13 +73,13 @@ def test_row11_sf_units_b_through_h(ws):
 # Row 12 — first DA row auto-population
 # ---------------------------------------------------------------------------
 def test_row12_col_a_sda_formula(ws):
-    # A12 = ='SDA'!A58
+    # A12 = =IFERROR('SDA'!A58,"")
     v = ws.cell(row=12, column=1).value
     assert isinstance(v, str) and "'SDA'" in v and "A58" in v
 
 
 def test_row12_col_b_sda_formula(ws):
-    # B12 = ='SDA'!F58
+    # B12 = =IFERROR('SDA'!F58,0)
     v = ws.cell(row=12, column=2).value
     assert isinstance(v, str) and "'SDA'" in v and "F58" in v
 
@@ -172,9 +172,35 @@ def test_row12_ap_rv_formula(ws):
 
 
 # ---------------------------------------------------------------------------
-# Rows 22-44 auto-populate columns are blank (no A formula)
+# Rows 22-44 now have IFERROR autopop formulas on all 33 DA rows
 # ---------------------------------------------------------------------------
-def test_rows22_to_44_col_a_blank(ws):
-    for r in range(22, 45):
-        v = ws.cell(row=r, column=1).value
-        assert v is None, f"Expected blank A{r}, got {repr(v)}"
+def test_row44_col_a_iferror_sda_formula(ws):
+    # A44 = =IFERROR('SDA'!A90,"")  — row 44 maps to SDA summary row 58+(44-12)=90
+    v = ws.cell(row=44, column=1).value
+    assert isinstance(v, str), f"Expected formula string at A44, got {repr(v)}"
+    assert "IFERROR" in v, f"Expected IFERROR in A44 formula, got {repr(v)}"
+    assert "'SDA'" in v, f"Expected 'SDA' reference in A44 formula, got {repr(v)}"
+    assert "A90" in v, f"Expected A90 in A44 formula, got {repr(v)}"
+
+
+def test_row44_col_b_has_formula(ws):
+    # B44 = =IFERROR('SDA'!F90,0)
+    v = ws.cell(row=44, column=2).value
+    assert isinstance(v, str), f"Expected formula string at B44, got {repr(v)}"
+    assert "IFERROR" in v, f"Expected IFERROR in B44 formula, got {repr(v)}"
+    assert "F90" in v, f"Expected F90 in B44 formula, got {repr(v)}"
+
+
+def test_row22_col_a_iferror_sda_formula(ws):
+    # A22 maps to SDA summary row 58+(22-12)=68
+    v = ws.cell(row=22, column=1).value
+    assert isinstance(v, str), f"Expected formula string at A22, got {repr(v)}"
+    assert "IFERROR" in v
+    assert "A68" in v, f"Expected A68 in A22 formula, got {repr(v)}"
+
+
+def test_row22_col_f_sumifs_formula(ws):
+    # F22 should have SUMIFS formula (not empty) — SUMIFS with blank A22 returns 0 cleanly
+    v = ws.cell(row=22, column=6).value
+    assert isinstance(v, str), f"Expected formula string at F22, got {repr(v)}"
+    assert "SUMIFS" in v, f"Expected SUMIFS in F22 formula, got {repr(v)}"

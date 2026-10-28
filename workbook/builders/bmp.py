@@ -1,8 +1,16 @@
 """Build the BMP sheet — one row per BMP, all parameter columns, auto outputs."""
 from openpyxl import Workbook
+from openpyxl.styles import Side, Border
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from workbook import styles
+
+# Columns that mark the right edge of each BMP zone (1-based column numbers).
+# Zones: ID (A-E=5), PP (F-M=13), Bio/Dry Swale (N-X=24), Wet Swale (Y-AA=27),
+#        Trees (AB-AH=34), Outputs (AI-AM=39).
+_ZONE_DIVIDER_COLS = (5, 13, 24, 27, 34, 39)
+
+_MEDIUM_RIGHT = Side(style="medium", color="000000")
 
 
 BMP_TYPES = [
@@ -49,6 +57,19 @@ HEADERS = [
     "Sv Total (CF)", "Ret. Multiplier", "Rv Uncapped (CF)",
     "Max BMP Credit (CF)", "Rv Applied (CF)",
 ]
+
+
+def _apply_zone_dividers(ws, row_first: int, row_last: int) -> None:
+    """Apply a medium right border to zone-dividing columns for the given row range."""
+    for col in _ZONE_DIVIDER_COLS:
+        for row in range(row_first, row_last + 1):
+            cell = ws.cell(row=row, column=col)
+            cell.border = Border(
+                left=cell.border.left,
+                top=cell.border.top,
+                bottom=cell.border.bottom,
+                right=_MEDIUM_RIGHT,
+            )
 
 
 def _ifs_bmp_param(cell_type: str, cell_sub: str, param_col: int) -> str:
@@ -106,6 +127,10 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
     data_start = 4
     data_end = data_start + n_rows - 1   # = 53 for default n_rows=50
 
+    # CDA data range (same n_rows convention as BMP/SDA)
+    CDA_D1 = 4
+    CDA_DL = data_end  # mirrors n_rows
+
     for r in range(data_start, data_end + 1):
 
         # ── ID columns A-E (1-5) ── input
@@ -113,9 +138,24 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
             styles.inp(ws, r, c)
 
         # ── Permeable Pavement zone ──
-        # F-I (6-9): surface area, reservoir depth, sump depth, Ksat — input
-        for c in range(6, 10):
+        # F-H (6-8): surface area, reservoir depth, sump depth — input
+        for c in range(6, 9):
             styles.inp(ws, r, c)
+
+        # I (9): PP Ksat (ft/day) — pre-filled from dominant HSG of CDA (user may override)
+        _ksat_formula = (
+            f"=IFERROR(VLOOKUP("
+            f"IFS("
+            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"D\")>0,\"D\","
+            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"C\")>0,\"C\","
+            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"B\")>0,\"B\","
+            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"A\")>0,\"A\","
+            f"TRUE,\"\"),"
+            f"PARAMS_Ksat,2,FALSE),\"\")"
+        )
+        # Style as INP (yellow) so users know they can override with a measured value
+        styles.inp(ws, r, 9)
+        ws.cell(row=r, column=9).value = _ksat_formula
 
         # J (10): PP n_reservoir from PARAMS_BMP col 5
         styles.calc_c(ws, r, 10, _ifs_bmp_param(f"D{r}", f"E{r}", 5))
@@ -154,8 +194,20 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         # U (21): Bio d_pond — input
         styles.inp(ws, r, 21)
 
-        # V (22): Bio Ksat — input
+        # V (22): Bio Ksat (ft/day) — pre-filled from dominant HSG of CDA (user may override)
+        _ksat_formula_bio = (
+            f"=IFERROR(VLOOKUP("
+            f"IFS("
+            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"D\")>0,\"D\","
+            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"C\")>0,\"C\","
+            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"B\")>0,\"B\","
+            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},'CDA'!$A${CDA_D1}:$A${CDA_DL},C{r},'CDA'!$D${CDA_D1}:$D${CDA_DL},\"A\")>0,\"A\","
+            f"TRUE,\"\"),"
+            f"PARAMS_Ksat,2,FALSE),\"\")"
+        )
+        # Style as INP (yellow) so users know they can override with a measured value
         styles.inp(ws, r, 22)
+        ws.cell(row=r, column=22).value = _ksat_formula_bio
 
         # W (23): Bio Sv (CF) = P × (Q×R + S×T + U)
         styles.calc_c(ws, r, 23,
@@ -274,3 +326,10 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         # Status
         styles.calc_c(ws, r, 5,
                       f'=IFERROR(IF(B{r}=0,"—",IF(D{r}>=0,"✓","✗")),"")')
+
+    # ── Zone dividing lines ──
+    # Apply medium right border on the last column of each BMP zone for:
+    #   - header row (3), data rows (4..data_end), and SDA compliance summary rows.
+    sda_sum_last = sum_row + 10   # last compliance summary row
+    _apply_zone_dividers(ws, 3, data_end)
+    _apply_zone_dividers(ws, sum_header_row, sda_sum_last)
