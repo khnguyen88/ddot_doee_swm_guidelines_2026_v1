@@ -163,6 +163,12 @@ def build_params_sheet(wb: Workbook) -> None:
     # ── Named ranges ──
     _add_named_ranges(wb)
 
+    # ── Section separator borders ──
+    # Thick top border above each section header so sections are visually distinct.
+    section_header_rows = (5, 13, 20, 28, 34, 44, 53, 59, 66)
+    for r in section_header_rows:
+        styles.apply_top_divider(ws, r, 1, 7)
+
 
 def _add_named_ranges(wb: Workbook) -> None:
     ranges = {

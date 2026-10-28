@@ -87,3 +87,7 @@ def build_cda_sheet(wb: Workbook, n_rows: int = 50) -> None:
         "CDA_IDs",
         attr_text=f"'CDA'!$A${sum_data_start}:$A${sum_data_end}",
     ))
+
+    # Thick separator above summary block + closure line below data.
+    styles.apply_top_divider(ws, sum_header_row, 1, 9)
+    styles.apply_bottom_divider(ws, sum_data_end, 1, 4)

@@ -352,3 +352,7 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
     sda_sum_last = sum_row + 10   # last compliance summary row
     _apply_zone_dividers(ws, 3, data_end)
     _apply_zone_dividers(ws, sum_header_row, sda_sum_last)
+
+    # Thick top separator above compliance summary + bottom under its data.
+    styles.apply_top_divider(ws, sum_header_row, 1, 39)
+    styles.apply_bottom_divider(ws, sda_sum_last, 1, 5)

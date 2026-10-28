@@ -107,3 +107,56 @@ def cw(ws: Worksheet, c: int, w: float):
 
 def cl(c: int) -> str:
     return get_column_letter(c)
+
+
+# ---------------------------------------------------------------------------
+# Section/zone separators
+# ---------------------------------------------------------------------------
+def medium_side() -> Side:
+    """Medium black border — used for zone/section separators."""
+    return Side(style="medium", color="000000")
+
+
+def apply_right_divider(ws: Worksheet, col: int, row_first: int, row_last: int):
+    """Draw a medium right border on `col` for rows [row_first, row_last].
+
+    Preserves other sides of each cell's existing border.
+    """
+    med = medium_side()
+    for r in range(row_first, row_last + 1):
+        cell = ws.cell(row=r, column=col)
+        prev = cell.border
+        cell.border = Border(
+            left=prev.left,
+            right=med,
+            top=prev.top,
+            bottom=prev.bottom,
+        )
+
+
+def apply_bottom_divider(ws: Worksheet, row: int, col_first: int, col_last: int):
+    """Draw a medium bottom border on `row` for cols [col_first, col_last]."""
+    med = medium_side()
+    for c in range(col_first, col_last + 1):
+        cell = ws.cell(row=row, column=c)
+        prev = cell.border
+        cell.border = Border(
+            left=prev.left,
+            right=prev.right,
+            top=prev.top,
+            bottom=med,
+        )
+
+
+def apply_top_divider(ws: Worksheet, row: int, col_first: int, col_last: int):
+    """Draw a medium top border on `row` for cols [col_first, col_last]."""
+    med = medium_side()
+    for c in range(col_first, col_last + 1):
+        cell = ws.cell(row=row, column=c)
+        prev = cell.border
+        cell.border = Border(
+            left=prev.left,
+            right=prev.right,
+            top=med,
+            bottom=prev.bottom,
+        )

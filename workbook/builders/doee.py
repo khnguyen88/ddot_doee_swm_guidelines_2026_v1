@@ -321,6 +321,13 @@ def build_doee_detention(wb: Workbook) -> None:
         # 15-yr Required?
         styles.calc_c(ws, r, 9, f'=IF(H{r}>G{r},"Yes","No")')
 
+    # Column-group dividers:
+    #   • between CN pair (B, C) and 2-yr storm block (D, E, F) — right border on C
+    #   • between 2-yr block and 15-yr block — right border on F
+    last_row = 4 + 10 - 1   # 13
+    styles.apply_right_divider(ws, 3, 3, last_row)   # right side of col C (Pre/Post CN)
+    styles.apply_right_divider(ws, 6, 3, last_row)   # right side of col F (end of 2-yr block)
+
 
 def build_doee_compliance(wb: Workbook) -> None:
     """Add DOEE_COMPLIANCE — final Pass/Fail summary (one row per SDA + site total).
@@ -380,7 +387,7 @@ def build_doee_compliance(wb: Workbook) -> None:
                       f'=IF(OR(\'DOEE_DETENTION\'!F{sr}="Yes",'
                       f'\'DOEE_DETENTION\'!I{sr}="Yes"),"Yes","No")')
 
-    # Site total row
+    # Site total row — styled as a prominent BH header-bar for closure.
     total_r = 15
     styles.hdr(ws, total_r, 1, "SITE TOTAL", styles.BH)
     styles.calc_c(ws, total_r, 2, "=SUM(B4:B13)")
@@ -389,3 +396,23 @@ def build_doee_compliance(wb: Workbook) -> None:
     ws.cell(row=total_r, column=4).number_format = "0%"
     styles.calc_c(ws, total_r, 5,
                   f'=IF(C{total_r}>=B{total_r},"✓ PASS","✗ FAIL")')
+    # Promote the total-row's B-E cells to bold + BH fill (matching the SITE TOTAL label).
+    for col in range(2, 7):
+        cell = ws.cell(row=total_r, column=col)
+        cell.fill = styles.fill(styles.BH)
+        cell.font = styles.fnt(bold=True, white=True)
+        cell.alignment = styles.ctr()
+    # Thick separator above the total row.
+    styles.apply_top_divider(ws, total_r, 1, 6)
+    # Row banding on data rows 4-13 (alternating light gray for scanability).
+    for i in range(10):
+        if i % 2 == 1:
+            for col in range(1, 7):
+                cell = ws.cell(row=4 + i, column=col)
+                # Only re-fill cells currently using the default CALC bg (preserves label fills)
+                try:
+                    cur = cell.fill.fgColor.rgb or ""
+                except Exception:
+                    cur = ""
+                if str(cur).endswith(styles.CALC) or str(cur).endswith("DEEAF1"):
+                    cell.fill = styles.fill(styles.GRY)

@@ -701,3 +701,23 @@ def build_correct_mep_summary(wb: Workbook) -> None:
     _write_col_headers(ws)
     _write_da_rows(ws)
     _write_total_row(ws)
+    _apply_step_zone_dividers(ws)
+
+
+def _apply_step_zone_dividers(ws) -> None:
+    """Medium right borders at the end-column of each Step block.
+
+    Steps map to columns:
+      Step 1 → B-K   (end col 11)
+      Step 2 → L-P   (end col 16)
+      Step 3 → Q-V   (end col 22)
+      Step 4 → W-AB  (end col 28)
+      Step 5 → AC-AM (end col 39)
+
+    Dividers are drawn on the header rows (7-11), data rows (12-44), and total
+    row (45). Row banding and other styles are preserved — only the right side
+    of the border is modified.
+    """
+    end_cols = (11, 16, 22, 28, 39)
+    for col in end_cols:
+        styles.apply_right_divider(ws, col, 7, TOTAL_ROW)

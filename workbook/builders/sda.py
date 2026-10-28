@@ -139,3 +139,8 @@ def build_sda_sheet(wb: Workbook, n_rows: int = 50) -> None:
         "SDA_IDs",
         attr_text=f"'SDA'!$A${sum_data_start}:$A${sum_data_end}",
     ))
+
+    # Thick separator above summary block — visually distinguishes data from summary.
+    styles.apply_top_divider(ws, summary_header_row, 1, 14)
+    # Thick bottom separator under summary data for closure.
+    styles.apply_bottom_divider(ws, sum_data_end, 1, 10)
