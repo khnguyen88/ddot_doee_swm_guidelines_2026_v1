@@ -1,3 +1,7 @@
 .claude/
 scripts/
+docs/superpowers/
 docs/EISA 438 sample comps.pdf
+__pycache__/
+*.pyc
+.pytest_cache/
