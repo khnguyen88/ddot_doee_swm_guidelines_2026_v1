@@ -69,13 +69,15 @@ function buildDeck(parsed) {
   // Cover is built last because its TOC depends on the labels of everything after.
   const _labelsFor = (pages, base) =>
     pages.map((_, i) => pages.length > 1 ? `${base} (${i+1})` : base);
+  const sdaPreLabels  = _labelsFor(sdaPrePages,  'SDA — Pre-development');
+  const sdaPostLabels = _labelsFor(sdaPostPages, 'SDA — Post-development');
+  const cdaPreLabels  = _labelsFor(cdaPrePages,  'CDA — Pre-development');
+  const cdaPostLabels = _labelsFor(cdaPostPages, 'CDA — Post-development');
+
   const laterLabels = [];
   laterLabels.push('Site DA — Land Cover');
   laterLabels.push('Site SWRv Required');
-  laterLabels.push(..._labelsFor(sdaPrePages,  'SDA — Pre-development'));
-  laterLabels.push(..._labelsFor(sdaPostPages, 'SDA — Post-development'));
-  laterLabels.push(..._labelsFor(cdaPrePages,  'CDA — Pre-development'));
-  laterLabels.push(..._labelsFor(cdaPostPages, 'CDA — Post-development'));
+  laterLabels.push(...sdaPreLabels, ...sdaPostLabels, ...cdaPreLabels, ...cdaPostLabels);
   bmps.forEach(b => laterLabels.push(`${b.name} — ${b.type}`));
   laterLabels.push('MEP Summary');
   laterLabels.push('EISA §438');
@@ -85,10 +87,10 @@ function buildDeck(parsed) {
   push('Cover', renderCoverSheet(project, laterLabels));
   push('Site DA — Land Cover', renderSiteDaSheet(project, agg));
   push('Site SWRv Required',    renderSiteSwrvSheet(project, swrvTrace));
-  sdaPrePages.forEach((html, i)  => push(_labelsFor(sdaPrePages,  'SDA — Pre-development')[i],  html));
-  sdaPostPages.forEach((html, i) => push(_labelsFor(sdaPostPages, 'SDA — Post-development')[i], html));
-  cdaPrePages.forEach((html, i)  => push(_labelsFor(cdaPrePages,  'CDA — Pre-development')[i],  html));
-  cdaPostPages.forEach((html, i) => push(_labelsFor(cdaPostPages, 'CDA — Post-development')[i], html));
+  sdaPrePages.forEach((html, i)  => push(sdaPreLabels[i],  html));
+  sdaPostPages.forEach((html, i) => push(sdaPostLabels[i], html));
+  cdaPrePages.forEach((html, i)  => push(cdaPreLabels[i],  html));
+  cdaPostPages.forEach((html, i) => push(cdaPostLabels[i], html));
   bmpPages.forEach((html, i) => push(`${bmps[i].name} — ${bmps[i].type}`, html));
   push('MEP Summary', renderMepSheet(project, sdas));
   push('EISA §438',   renderEisa438Sheet(project, eisa));

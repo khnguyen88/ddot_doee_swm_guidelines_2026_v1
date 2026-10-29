@@ -199,6 +199,9 @@ test('renderSdaPostSheet: title says Post, shows post values not pre', () => {
   assert.ok(html.includes('Post-development'));
   assert.ok(html.includes('2,800')); // postIn SDA-1
   assert.ok(html.includes('500'));   // postOut SDA-1
+  // Pre-development values must NOT appear in the post sheet.
+  assert.ok(!html.includes('3,200')); // SDA-1 preIn
+  assert.ok(!html.includes('450'));   // SDA-1 preOut
 });
 
 test('renderCdaPreSheet: has CDA, SDA, Land Use columns and pre values', () => {
@@ -207,6 +210,8 @@ test('renderCdaPreSheet: has CDA, SDA, Land Use columns and pre values', () => {
   assert.ok(html.includes('Pre-development'));
   assert.ok(html.includes('2,000')); // preIn CDA-1
   assert.ok(html.includes('300'));   // preOut CDA-1
+  assert.ok(html.includes('Inside LOD'));
+  assert.ok(html.includes('Outside LOD'));
 });
 
 test('renderCdaPostSheet: shows post values', () => {
@@ -222,6 +227,17 @@ test('renderSdaPreSheet: chunks when more than SDA_ROWS_PER_PAGE rows', () => {
     preIn: 100, preOut: 50, postIn: 100, postOut: 50,
   }));
   const pages = renderSdaPreSheet(sampleProject, many);
+  assert.equal(pages.length, 2);
+  assert.ok(pages[0].includes('part 1/2'));
+  assert.ok(pages[1].includes('part 2/2'));
+});
+
+test('renderCdaPreSheet: chunks when more than SDA_ROWS_PER_PAGE rows', () => {
+  const many = Array.from({ length: 35 }, (_, i) => ({
+    cdaId: `CDA-${i+1}`, sdaId: 'SDA-1', landUse: 'Impervious Vehicular',
+    preIn: 100, preOut: 50, postIn: 100, postOut: 50,
+  }));
+  const pages = renderCdaPreSheet(sampleProject, many);
   assert.equal(pages.length, 2);
   assert.ok(pages[0].includes('part 1/2'));
   assert.ok(pages[1].includes('part 2/2'));

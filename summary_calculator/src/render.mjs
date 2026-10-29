@@ -140,7 +140,7 @@ function _chunkPages(rows, title, sub, headers, mapRow, pageTitle, footer) {
   for (let i = 0; i < rows.length; i += SDA_ROWS_PER_PAGE) {
     const chunk = rows.slice(i, i + SDA_ROWS_PER_PAGE);
     const partIdx = Math.floor(i / SDA_ROWS_PER_PAGE) + 1;
-    const label = total > 1 ? `${title}  (part ${partIdx}/${total})` : title;
+    const label = total > 1 ? `${title} (part ${partIdx}/${total})` : title;
     const body = renderBlock(label, renderDataTable(headers, chunk.map(mapRow)));
     pages.push(renderSheetShell({ title: pageTitle, sub, body, footer }));
   }
