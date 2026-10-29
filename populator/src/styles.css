@@ -1,0 +1,29 @@
+:root {
+  --bg: #0B1220;
+  --panel: #121B2B;
+  --panel-alt: #16202F;
+  --border: #26374D;
+  --text: #E7EEF6;
+  --muted: #8FA3BF;
+  --accent: #38C6B4;
+  --accent-soft: rgba(56, 198, 180, 0.12);
+  --fail: #E5484D;
+  --warn: #E5B94D;
+  --pass: #3DD68C;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "Roboto Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); font-size: 14px; line-height: 1.45;
+}
+
+.app { max-width: 800px; margin: 40px auto; padding: 24px; }
+.title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+.sub   { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; margin-bottom: 24px; }
+.empty-state { color: var(--muted); font-size: 15px; text-align: center; margin-top: 15vh; }
+.dropzone { margin-top: 20px; padding: 40px; border: 2px dashed var(--border); border-radius: 8px; cursor: pointer; }
+.dropzone:hover { border-color: var(--accent); }
