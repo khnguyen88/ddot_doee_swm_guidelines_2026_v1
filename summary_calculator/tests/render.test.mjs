@@ -151,3 +151,40 @@ test('renderEisa438Sheet: pre vs post comparison', () => {
   assert.ok(html.includes('1,500'));
   assert.ok(html.includes('95th percentile'));
 });
+
+import { renderDetentionSheet, renderCompliancePage } from '../src/render.mjs';
+
+test('renderDetentionSheet: empty state when no SDA triggers', () => {
+  const html = renderDetentionSheet(sampleProject, { perSda: [], anyRequired: false }, 3.14, 5.23);
+  assert.ok(html.includes('No detention required'));
+  assert.ok(html.includes('3.14'));
+  assert.ok(html.includes('5.23'));
+});
+
+test('renderDetentionSheet: shows only triggered SDAs, applies landscape', () => {
+  const summary = {
+    anyRequired: true,
+    perSda: [
+      { sdaId: 'SDA-1', preCn: 70, postCn: 95, p2PreQ: 0.5, p2PostQ: 2.5, p2Required: true,
+        p15PreQ: 1.5, p15PostQ: 4.1, p15Required: true },
+      { sdaId: 'SDA-2', preCn: 70, postCn: 70, p2PreQ: 0.5, p2PostQ: 0.5, p2Required: false,
+        p15PreQ: 1.5, p15PostQ: 1.5, p15Required: false },
+    ],
+  };
+  const html = renderDetentionSheet(sampleProject, summary, 3.14, 5.23);
+  assert.ok(html.includes('landscape'));
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(!html.includes('SDA-2'));   // filtered out
+});
+
+test('renderCompliancePage: PASS when Rv_provided ≥ SWRv_req per SDA', () => {
+  const rows = [
+    { sdaId: 'SDA-1', swrvReqCf: 500, rvProvidedCf: 600 },
+    { sdaId: 'SDA-2', swrvReqCf: 300, rvProvidedCf: 250 },
+  ];
+  const html = renderCompliancePage(sampleProject, rows);
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('SDA-2'));
+  assert.ok(html.includes('PASS'));
+  assert.ok(html.includes('FAIL'));
+});
