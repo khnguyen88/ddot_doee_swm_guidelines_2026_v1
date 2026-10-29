@@ -37,14 +37,21 @@ test('parse: SDA rows', () => {
   assert.equal(first.postIn, 6910);
 });
 
-test('parse: CDA rows', () => {
+test('parse: CDA rows have pre/post land-cover fields', () => {
   const { cdas } = parseWorkbook(wb);
   assert.ok(cdas.length >= 1);
-  for (const cda of cdas) {
-    assert.ok(cda.cdaId, 'cdaId required');
-    assert.ok(cda.sdaId, 'sdaId required');
-    assert.ok(typeof cda.withinLodSf === 'number');
-  }
+  const first = cdas[0];
+  assert.ok(first.cdaId, 'cdaId required');
+  assert.ok(first.sdaId, 'sdaId required');
+  assert.equal(typeof first.hsg, 'string');
+  assert.equal(typeof first.preIn,  'number');
+  assert.equal(typeof first.preOut, 'number');
+  assert.equal(typeof first.postIn, 'number');
+  assert.equal(typeof first.postOut,'number');
+  // Sample populates only Post Within — Pre columns are 0.
+  assert.equal(first.preIn,  0);
+  assert.equal(first.preOut, 0);
+  assert.ok(first.postIn > 0, 'sample CDA Post Within LOD must be populated');
 });
 
 test('parse: BMP rows (bio + pp + trees)', () => {
