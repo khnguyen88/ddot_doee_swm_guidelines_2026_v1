@@ -46,7 +46,7 @@ export function renderTrace(trace) {
     lines.push(`<div class="cs-formula-line">${esc(s.expr)}</div>`);
     if (s.sub)  lines.push(`<div class="cs-formula-line">= ${esc(s.sub)}</div>`);
     if (s.eval && s.eval !== s.sub) lines.push(`<div class="cs-formula-line">= ${esc(s.eval)}</div>`);
-    lines.push(`<div class="cs-formula-line"><b>= ${fmtN(s.result, 2)} ${trace.units}</b></div>`);
+    lines.push(`<div class="cs-formula-line"><b>= ${fmtN(s.result, 0)} ${trace.units}</b></div>`);
     return lines.join('');
   }).join('');
   return `<div class="cs-formula-block">${steps}</div>`;
