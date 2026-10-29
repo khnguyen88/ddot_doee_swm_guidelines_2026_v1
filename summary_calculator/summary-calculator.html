@@ -925,44 +925,63 @@ function renderSiteSwrvSheet(project, trace) {
 }
 
 const SDA_ROWS_PER_PAGE = 30;
-function renderSdaCdaSummary(project, sdas, cdas) {
+
+function _chunkPages(rows, title, sub, headers, mapRow, pageTitle, footer) {
+  if (!rows.length) return [];
   const pages = [];
-  const sdaHeaders = ['SDA', 'In PROW', 'Land Use', 'HSG', 'Pre In (sf)', 'Post In (sf)'];
-
-  // Chunk SDA rows.
-  for (let i = 0; i < sdas.length; i += SDA_ROWS_PER_PAGE) {
-    const chunk = sdas.slice(i, i + SDA_ROWS_PER_PAGE);
-    const rows = chunk.map(r => [
-      r.sdaId, r.inProw ?? '', r.landUse, r.hsg,
-      fmtN(r.preIn), fmtN(r.postIn),
-    ]);
+  const total = Math.ceil(rows.length / SDA_ROWS_PER_PAGE);
+  for (let i = 0; i < rows.length; i += SDA_ROWS_PER_PAGE) {
+    const chunk = rows.slice(i, i + SDA_ROWS_PER_PAGE);
     const partIdx = Math.floor(i / SDA_ROWS_PER_PAGE) + 1;
-    const totalParts = Math.ceil(sdas.length / SDA_ROWS_PER_PAGE);
-    const body = renderBlock(
-      `SDA LAND COVER${totalParts > 1 ? `  (part ${partIdx}/${totalParts})` : ''}`,
-      renderDataTable(sdaHeaders, rows),
-    );
-    pages.push(renderSheetShell({
-      title: 'SDA / CDA Summary',
-      sub:   project.name || '',
-      body,
-      footer: '21 DCMR §599 · SWRv is calculated per SDA.',
-    }));
-  }
-
-  // CDAs on their own trailing page(s).
-  if (cdas.length) {
-    const cdaHeadersFull = ['CDA', 'SDA', 'Land Use', 'Pre Within LOD (SF)', 'Post Within LOD (SF)'];
-    const cdaRows = cdas.map(c => [c.cdaId, c.sdaId, c.landUse, fmtN(c.preIn), fmtN(c.postIn)]);
-    const body = renderBlock('CDA — CONTRIBUTING DRAINAGE AREAS', renderDataTable(cdaHeadersFull, cdaRows));
-    pages.push(renderSheetShell({
-      title: 'CDA Summary',
-      sub:   project.name || '',
-      body,
-      footer: 'Max BMP credit = CDA area × 1.7″ / 12',
-    }));
+    const label = total > 1 ? `${title}  (part ${partIdx}/${total})` : title;
+    const body = renderBlock(label, renderDataTable(headers, chunk.map(mapRow)));
+    pages.push(renderSheetShell({ title: pageTitle, sub, body, footer }));
   }
   return pages;
+}
+function renderSdaPreSheet(project, sdas) {
+  return _chunkPages(
+    sdas,
+    'SDA LAND COVER — PRE-DEVELOPMENT',
+    project.name || '',
+    ['SDA', 'In PROW', 'Land Use', 'HSG', 'Inside LOD (sf)', 'Outside LOD (sf)'],
+    (r) => [r.sdaId, r.inProw ?? '', r.landUse, r.hsg, fmtN(r.preIn), fmtN(r.preOut)],
+    'SDA — Pre-development',
+    '21 DCMR §599 · SWRv is calculated per SDA.',
+  );
+}
+function renderSdaPostSheet(project, sdas) {
+  return _chunkPages(
+    sdas,
+    'SDA LAND COVER — POST-DEVELOPMENT',
+    project.name || '',
+    ['SDA', 'In PROW', 'Land Use', 'HSG', 'Inside LOD (sf)', 'Outside LOD (sf)'],
+    (r) => [r.sdaId, r.inProw ?? '', r.landUse, r.hsg, fmtN(r.postIn), fmtN(r.postOut)],
+    'SDA — Post-development',
+    '21 DCMR §599 · SWRv is calculated per SDA.',
+  );
+}
+function renderCdaPreSheet(project, cdas) {
+  return _chunkPages(
+    cdas,
+    'CDA — CONTRIBUTING DRAINAGE AREAS — PRE-DEVELOPMENT',
+    project.name || '',
+    ['CDA', 'SDA', 'Land Use', 'Inside LOD (sf)', 'Outside LOD (sf)'],
+    (c) => [c.cdaId, c.sdaId, c.landUse, fmtN(c.preIn), fmtN(c.preOut)],
+    'CDA — Pre-development',
+    'Max BMP credit = CDA area × 1.7″ / 12',
+  );
+}
+function renderCdaPostSheet(project, cdas) {
+  return _chunkPages(
+    cdas,
+    'CDA — CONTRIBUTING DRAINAGE AREAS — POST-DEVELOPMENT',
+    project.name || '',
+    ['CDA', 'SDA', 'Land Use', 'Inside LOD (sf)', 'Outside LOD (sf)'],
+    (c) => [c.cdaId, c.sdaId, c.landUse, fmtN(c.postIn), fmtN(c.postOut)],
+    'CDA — Post-development',
+    'Max BMP credit = CDA area × 1.7″ / 12',
+  );
 }
 
 const PP_FOOTER  = 'DOEE Guidebook §3.5 · Permeable Pavement';
@@ -1268,17 +1287,25 @@ function buildDeck(parsed) {
   }));
 
   // Assemble deck in TOC order.
-  const sdaCdaPages = renderSdaCdaSummary(project, sdas, cdas);
+  const sdaPrePages  = renderSdaPreSheet(project, sdas);
+  const sdaPostPages = renderSdaPostSheet(project, sdas);
+  const cdaPrePages  = renderCdaPreSheet(project, cdas);
+  const cdaPostPages = renderCdaPostSheet(project, cdas);
   const bmpPages    = renderBmpSheets(project, bmps, cdas, params);
 
   const deck = [];
   const push = (label, html) => deck.push({ label, html });
 
   // Cover is built last because its TOC depends on the labels of everything after.
+  const _labelsFor = (pages, base) =>
+    pages.map((_, i) => pages.length > 1 ? `${base} (${i+1})` : base);
   const laterLabels = [];
   laterLabels.push('Site DA — Land Cover');
   laterLabels.push('Site SWRv Required');
-  sdaCdaPages.forEach((_, i) => laterLabels.push(`SDA/CDA Summary${sdaCdaPages.length > 1 ? ' (' + (i+1) + ')' : ''}`));
+  laterLabels.push(..._labelsFor(sdaPrePages,  'SDA — Pre-development'));
+  laterLabels.push(..._labelsFor(sdaPostPages, 'SDA — Post-development'));
+  laterLabels.push(..._labelsFor(cdaPrePages,  'CDA — Pre-development'));
+  laterLabels.push(..._labelsFor(cdaPostPages, 'CDA — Post-development'));
   bmps.forEach(b => laterLabels.push(`${b.name} — ${b.type}`));
   laterLabels.push('MEP Summary');
   laterLabels.push('EISA §438');
@@ -1288,7 +1315,10 @@ function buildDeck(parsed) {
   push('Cover', renderCoverSheet(project, laterLabels));
   push('Site DA — Land Cover', renderSiteDaSheet(project, agg));
   push('Site SWRv Required',    renderSiteSwrvSheet(project, swrvTrace));
-  sdaCdaPages.forEach((html, i) => push(laterLabels[2 + i], html));
+  sdaPrePages.forEach((html, i)  => push(_labelsFor(sdaPrePages,  'SDA — Pre-development')[i],  html));
+  sdaPostPages.forEach((html, i) => push(_labelsFor(sdaPostPages, 'SDA — Post-development')[i], html));
+  cdaPrePages.forEach((html, i)  => push(_labelsFor(cdaPrePages,  'CDA — Pre-development')[i],  html));
+  cdaPostPages.forEach((html, i) => push(_labelsFor(cdaPostPages, 'CDA — Post-development')[i], html));
   bmpPages.forEach((html, i) => push(`${bmps[i].name} — ${bmps[i].type}`, html));
   push('MEP Summary', renderMepSheet(project, sdas));
   push('EISA §438',   renderEisa438Sheet(project, eisa));

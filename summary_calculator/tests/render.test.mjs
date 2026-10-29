@@ -86,28 +86,7 @@ test('renderSiteSwrvSheet: shows formula with substituted values', () => {
   assert.ok(html.includes('informational'));  // the per-SDA compliance note
 });
 
-import { renderSdaCdaSummary, renderBmpSheets } from '../src/render.mjs';
-
-test('renderSdaCdaSummary: one SDA page + one CDA page when both are small', () => {
-  const sdas = Array.from({ length: 5 }, (_, i) => ({
-    sdaId: `SDA-${i+1}`, landUse: 'Impervious Vehicular', hsg: 'D',
-    preIn: 100, postIn: 100,
-  }));
-  const cdas = [{ cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Impervious Vehicular', postIn: 100 }];
-  const pages = renderSdaCdaSummary(sampleProject, sdas, cdas);
-  assert.equal(pages.length, 2);
-  assert.ok(pages[0].includes('SDA-1'));
-  assert.ok(pages[1].includes('CDA-1'));
-});
-
-test('renderSdaCdaSummary: paginates when > 30 rows', () => {
-  const sdas = Array.from({ length: 65 }, (_, i) => ({
-    sdaId: `SDA-${i+1}`, landUse: 'Impervious Vehicular', hsg: 'D',
-    preIn: 100, postIn: 100,
-  }));
-  const pages = renderSdaCdaSummary(sampleProject, sdas, []);
-  assert.ok(pages.length >= 3, `expected ≥3 pages, got ${pages.length}`);
-});
+import { renderBmpSheets } from '../src/render.mjs';
 
 test('renderBmpSheets: one page per BMP with 3-step math', () => {
   const bmps = [{
@@ -189,23 +168,65 @@ test('renderCompliancePage: PASS when Rv_provided ≥ SWRv_req per SDA', () => {
   assert.ok(html.includes('FAIL'));
 });
 
-test('renderSdaCdaSummary: CDA block shows Pre and Post Within LOD columns', () => {
-  const sampleProject = { name: 'Test', number: 'T-1', rainfallIn: 1.2, trigger: 'MLD' };
-  const sdas = [{
-    sdaId: 'SDA-1', landUse: 'Impervious Vehicular', hsg: 'B',
-    preIn: 100, preOut: 0, postIn: 100, postOut: 0,
-  }];
-  const cdas = [{
-    cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Impervious Vehicular', hsg: 'B',
-    preIn: 50, preOut: 0, postIn: 150, postOut: 0,
-  }];
-  const pages = renderSdaCdaSummary(sampleProject, sdas, cdas);
-  // Expect the CDA page to include both headers.
-  const cdaPage = pages.find(p => p.includes('CDA-1'));
-  assert.ok(cdaPage, 'CDA page present');
-  assert.ok(cdaPage.includes('Pre Within LOD'),  'Pre column header present');
-  assert.ok(cdaPage.includes('Post Within LOD'), 'Post column header present');
-  // And the data cells for both.
-  assert.ok(cdaPage.includes('>50<'),  'Pre value rendered');
-  assert.ok(cdaPage.includes('>150<'), 'Post value rendered');
+import {
+  renderSdaPreSheet, renderSdaPostSheet,
+  renderCdaPreSheet, renderCdaPostSheet,
+} from '../src/render.mjs';
+
+const sampleSdas = [
+  { sdaId: 'SDA-1', inProw: 'Yes', landUse: 'Impervious Vehicular', hsg: 'D',
+    preIn: 3200, preOut: 450, postIn: 2800, postOut: 500 },
+  { sdaId: 'SDA-2', inProw: 'No', landUse: 'Natural (Woods)', hsg: 'C',
+    preIn: 800, preOut: 1100, postIn: 0, postOut: 1100 },
+];
+const sampleCdas = [
+  { cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Impervious Vehicular',
+    preIn: 2000, preOut: 300, postIn: 1600, postOut: 400 },
+];
+
+test('renderSdaPreSheet: title says Pre, columns show Inside/Outside LOD', () => {
+  const [html] = renderSdaPreSheet(sampleProject, sampleSdas);
+  assert.ok(html.includes('Pre-development'));
+  assert.ok(html.includes('Inside LOD'));
+  assert.ok(html.includes('Outside LOD'));
+  assert.ok(html.includes('3,200')); // preIn SDA-1
+  assert.ok(html.includes('450'));   // preOut SDA-1
+  assert.ok(!html.includes('Pre In')); // old header must be gone
+});
+
+test('renderSdaPostSheet: title says Post, shows post values not pre', () => {
+  const [html] = renderSdaPostSheet(sampleProject, sampleSdas);
+  assert.ok(html.includes('Post-development'));
+  assert.ok(html.includes('2,800')); // postIn SDA-1
+  assert.ok(html.includes('500'));   // postOut SDA-1
+});
+
+test('renderCdaPreSheet: has CDA, SDA, Land Use columns and pre values', () => {
+  const [html] = renderCdaPreSheet(sampleProject, sampleCdas);
+  assert.ok(html.includes('CDA'));
+  assert.ok(html.includes('Pre-development'));
+  assert.ok(html.includes('2,000')); // preIn CDA-1
+  assert.ok(html.includes('300'));   // preOut CDA-1
+});
+
+test('renderCdaPostSheet: shows post values', () => {
+  const [html] = renderCdaPostSheet(sampleProject, sampleCdas);
+  assert.ok(html.includes('Post-development'));
+  assert.ok(html.includes('1,600')); // postIn CDA-1
+  assert.ok(html.includes('400'));   // postOut CDA-1
+});
+
+test('renderSdaPreSheet: chunks when more than SDA_ROWS_PER_PAGE rows', () => {
+  const many = Array.from({ length: 35 }, (_, i) => ({
+    sdaId: `SDA-${i+1}`, inProw: 'No', landUse: 'Natural (Woods)', hsg: 'C',
+    preIn: 100, preOut: 50, postIn: 100, postOut: 50,
+  }));
+  const pages = renderSdaPreSheet(sampleProject, many);
+  assert.equal(pages.length, 2);
+  assert.ok(pages[0].includes('part 1/2'));
+  assert.ok(pages[1].includes('part 2/2'));
+});
+
+test('renderCdaPreSheet: returns [] when no CDAs', () => {
+  assert.deepEqual(renderCdaPreSheet(sampleProject, []), []);
 });

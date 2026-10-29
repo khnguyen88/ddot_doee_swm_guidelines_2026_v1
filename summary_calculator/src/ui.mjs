@@ -8,7 +8,8 @@ import {
 import { rvProvidedPerSda } from './aggregate.mjs';
 import {
   renderCoverSheet, renderSiteDaSheet, renderSiteSwrvSheet,
-  renderSdaCdaSummary, renderBmpSheets,
+  renderSdaPreSheet, renderSdaPostSheet, renderCdaPreSheet, renderCdaPostSheet,
+  renderBmpSheets,
   renderMepSheet, renderEisa438Sheet,
   renderDetentionSheet, renderCompliancePage,
 } from './render.mjs';
@@ -56,17 +57,25 @@ function buildDeck(parsed) {
   }));
 
   // Assemble deck in TOC order.
-  const sdaCdaPages = renderSdaCdaSummary(project, sdas, cdas);
+  const sdaPrePages  = renderSdaPreSheet(project, sdas);
+  const sdaPostPages = renderSdaPostSheet(project, sdas);
+  const cdaPrePages  = renderCdaPreSheet(project, cdas);
+  const cdaPostPages = renderCdaPostSheet(project, cdas);
   const bmpPages    = renderBmpSheets(project, bmps, cdas, params);
 
   const deck = [];
   const push = (label, html) => deck.push({ label, html });
 
   // Cover is built last because its TOC depends on the labels of everything after.
+  const _labelsFor = (pages, base) =>
+    pages.map((_, i) => pages.length > 1 ? `${base} (${i+1})` : base);
   const laterLabels = [];
   laterLabels.push('Site DA — Land Cover');
   laterLabels.push('Site SWRv Required');
-  sdaCdaPages.forEach((_, i) => laterLabels.push(`SDA/CDA Summary${sdaCdaPages.length > 1 ? ' (' + (i+1) + ')' : ''}`));
+  laterLabels.push(..._labelsFor(sdaPrePages,  'SDA — Pre-development'));
+  laterLabels.push(..._labelsFor(sdaPostPages, 'SDA — Post-development'));
+  laterLabels.push(..._labelsFor(cdaPrePages,  'CDA — Pre-development'));
+  laterLabels.push(..._labelsFor(cdaPostPages, 'CDA — Post-development'));
   bmps.forEach(b => laterLabels.push(`${b.name} — ${b.type}`));
   laterLabels.push('MEP Summary');
   laterLabels.push('EISA §438');
@@ -76,7 +85,10 @@ function buildDeck(parsed) {
   push('Cover', renderCoverSheet(project, laterLabels));
   push('Site DA — Land Cover', renderSiteDaSheet(project, agg));
   push('Site SWRv Required',    renderSiteSwrvSheet(project, swrvTrace));
-  sdaCdaPages.forEach((html, i) => push(laterLabels[2 + i], html));
+  sdaPrePages.forEach((html, i)  => push(_labelsFor(sdaPrePages,  'SDA — Pre-development')[i],  html));
+  sdaPostPages.forEach((html, i) => push(_labelsFor(sdaPostPages, 'SDA — Post-development')[i], html));
+  cdaPrePages.forEach((html, i)  => push(_labelsFor(cdaPrePages,  'CDA — Pre-development')[i],  html));
+  cdaPostPages.forEach((html, i) => push(_labelsFor(cdaPostPages, 'CDA — Post-development')[i], html));
   bmpPages.forEach((html, i) => push(`${bmps[i].name} — ${bmps[i].type}`, html));
   push('MEP Summary', renderMepSheet(project, sdas));
   push('EISA §438',   renderEisa438Sheet(project, eisa));

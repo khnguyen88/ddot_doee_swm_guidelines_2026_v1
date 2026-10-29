@@ -133,44 +133,66 @@ export function renderSiteSwrvSheet(project, trace) {
 
 const SDA_ROWS_PER_PAGE = 30;
 
-export function renderSdaCdaSummary(project, sdas, cdas) {
+function _chunkPages(rows, title, sub, headers, mapRow, pageTitle, footer) {
+  if (!rows.length) return [];
   const pages = [];
-  const sdaHeaders = ['SDA', 'In PROW', 'Land Use', 'HSG', 'Pre In (sf)', 'Post In (sf)'];
-
-  // Chunk SDA rows.
-  for (let i = 0; i < sdas.length; i += SDA_ROWS_PER_PAGE) {
-    const chunk = sdas.slice(i, i + SDA_ROWS_PER_PAGE);
-    const rows = chunk.map(r => [
-      r.sdaId, r.inProw ?? '', r.landUse, r.hsg,
-      fmtN(r.preIn), fmtN(r.postIn),
-    ]);
+  const total = Math.ceil(rows.length / SDA_ROWS_PER_PAGE);
+  for (let i = 0; i < rows.length; i += SDA_ROWS_PER_PAGE) {
+    const chunk = rows.slice(i, i + SDA_ROWS_PER_PAGE);
     const partIdx = Math.floor(i / SDA_ROWS_PER_PAGE) + 1;
-    const totalParts = Math.ceil(sdas.length / SDA_ROWS_PER_PAGE);
-    const body = renderBlock(
-      `SDA LAND COVER${totalParts > 1 ? `  (part ${partIdx}/${totalParts})` : ''}`,
-      renderDataTable(sdaHeaders, rows),
-    );
-    pages.push(renderSheetShell({
-      title: 'SDA / CDA Summary',
-      sub:   project.name || '',
-      body,
-      footer: '21 DCMR §599 · SWRv is calculated per SDA.',
-    }));
-  }
-
-  // CDAs on their own trailing page(s).
-  if (cdas.length) {
-    const cdaHeadersFull = ['CDA', 'SDA', 'Land Use', 'Pre Within LOD (SF)', 'Post Within LOD (SF)'];
-    const cdaRows = cdas.map(c => [c.cdaId, c.sdaId, c.landUse, fmtN(c.preIn), fmtN(c.postIn)]);
-    const body = renderBlock('CDA — CONTRIBUTING DRAINAGE AREAS', renderDataTable(cdaHeadersFull, cdaRows));
-    pages.push(renderSheetShell({
-      title: 'CDA Summary',
-      sub:   project.name || '',
-      body,
-      footer: 'Max BMP credit = CDA area × 1.7″ / 12',
-    }));
+    const label = total > 1 ? `${title}  (part ${partIdx}/${total})` : title;
+    const body = renderBlock(label, renderDataTable(headers, chunk.map(mapRow)));
+    pages.push(renderSheetShell({ title: pageTitle, sub, body, footer }));
   }
   return pages;
+}
+
+export function renderSdaPreSheet(project, sdas) {
+  return _chunkPages(
+    sdas,
+    'SDA LAND COVER — PRE-DEVELOPMENT',
+    project.name || '',
+    ['SDA', 'In PROW', 'Land Use', 'HSG', 'Inside LOD (sf)', 'Outside LOD (sf)'],
+    (r) => [r.sdaId, r.inProw ?? '', r.landUse, r.hsg, fmtN(r.preIn), fmtN(r.preOut)],
+    'SDA — Pre-development',
+    '21 DCMR §599 · SWRv is calculated per SDA.',
+  );
+}
+
+export function renderSdaPostSheet(project, sdas) {
+  return _chunkPages(
+    sdas,
+    'SDA LAND COVER — POST-DEVELOPMENT',
+    project.name || '',
+    ['SDA', 'In PROW', 'Land Use', 'HSG', 'Inside LOD (sf)', 'Outside LOD (sf)'],
+    (r) => [r.sdaId, r.inProw ?? '', r.landUse, r.hsg, fmtN(r.postIn), fmtN(r.postOut)],
+    'SDA — Post-development',
+    '21 DCMR §599 · SWRv is calculated per SDA.',
+  );
+}
+
+export function renderCdaPreSheet(project, cdas) {
+  return _chunkPages(
+    cdas,
+    'CDA — CONTRIBUTING DRAINAGE AREAS — PRE-DEVELOPMENT',
+    project.name || '',
+    ['CDA', 'SDA', 'Land Use', 'Inside LOD (sf)', 'Outside LOD (sf)'],
+    (c) => [c.cdaId, c.sdaId, c.landUse, fmtN(c.preIn), fmtN(c.preOut)],
+    'CDA — Pre-development',
+    'Max BMP credit = CDA area × 1.7″ / 12',
+  );
+}
+
+export function renderCdaPostSheet(project, cdas) {
+  return _chunkPages(
+    cdas,
+    'CDA — CONTRIBUTING DRAINAGE AREAS — POST-DEVELOPMENT',
+    project.name || '',
+    ['CDA', 'SDA', 'Land Use', 'Inside LOD (sf)', 'Outside LOD (sf)'],
+    (c) => [c.cdaId, c.sdaId, c.landUse, fmtN(c.postIn), fmtN(c.postOut)],
+    'CDA — Post-development',
+    'Max BMP credit = CDA area × 1.7″ / 12',
+  );
 }
 
 const PP_FOOTER  = 'DOEE Guidebook §3.5 · Permeable Pavement';
