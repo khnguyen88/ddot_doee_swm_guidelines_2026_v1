@@ -20,7 +20,9 @@
 
 | File | Change |
 |---|---|
-| `workbook/builders/cda.py` | Full rewrite — 13-column layout, four SWRv output columns, updated summary SUMIFS |
+| `workbook/builders/cda.py` | Full rewrite — 13-column data layout + 6-column summary (adds Pre Total + Area Match? cols) |
+| `workbook/builders/sda.py` | Append 3 cols to summary block: Pre Total Within, Post Total Within, Area Match? |
+| `workbook/builders/project.py` | Set `PROJECT!B9` (rainfall) number_format to `"0.0"` |
 | `workbook/builders/bmp.py` | `_cda_dominant_hsg_formula`: SUMIFS source col `$E` → `$G` |
 | `workbook/builders/doee.py` | `DOEE_BMP_DATA` five SUMIFS: `'CDA'!$E` → `'CDA'!$G`; add `build_doee_detention_bmp` + user note on both detention sheets |
 | `workbook/__main__.py` | Wire `doee.build_doee_detention_bmp(wb)` after `doee.build_doee_detention(wb)` |
@@ -142,6 +144,16 @@ def test_summary_pulls_post_within_lod(wb):
 def test_cda_ids_named_range_unchanged(wb):
     assert "CDA_IDs" in wb.defined_names
     assert "$A$58:$A$67" in wb.defined_names["CDA_IDs"].value
+
+
+def test_cda_summary_area_match_columns(wb):
+    """Summary block cols E-F = Pre Total Within + Area Match? validation."""
+    ws = wb["CDA"]
+    assert ws.cell(row=56, column=5).value == "Pre Total Within LOD (SF)"
+    assert ws.cell(row=56, column=6).value == "Area Match?"
+    # Row 58 (CDA-1 summary row).
+    assert ws.cell(row=58, column=5).value == "=SUMIFS($E$4:$E$53,$A$4:$A$53,A58)"
+    assert ws.cell(row=58, column=6).value == '=IF(ABS(E58-C58)<=1,"OK","⚠ MISMATCH")'
 ```
 
 - [ ] **Step 2: Run test to verify failure**
@@ -240,6 +252,8 @@ def build_cda_sheet(wb: Workbook, n_rows: int = 50) -> None:
         "CDA_ID", "SDA_ID",
         "Total CDA Within LOD (SF) (post)",
         "Max BMP Credit (CF)",
+        "Pre Total Within LOD (SF)",
+        "Area Match?",
     ]
     sum_row = sum_header_row + 1
     for i, h in enumerate(sum_hdrs, 1):
@@ -254,11 +268,18 @@ def build_cda_sheet(wb: Workbook, n_rows: int = 50) -> None:
         styles.calc_c(ws, r, 2,
                       f'=IFERROR(INDEX($B${data_start}:$B${data_end},'
                       f'MATCH(A{r},$A${data_start}:$A${data_end},0)),"")')
-        # Post Within LOD aggregate — SUMIFS on col G (not E).
+        # Col C: Post Within LOD aggregate — SUMIFS on col G (not E).
         styles.calc_c(ws, r, 3,
                       f'=SUMIFS($G${data_start}:$G${data_end},'
                       f'$A${data_start}:$A${data_end},A{r})')
+        # Col D: Max BMP Credit.
         styles.calc_c(ws, r, 4, f"=C{r}*1.7/12")
+        # Col E: Pre Within LOD aggregate — SUMIFS on col E.
+        styles.calc_c(ws, r, 5,
+                      f'=SUMIFS($E${data_start}:$E${data_end},'
+                      f'$A${data_start}:$A${data_end},A{r})')
+        # Col F: Area match — pre vs post Within LOD, ±1 SF tolerance.
+        styles.calc_c(ws, r, 6, f'=IF(ABS(E{r}-C{r})<=1,"OK","⚠ MISMATCH")')
 
     wb.defined_names.add(DefinedName(
         "CDA_IDs",
@@ -266,7 +287,7 @@ def build_cda_sheet(wb: Workbook, n_rows: int = 50) -> None:
     ))
 
     styles.apply_top_divider(ws, sum_header_row, 1, 13)
-    styles.apply_bottom_divider(ws, sum_data_end, 1, 4)
+    styles.apply_bottom_divider(ws, sum_data_end, 1, 6)
 ```
 
 - [ ] **Step 4: Run test to verify pass**
@@ -281,12 +302,137 @@ Expected: all 7 tests PASS.
 
 ```
 git add workbook/builders/cda.py tests/test_cda.py
-git commit -m "workbook: expand CDA sheet to pre/post land-cover columns"
+git commit -m "workbook: expand CDA sheet to pre/post land-cover columns + area-match validation"
 ```
 
 ---
 
-## Task 02: Repoint `bmp.py` + `doee.py` + `correct_mep_summary.py` to new CDA columns
+## Task 02: SDA summary Area-Match validation + rainfall format
+
+**Files:**
+- Modify: `workbook/builders/sda.py` (append 3 cols to `sum_headers` + 3 formulas in the summary loop)
+- Modify: `workbook/builders/project.py` (set `PROJECT!B9` number_format to `"0.0"`)
+- Modify: `tests/test_sda.py` (assert new summary cols)
+- Modify: `tests/test_project.py` (assert rainfall format)
+
+**Context:** Pre vs Post land cover should sum to the same physical catchment area for every SDA/CDA. New cols K–M on the SDA summary + cols E–F on the CDA summary (Task 01) make mismatches visible as `⚠ MISMATCH`. Separately, the rainfall input cell gets a one-decimal display format so `1.7` renders cleanly in Excel.
+
+- [ ] **Step 1: Add failing test to `tests/test_sda.py`**
+
+Append to `tests/test_sda.py`:
+
+```python
+def test_sda_summary_area_match_columns(wb):
+    """SDA summary cols K-M = Pre Total Within + Post Total Within + Area Match?."""
+    ws = wb["SDA"]
+    # SDA summary header row is at summary_header_row = data_end + 3 = 56 for n_rows=50.
+    # Column K (11) = Pre Total, L (12) = Post Total, M (13) = Match.
+    assert ws.cell(row=57, column=11).value == "Pre Total Within (SF)"
+    assert ws.cell(row=57, column=12).value == "Post Total Within (SF)"
+    assert ws.cell(row=57, column=13).value == "Area Match?"
+    # First summary data row (SDA-1 lives at row 58 when summary data starts at 58).
+    r = 58
+    assert ws.cell(row=r, column=11).value == f"=B{r}+C{r}+D{r}+E{r}"
+    assert ws.cell(row=r, column=12).value == f"=F{r}+G{r}+H{r}+I{r}"
+    assert ws.cell(row=r, column=13).value == f'=IF(ABS(K{r}-L{r})<=1,"OK","⚠ MISMATCH")'
+```
+
+(If `tests/test_sda.py` doesn't define its own `wb` fixture, mirror the pattern used in `tests/test_cda.py` — build params + project + sda. Open the file first to confirm.)
+
+- [ ] **Step 2: Add failing test to `tests/test_project.py`**
+
+Append to `tests/test_project.py`:
+
+```python
+def test_rainfall_cell_number_format_one_decimal(wb):
+    """PROJECT!B9 (rainfall input) must display with one decimal (e.g. '1.7')."""
+    ws = wb["PROJECT"]
+    assert ws.cell(row=9, column=2).number_format == "0.0"
+```
+
+(Again, mirror the existing fixture pattern in `test_project.py`.)
+
+- [ ] **Step 3: Run tests to verify failure**
+
+```
+pytest tests/test_sda.py tests/test_project.py -v
+```
+
+Expected: 2 FAILs (new cols don't exist; format is still `General`).
+
+- [ ] **Step 4: Edit `workbook/builders/sda.py`**
+
+Locate the `sum_headers` list (around line 81) and the summary-loop body (around lines 90–135). Extend `sum_headers`:
+
+```python
+    sum_headers = [
+        "SDA_ID",
+        "Pre Imp Total (SF)", "Pre Comp Total (SF)",
+        "Pre Nat Total (SF)", "Pre BMP Total (SF)",
+        "Post Imp Total (SF)", "Post Comp Total (SF)",
+        "Post Nat Total (SF)", "Post BMP Total (SF)",
+        "Post SWRv Required (CF)",
+        "Pre Total Within (SF)",
+        "Post Total Within (SF)",
+        "Area Match?",
+    ]
+```
+
+At the end of the per-SDA loop (after the `swrv_req` block that writes col 10), add three more formulas:
+
+```python
+        # Col K (11): Pre Total Within = sum of pre land-use totals.
+        styles.calc_c(ws, r, 11, f"=B{r}+C{r}+D{r}+E{r}")
+        # Col L (12): Post Total Within = sum of post land-use totals.
+        styles.calc_c(ws, r, 12, f"=F{r}+G{r}+H{r}+I{r}")
+        # Col M (13): Area match — pre vs post Within LOD, ±1 SF tolerance.
+        styles.calc_c(ws, r, 13, f'=IF(ABS(K{r}-L{r})<=1,"OK","⚠ MISMATCH")')
+```
+
+Also extend the summary-block bottom divider span from 10 to 13:
+
+```python
+    styles.apply_bottom_divider(ws, sum_data_end, 1, 13)
+```
+
+Set reasonable widths for the three new columns at the top of the builder — find the existing `widths = [12, 10, 24, 8, 14, 14, 14, 14, 8, 11, 14, 14, 14, 14]` list; it already has 14 entries (A..N), which covers through col N. The summary cols K–M fall at indices 11–13 (width 14 each), already covered. No change needed.
+
+- [ ] **Step 5: Edit `workbook/builders/project.py`**
+
+In `build_project_sheet`, inside the field loop, right after `styles.inp(ws, row, 2, default)`, set the format for the rainfall row:
+
+```python
+    for row, label, _name, dv_formula in FIELDS:
+        styles.lbl(ws, row, 1, label, styles.GRY, bold=True)
+        default = 1.7 if row == 9 else None
+        styles.inp(ws, row, 2, default)
+        if row == 9:
+            ws.cell(row=row, column=2).number_format = "0.0"
+        if dv_formula:
+            dv = DataValidation(type="list", formula1=dv_formula,
+                                allow_blank=True, showDropDown=False)
+            ws.add_data_validation(dv)
+            dv.sqref = f"B{row}"
+```
+
+- [ ] **Step 6: Run tests to verify pass**
+
+```
+pytest tests/test_sda.py tests/test_project.py -v
+```
+
+Expected: all tests PASS.
+
+- [ ] **Step 7: Commit**
+
+```
+git add workbook/builders/sda.py workbook/builders/project.py tests/test_sda.py tests/test_project.py
+git commit -m "workbook: add area-match validation to SDA summary + one-decimal rainfall format"
+```
+
+---
+
+## Task 03: Repoint `bmp.py` + `doee.py` + `correct_mep_summary.py` to new CDA columns
 
 **Files:**
 - Modify: `workbook/builders/bmp.py` (`_cda_dominant_hsg_formula`: SUMIFS source col `$E` → `$G`)
@@ -482,7 +628,7 @@ git commit -m "workbook: repoint CDA consumers to new post-development columns"
 
 ---
 
-## Task 03: Add `DOEE_DETENTION_BMP` sheet (CDA-keyed) + user note on both detention sheets
+## Task 04: Add `DOEE_DETENTION_BMP` sheet (CDA-keyed) + user note on both detention sheets
 
 **Files:**
 - Modify: `workbook/builders/doee.py` (add `build_doee_detention_bmp` + inject user note into `build_doee_detention`)
@@ -793,7 +939,7 @@ git commit -m "workbook: add DOEE_DETENTION_BMP sheet for per-BMP detention comp
 
 ---
 
-## Task 04: Update `workbook/sample.py` to write to the new Post Within column
+## Task 05: Update `workbook/sample.py` to write to the new Post Within column
 
 **Files:**
 - Modify: `workbook/sample.py:188` (single cell write)
@@ -842,7 +988,7 @@ git commit -m "workbook: write CDA sample area to new Post Within LOD column"
 
 ---
 
-## Task 05: Regenerate blank template and smoke-verify
+## Task 06: Regenerate blank template and smoke-verify
 
 **Files:**
 - Modify: `SW_Required_Provided_DOEE_EISA438.xlsx` (regenerated)
@@ -902,7 +1048,7 @@ git commit -m "workbook: regenerate blank template with new CDA layout"
 
 ---
 
-## Task 06: Expand `summary_calculator/src/parse.mjs` `parseCda`
+## Task 07: Expand `summary_calculator/src/parse.mjs` `parseCda`
 
 **Files:**
 - Modify: `summary_calculator/src/parse.mjs:80-97, 220-240`
@@ -1000,7 +1146,7 @@ git commit -m "summary_calculator: parseCda returns pre/post land-cover fields"
 
 ---
 
-## Task 07: Rename `withinLodSf` → `postIn` across `summary_calculator/src/`
+## Task 08: Rename `withinLodSf` → `postIn` across `summary_calculator/src/`
 
 **Files:**
 - Modify: `summary_calculator/src/calc.mjs` (none directly — verify via grep; renames live in ui.mjs and render.mjs)
@@ -1081,7 +1227,7 @@ git commit -m "summary_calculator: rename cda.withinLodSf to cda.postIn"
 
 ---
 
-## Task 08: Extend SDA/CDA Summary CDA block to show Pre + Post Within LOD
+## Task 09: Extend SDA/CDA Summary CDA block to show Pre + Post Within LOD
 
 **Files:**
 - Modify: `summary_calculator/src/render.mjs:160-170` (the `renderSdaCdaSummary` CDA table)
@@ -1178,7 +1324,7 @@ git commit -m "summary_calculator: CDA summary block shows Pre and Post Within L
 
 ---
 
-## Task 09: Sync populator `parse.mjs` + rename in mappings
+## Task 10: Sync populator `parse.mjs` + rename in mappings
 
 **Files:**
 - Modify: `populator/src/parse.mjs` (overwrite with summary_calculator version)
@@ -1242,7 +1388,7 @@ git commit -m "populator: sync parse.mjs and rename cda.withinLodSf to cda.postI
 
 ---
 
-## Task 10: Regenerate populator fixture + verify mapping tests
+## Task 11: Regenerate populator fixture + verify mapping tests
 
 **Files:**
 - Modify: `populator/tests/fixtures/minnesota-ave.xlsx` (replace with new sample)
@@ -1285,7 +1431,7 @@ git commit -m "populator: regenerate Minnesota Ave fixture for new CDA layout"
 
 ---
 
-## Task 11: Full project-level test sweep
+## Task 12: Full project-level test sweep
 
 **Files:** no changes; validation only.
 
@@ -1336,6 +1482,9 @@ Then open the regenerated workbook `SW_Required_Provided_DOEE_EISA438_SAMPLE_Min
 - Row 2 shows the user note about Within LOD / project-specific exceptions.
 - Row 4 col A is `CDA-1`; col B shows the BMP name auto-looked-up from the BMP sheet; col C shows the parent SDA number from the CDA summary block.
 - Pre CN column reads 0 (sample doesn't fill CDA Pre), Post CN reads a reasonable composite CN (e.g., 90-98 for impervious-dominated catchments), and `Det Req'd?` reads `Yes` on populated rows.
+- SDA summary rows 58-67 show `OK` in the `Area Match?` column (col M), since the sample fills Pre and Post identically for each SDA.
+- CDA summary rows 58-67 show `⚠ MISMATCH` in `Area Match?` (col F) for every CDA with Post data (expected — the sample leaves CDA Pre blank, so Pre Total = 0 vs Post Total > 0).
+- `PROJECT!B9` displays `1.7` with one decimal (not `1.7000` or `2`).
 
 - [ ] **Step 6: No commit** (validation only). If the browser smoke check surfaces an issue, open a new task to fix and loop back.
 

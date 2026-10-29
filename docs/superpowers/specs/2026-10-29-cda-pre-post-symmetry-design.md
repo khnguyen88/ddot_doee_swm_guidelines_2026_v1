@@ -51,20 +51,46 @@ Column widths: 13 columns total (A–M). Keep width defaults from current CDA fo
 
 Row 3 is the header. Rows 4–53 are data (50 rows). Row 54 is a blank separator; row 56 is the summary header.
 
-### 2.2 Summary block (unchanged shape, repointed sources)
+### 2.2 Summary block — area columns repointed, two new validation columns appended
 
-The summary block retains four columns. Its area column now reports **post** within-LOD aggregates:
+The summary block grows from four to six columns. Columns A–D retain their position and semantics (col C's area source shifts to col G = Post Within LOD). Columns E–F are new, implementing the Pre-vs-Post area-sum validation (§2.3).
 
-| Col | Header                              | Formula                                                                                 |
-|-----|-------------------------------------|-----------------------------------------------------------------------------------------|
-| A   | `CDA_ID`                            | hard-coded label (`CDA-1` … `CDA-10`)                                                   |
-| B   | `SDA_ID`                            | `=IFERROR(INDEX($B$4:$B$53,MATCH(A{r},$A$4:$A$53,0)),"")`                               |
-| C   | `Total CDA Within LOD (SF)` *(post)* | `=SUMIFS($G$4:$G$53,$A$4:$A$53,A{r})`                                                   |
-| D   | `Max BMP Credit (CF)`               | `=C{r}*1.7/12`                                                                          |
+| Col | Header                                | Formula                                                                                 |
+|-----|---------------------------------------|-----------------------------------------------------------------------------------------|
+| A   | `CDA_ID`                              | hard-coded label (`CDA-1` … `CDA-10`)                                                   |
+| B   | `SDA_ID`                              | `=IFERROR(INDEX($B$4:$B$53,MATCH(A{r},$A$4:$A$53,0)),"")`                               |
+| C   | `Total CDA Within LOD (SF) (post)`    | `=SUMIFS($G$4:$G$53,$A$4:$A$53,A{r})`                                                   |
+| D   | `Max BMP Credit (CF)`                 | `=C{r}*1.7/12`                                                                          |
+| E   | `Pre Total Within LOD (SF)`           | `=SUMIFS($E$4:$E$53,$A$4:$A$53,A{r})`                                                   |
+| F   | `Area Match?`                         | `=IF(ABS(E{r}-C{r})<=1,"OK","⚠ MISMATCH")`                                              |
 
-The summary column header for col C changes from `Total CDA Within LOD (SF)` to `Total CDA Within LOD (SF)` *(post)* — reader-visible marker that this is the post-development catchment. The underlying semantics is unchanged (BMP sizing cap has always been post-development).
+The summary column header for col C changes from `Total CDA Within LOD (SF)` to `Total CDA Within LOD (SF) (post)` — reader-visible marker that this is the post-development catchment.
+
+**BMP sheet compatibility.** `workbook/builders/bmp.py` uses `VLOOKUP(C{r},'CDA'!$A$58:$D$67,4,FALSE)` to pull Max BMP Credit from col D. Appending cols E–F does **not** shift col D's position, so no VLOOKUP changes are required. (If the VLOOKUP range were widened to `$A$58:$F$67` to cover the new columns, the index-4 target would still resolve to Max BMP Credit — so this is safe.)
 
 Named range `CDA_IDs` continues to span the summary-block ID column (`$A$sum_data_start:$A$sum_data_end`). No change.
+
+### 2.3 Area-sum validation (new, applies to both SDA and CDA summary blocks)
+
+For every drainage area, the physical catchment is fixed — only land cover changes between pre and post. So Σ(Pre Within LOD areas) must equal Σ(Post Within LOD areas) per SDA_ID (and per CDA_ID). A mismatch indicates a data-entry error.
+
+**Behavior.** Each summary row flags its own SDA/CDA as `OK` or `⚠ MISMATCH` within a tolerance of ±1 SF (floating-point and manual-entry wiggle room).
+
+**SDA summary (`workbook/builders/sda.py`)** — append three columns to the existing 10:
+
+| Col | Header                        | Formula                                                                            |
+|-----|-------------------------------|------------------------------------------------------------------------------------|
+| K   | `Pre Total Within (SF)`       | `=B{r}+C{r}+D{r}+E{r}` (sum of the four Pre land-use totals)                       |
+| L   | `Post Total Within (SF)`      | `=F{r}+G{r}+H{r}+I{r}` (sum of the four Post land-use totals)                      |
+| M   | `Area Match?`                 | `=IF(ABS(K{r}-L{r})<=1,"OK","⚠ MISMATCH")`                                         |
+
+**CDA summary (`workbook/builders/cda.py`)** — cols E–F per §2.2 above.
+
+**No outside-LOD check** — same reasoning as the detention sheet's Within-LOD convention: LOD boundaries don't change pre vs post for a single project, so the Within-LOD identity is the operative check. Outside-LOD mismatches, if they occur, would also indicate a data-entry error, but checking them separately adds columns without catching new cases.
+
+### 2.4 Rainfall display format
+
+Set the number format of `PROJECT!B9` (`PROJECT_Rainfall`) to `"0.0"` so the default 1.7 displays as `1.7` (not `1.7000000000000002` after a round-trip or `2` after whole-number rounding). Already set by `workbook/formats.py` on `SDA!J` and the detention storm depths; the only gap is the input cell itself. Fix in `workbook/builders/project.py` by setting `ws.cell(row=9, column=2).number_format = "0.0"` immediately after `styles.inp(ws, row, 2, default)`.
 
 ## 3. Downstream impact
 
