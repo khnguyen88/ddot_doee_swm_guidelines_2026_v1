@@ -58,13 +58,15 @@ function stripRelativeImports(src) {
     .replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, '');
 }
 
-// For mapping files: rename `export const target =` → `const target_N =` FIRST,
-// then strip any remaining import/export lines. The rename must precede
-// stripRelativeImports because that function would otherwise drop the `export `
-// prefix and leave a plain `const target =` (all 5 with the same name → conflict).
+// For mapping files: wrap each file in an IIFE so private helpers (_sdaInt, etc.)
+// don't leak into the shared module scope and collide across files.
+// Strip import lines, then turn `export const target = ` into the IIFE return value.
 function stripMappingFile(src, index) {
-  const renamed = src.replace(/export const target = /, `const target_${index} = `);
-  return stripRelativeImports(renamed);
+  const noImports = src
+    .replace(/^\s*import[^;]*from\s*['"]\.\/[^'"]+['"];?\s*$/gm, '')
+    .replace(/^\s*import[^;]*from\s*['"]\.\.\/[^'"]+['"];?\s*$/gm, '');
+  const withReturn = noImports.replace(/export const target = /, 'return ');
+  return `const target_${index} = (() => {\n${withReturn}\n})();`;
 }
 
 async function toDataUrl(filePath, mimeType) {
@@ -95,12 +97,23 @@ async function main() {
     'rainwater-harvesting',
   ];
 
+  // parse.mjs and xlsx-surgical.mjs both declare colToLetters — strip the duplicate
+  // from the xlsx-surgical chunk (after export-stripping) to avoid a SyntaxError.
+  function deduplicateColToLetters(strippedSrc) {
+    // After stripRelativeImports, "export function colToLetters" → "function colToLetters".
+    // Replace the entire function (comment + declaration + body) with a note.
+    return strippedSrc.replace(
+      /\/\/ A1-ref parse \/ unparse\.\nfunction colToLetters\(col\) \{\n(?:.*\n)*?  return s;\n\}/,
+      '// A1-ref parse / unparse (colToLetters re-used from parse.mjs above).',
+    );
+  }
+
   // Combined module body: calc engines first, then orchestrator, mappings, ui.
   const combinedModule = [
     '// ─ src/parse.mjs ─',
     stripRelativeImports(parseJs),
     '// ─ src/xlsx-surgical.mjs ─',
-    stripRelativeImports(xlsxJs),
+    deduplicateColToLetters(stripRelativeImports(xlsxJs)),
     '// ─ src/populate.mjs ─',
     stripRelativeImports(populateJs),
     ...mappingJs.flatMap((m, i) => [

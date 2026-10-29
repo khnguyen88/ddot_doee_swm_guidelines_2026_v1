@@ -48,6 +48,7 @@ Official DOEE/DDOT calculation tools required for SWMP submissions.
 | Tool | Description | Local |
 |---|---|---|
 | SWM Summary Calculator | Letter-format printable calculation summaries from a filled DOEE EISA 438 template | [HTML](summary_calculator/summary-calculator.html) |
+| SWM DOEE Populator | Fills DOEE/DDOT submission workbooks from a filled template, preserving charts, macros, and protection | [HTML](populator/summary-populator.html) |
 
 ## Analysis & Working Documents
 

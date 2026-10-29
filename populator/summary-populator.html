@@ -419,16 +419,7 @@ async function getDomParser() {
   throw new Error('DOMParser not available — run in a browser or add @xmldom/xmldom');
 }
 
-// A1-ref parse / unparse.
-function colToLetters(col) {
-  let s = '';
-  while (col > 0) {
-    const r = (col - 1) % 26;
-    s = String.fromCharCode(65 + r) + s;
-    col = Math.floor((col - 1) / 26);
-  }
-  return s;
-}
+// A1-ref parse / unparse (colToLetters re-used from parse.mjs above).
 function parseRef(ref) {
   const m = /^([A-Z]+)(\d+)$/.exec(ref);
   if (!m) throw new Error(`Bad cell ref: ${ref}`);
@@ -874,6 +865,7 @@ async function populateAll(wbOrParsed, { mappings, blanks, options = {} }) {
 
 // ─ src/mappings/general-retention.mjs ─
 
+const target_0 = (() => {
 // src/mappings/general-retention.mjs
 // Mapping for DOEE "General Retention Compliance Calculator" (May 4, 2020 blank).
 //
@@ -911,7 +903,7 @@ async function populateAll(wbOrParsed, { mappings, blanks, options = {} }) {
 //
 // Signature sheets picked to detect template drift.
 
-const target_0 = {
+return {
   id: 'general-retention',
   filename: 'General Retention Compliance Calculator.xlsx',
   blankVersion: '2020-05-04',
@@ -1147,9 +1139,11 @@ function _uniqueSdaRows(parsed) {
   return uniq;
 }
 
+})();
 
 // ─ src/mappings/ddot-mep.mjs ─
 
+const target_1 = (() => {
 // src/mappings/ddot-mep.mjs
 // Mapping for DDOT "MEP Worksheet" (2019-01 blank). The blank has three design
 // phase tabs — 30% Phase, 65% Phase, 90% Phase — each a near-copy of the same
@@ -1207,7 +1201,7 @@ function _uniqueSdaRows(parsed) {
 // data, so the 65% / 90% phase outputs will match the 30% phase in content;
 // adding phase-specific inputs is a future extension.
 
-const target_1 = {
+return {
   id: 'ddot-mep',
   filename: 'DDOT MEP Worksheet.xlsx',
   blankVersion: '2019-01',
@@ -1377,9 +1371,11 @@ function _uniqueSdaRows(parsed) {
   return uniq;
 }
 
+})();
 
 // ─ src/mappings/swdb-prow.mjs ─
 
+const target_2 = (() => {
 // src/mappings/swdb-prow.mjs
 // Mapping for DOEE "SWDB Template for PROW Information" (July 2025 blank).
 //
@@ -1511,7 +1507,7 @@ function _uniqueSdaRows(parsed) {
 //
 // Signature sheets pick up likely template drift indicators.
 
-const target_2 = {
+return {
   id: 'swdb-prow',
   filename: 'SWDB Template for PROW Information.xlsx',
   blankVersion: '2025-07',
@@ -1781,9 +1777,11 @@ function _uniqueSdaRows(parsed) {
   return uniq;
 }
 
+})();
 
 // ─ src/mappings/swmp-bmp-calc.mjs ─
 
+const target_3 = (() => {
 // src/mappings/swmp-bmp-calc.mjs
 // Mapping for DOEE "SWMP-BMP Calc Spreadsheet" (xlsm with VBA macros).
 // xlsx-surgical.mjs preserves xl/vbaProject.bin automatically.
@@ -1849,7 +1847,7 @@ function _uniqueSdaRows(parsed) {
 //     "Enhanced w/ Underdrain" or "Enhanced with Underdrain" → "Enhanced with Underdrain"
 //     "Standard"            → "Standard"
 
-const target_3 = {
+return {
   id: 'swmp-bmp-calc',
   filename: 'SWMP-BMP Calc Spreadsheet.xlsm',
   blankVersion: '2020-11-25',
@@ -1966,9 +1964,11 @@ function _bioSubType(subType) {
   return 'Enhanced';
 }
 
+})();
 
 // ─ src/mappings/rainwater-harvesting.mjs ─
 
+const target_4 = (() => {
 // src/mappings/rainwater-harvesting.mjs
 // Mapping for DOEE "Rainwater Harvesting Storage Volume Calculator" (v3.1, May 7, 2026).
 //
@@ -1998,7 +1998,7 @@ function _bioSubType(subType) {
 //     writes (staticCells is empty). The user must open the file and fill
 //     L7, L9, and all demand / cistern inputs manually.
 
-const target_4 = {
+return {
   id: 'rainwater-harvesting',
   filename: 'Rainwater Harvesting Storage Volume Calculator.xlsx',
   blankVersion: '2026-05-07',
@@ -2017,6 +2017,7 @@ const target_4 = {
   derivations: {},
 };
 
+})();
 
 const ALL_MAPPINGS = [target_0, target_1, target_2, target_3, target_4];
 

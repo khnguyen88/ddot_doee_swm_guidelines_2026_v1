@@ -1,0 +1,28 @@
+name: populator
+
+on:
+  push:
+    paths:
+      - 'populator/**'
+      - 'docs/doee_spreadsheet_calculators/**'
+      - 'summary_calculator/src/parse.mjs'  # populator copies it
+  pull_request:
+    paths:
+      - 'populator/**'
+      - 'docs/doee_spreadsheet_calculators/**'
+      - 'summary_calculator/src/parse.mjs'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        working-directory: populator
+        run: npm install --ignore-scripts
+      - name: Run unit tests
+        working-directory: populator
+        run: node --test tests/xlsx-surgical.test.mjs tests/populate.test.mjs tests/mappings/*.test.mjs
