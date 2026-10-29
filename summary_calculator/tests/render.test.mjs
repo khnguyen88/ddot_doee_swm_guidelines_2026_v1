@@ -85,3 +85,46 @@ test('renderSiteSwrvSheet: shows formula with substituted values', () => {
   assert.ok(html.includes('95'));             // final CF
   assert.ok(html.includes('informational'));  // the per-SDA compliance note
 });
+
+import { renderSdaCdaSummary, renderBmpSheets } from '../src/render.mjs';
+
+test('renderSdaCdaSummary: one SDA page + one CDA page when both are small', () => {
+  const sdas = Array.from({ length: 5 }, (_, i) => ({
+    sdaId: `SDA-${i+1}`, landUse: 'Impervious Vehicular', hsg: 'D',
+    preIn: 100, postIn: 100,
+  }));
+  const cdas = [{ cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Impervious Vehicular', withinLodSf: 100 }];
+  const pages = renderSdaCdaSummary(sampleProject, sdas, cdas);
+  assert.equal(pages.length, 2);
+  assert.ok(pages[0].includes('SDA-1'));
+  assert.ok(pages[1].includes('CDA-1'));
+});
+
+test('renderSdaCdaSummary: paginates when > 30 rows', () => {
+  const sdas = Array.from({ length: 65 }, (_, i) => ({
+    sdaId: `SDA-${i+1}`, landUse: 'Impervious Vehicular', hsg: 'D',
+    preIn: 100, postIn: 100,
+  }));
+  const pages = renderSdaCdaSummary(sampleProject, sdas, []);
+  assert.ok(pages.length >= 3, `expected ≥3 pages, got ${pages.length}`);
+});
+
+test('renderBmpSheets: one page per BMP with 3-step math', () => {
+  const bmps = [{
+    name: 'BMP-02-A', sdaId: 'SDA-2', cdaId: 'CDA-2',
+    type: 'Bioretention', subType: 'Enhanced',
+    bio: { saTop: 210, saBot: 210, dMedia: 2.0, dGravel: 0.5, dPond: 0.5 },
+  }];
+  const cdas = [{ cdaId: 'CDA-2', sdaId: 'SDA-2', landUse: 'Impervious Vehicular', withinLodSf: 1000 }];
+  const params = {
+    bmpDesign: { 'Bioretention / Enhanced': { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 } },
+    treeCredits: {},
+  };
+  const pages = renderBmpSheets(sampleProject, bmps, cdas, params);
+  assert.equal(pages.length, 1);
+  assert.ok(pages[0].includes('BMP-02-A'));
+  assert.ok(pages[0].includes('Bioretention'));
+  assert.ok(pages[0].includes('STEP 1'));
+  assert.ok(pages[0].includes('STEP 2'));
+  assert.ok(pages[0].includes('STEP 3'));
+});
