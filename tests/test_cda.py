@@ -23,11 +23,14 @@ def test_headers(wb):
     ws = wb["CDA"]
     expected = [
         "CDA_ID", "SDA_ID", "Land Use", "HSG",
-        "Within LOD (SF)", "Outside LOD (SF)",
-        "Rv", "CDA SWRv Within (CF)", "CDA SWRv Outside (CF)",
+        "Pre Within LOD (SF)", "Pre Outside LOD (SF)",
+        "Post Within LOD (SF)", "Post Outside LOD (SF)",
+        "Rv",
+        "Pre CDA SWRv Within (CF)", "Pre CDA SWRv Outside (CF)",
+        "Post CDA SWRv Within (CF)", "Post CDA SWRv Outside (CF)",
     ]
     for i, h in enumerate(expected, 1):
-        assert ws.cell(row=3, column=i).value == h
+        assert ws.cell(row=3, column=i).value == h, f"header col {i}"
 
 
 def test_sda_id_dropdown_uses_named_range(wb):
@@ -44,9 +47,13 @@ def test_sda_id_dropdown_uses_named_range(wb):
 
 def test_data_row_formulas(wb):
     ws = wb["CDA"]
-    assert ws.cell(row=4, column=7).value == '=IFERROR(VLOOKUP(C4,PARAMS_Rv,2,FALSE),"")'
-    assert ws.cell(row=4, column=8).value == "=IFERROR(E4*G4*PROJECT_Rainfall/12,0)"
-    assert ws.cell(row=4, column=9).value == "=IFERROR(F4*G4*PROJECT_Rainfall/12,0)"
+    # Col I: Rv VLOOKUP.
+    assert ws.cell(row=4, column=9).value == '=IFERROR(VLOOKUP(C4,PARAMS_Rv,2,FALSE),"")'
+    # Cols J-M: SWRv Within/Outside for Pre (E,F) and Post (G,H), driven by Rv (I).
+    assert ws.cell(row=4, column=10).value == "=IFERROR(E4*I4*PROJECT_Rainfall/12,0)"
+    assert ws.cell(row=4, column=11).value == "=IFERROR(F4*I4*PROJECT_Rainfall/12,0)"
+    assert ws.cell(row=4, column=12).value == "=IFERROR(G4*I4*PROJECT_Rainfall/12,0)"
+    assert ws.cell(row=4, column=13).value == "=IFERROR(H4*I4*PROJECT_Rainfall/12,0)"
 
 
 def test_summary_block_cda_ids_pregenerated(wb):
@@ -60,28 +67,26 @@ def test_summary_block_cda_ids_pregenerated(wb):
     assert "CDA-10" in found_ids
 
 
-def test_summary_max_bmp_credit_formula(wb):
+def test_summary_pulls_post_within_lod(wb):
     ws = wb["CDA"]
-    # Find CDA-1 row in summary block
-    for r in range(1, 100):
-        if ws.cell(row=r, column=1).value == "CDA-1":
-            cda1_row = r
-            break
-    else:
-        pytest.fail("CDA-1 summary row not found")
-
-    # B: SDA_ID lookup via INDEX/MATCH
-    b_val = ws.cell(row=cda1_row, column=2).value
-    assert "INDEX" in b_val and "MATCH" in b_val
-    # C: Total within LOD SUMIFS
-    c_val = ws.cell(row=cda1_row, column=3).value
-    assert "SUMIFS" in c_val and "$E$4:$E$53" in c_val
-    # D: Max BMP Credit = C * 1.7 / 12
-    d_val = ws.cell(row=cda1_row, column=4).value
-    assert f"C{cda1_row}" in d_val and "1.7" in d_val and "/12" in d_val
+    # With n_rows=50: data rows 4-53, summary header at row 56, data at rows 58-67.
+    assert ws.cell(row=56, column=3).value == "Total CDA Within LOD (SF) (post)"
+    # Col C of first summary row (row 58) = SUMIFS of col G (post within).
+    assert ws.cell(row=58, column=3).value == "=SUMIFS($G$4:$G$53,$A$4:$A$53,A58)"
+    # Col D = Max BMP Credit — unchanged formula.
+    assert ws.cell(row=58, column=4).value == "=C58*1.7/12"
 
 
-def test_named_range_cda_ids(wb):
-    names = {dn.name: dn.attr_text for dn in wb.defined_names.values()}
-    assert "CDA_IDs" in names
-    assert "$A$" in names["CDA_IDs"]
+def test_cda_ids_named_range_unchanged(wb):
+    assert "CDA_IDs" in wb.defined_names
+    assert "$A$58:$A$67" in wb.defined_names["CDA_IDs"].value
+
+
+def test_cda_summary_area_match_columns(wb):
+    """Summary block cols E-F = Pre Total Within + Area Match? validation."""
+    ws = wb["CDA"]
+    assert ws.cell(row=56, column=5).value == "Pre Total Within LOD (SF)"
+    assert ws.cell(row=56, column=6).value == "Area Match?"
+    # Row 58 (CDA-1 summary row).
+    assert ws.cell(row=58, column=5).value == "=SUMIFS($E$4:$E$53,$A$4:$A$53,A58)"
+    assert ws.cell(row=58, column=6).value == '=IF(ABS(E58-C58)<=1,"OK","⚠ MISMATCH")'
