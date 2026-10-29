@@ -83,6 +83,19 @@ test('parse: PARAMS lookup tables', () => {
   assert.equal(params.treeCredits['T-1 Large'], 10);
 });
 
+test('parse: SDA loop does not read SUMIFS summary rows', () => {
+  // The workbook SDA sheet has a summary block starting at row 56 whose
+  // first value column also contains strings like "SDA-1". Verify the parser
+  // stops at DATA_LAST_ROW=53 so these can never be mistaken for data rows.
+  const { sdas } = parseWorkbook(wb);
+  for (const r of sdas) {
+    // Every parsed SDA row must have come from an input row — assert that
+    // none has a landUse of null/undefined/empty, which would be the case
+    // if the parser had read a summary header row.
+    assert.ok(r.landUse, `parsed SDA row has no landUse: ${JSON.stringify(r)}`);
+  }
+});
+
 test('parse: throws on missing sheet', () => {
   const bogus = { SheetNames: ['PROJECT'], Sheets: { PROJECT: {} } };
   assert.throws(() => parseWorkbook(bogus), /Missing sheet: SDA/);

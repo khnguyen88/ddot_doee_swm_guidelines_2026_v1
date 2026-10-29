@@ -2,6 +2,12 @@
 
 const REQUIRED_SHEETS = ['PROJECT', 'SDA', 'CDA', 'BMP', 'PARAMS'];
 
+// Data input region matches workbook n_rows=50 (data rows 4-53). Keep in sync
+// with workbook/__main__.py; the SUMIFS summary blocks that start at row ~56
+// use labels like "SDA-1" that would otherwise be mistaken for data rows.
+const DATA_FIRST_ROW = 4;
+const DATA_LAST_ROW = 53;
+
 function requireSheet(wb, name) {
   if (!wb.SheetNames.includes(name)) {
     throw new Error(`Missing sheet: ${name}`);
@@ -26,6 +32,10 @@ function cell(sheet, row, col) {
   return c == null ? null : c.v;
 }
 
+// PROJECT layout (from workbook/builders/project.py):
+//   col A = labels; col B = values (rows 3-11):
+//   3=name, 4=number, 5=ms4, 6=awdz, 7=doeeReview,
+//   8=totalLod, 9=rainfallIn, 10=trigger, 11=eisa
 function parseProject(sheet) {
   const rainfall = cell(sheet, 9, 2);
   if (rainfall == null) {
@@ -44,9 +54,13 @@ function parseProject(sheet) {
   };
 }
 
+// SDA layout (from workbook/builders/sda.py):
+//   data rows DATA_FIRST_ROW..DATA_LAST_ROW; cols A..H:
+//   A=sdaId, B=inProw, C=landUse, D=hsg,
+//   E=preIn, F=preOut, G=postIn, H=postOut
 function parseSda(sheet) {
   const rows = [];
-  for (let r = 4; r < 200; r++) {
+  for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
     const sdaId = cell(sheet, r, 1);
     if (!sdaId) break;
     rows.push({
@@ -63,9 +77,13 @@ function parseSda(sheet) {
   return rows;
 }
 
+// CDA layout (from workbook/builders/cda.py):
+//   data rows DATA_FIRST_ROW..DATA_LAST_ROW; parser reads A, B, C, E only
+//   (col D=HSG and col F=outsideLodSf are not consumed by any current calc).
+//   A=cdaId, B=sdaId, C=landUse, E=withinLodSf
 function parseCda(sheet) {
   const rows = [];
-  for (let r = 4; r < 200; r++) {
+  for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
     const cdaId = cell(sheet, r, 1);
     if (!cdaId) break;
     rows.push({
@@ -78,9 +96,15 @@ function parseCda(sheet) {
   return rows;
 }
 
+// BMP layout (from workbook/builders/bmp.py):
+//   data rows DATA_FIRST_ROW..DATA_LAST_ROW; conditional cols by BMP type:
+//     Permeable Pavement:   F=sa, G=dReservoir
+//     Bioretention/DrySwale: N=saTop, O=saBot, Q=dMedia, S=dGravel, U=dPond
+//     Planted/Preserve Trees: AB..AG = plantedSmall..preservedHeritage
+//   Wet Swale (cols Y, Z) is not currently parsed — add here when needed.
 function parseBmp(sheet) {
   const rows = [];
-  for (let r = 4; r < 200; r++) {
+  for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
     const name = cell(sheet, r, 1);
     if (!name) break;
     const type = cell(sheet, r, 4);
@@ -190,6 +214,25 @@ function parseParams(sheet) {
   return { rv, cn, bmpDesign, treeCredits, detention, detentionCn };
 }
 
+/**
+ * Parse a SheetJS workbook into the structured object every downstream module
+ * consumes. The `bmps` array has a conditional shape — pp/bio/trees sub-objects
+ * are only present for matching BMP types.
+ *
+ * @param {{SheetNames: string[], Sheets: Record<string, object>}} wb
+ * @returns {{
+ *   project: {name, number, ms4, awdz, doeeReview, totalLod, rainfallIn, trigger, eisa},
+ *   sdas:    Array<{sdaId, inProw, landUse, hsg, preIn, preOut, postIn, postOut}>,
+ *   cdas:    Array<{cdaId, sdaId, landUse, withinLodSf}>,
+ *   bmps:    Array<{name, sdaId, cdaId, type, subType,
+ *                   pp?:    {sa, dReservoir},
+ *                   bio?:   {saTop, saBot, dMedia, dGravel, dPond},
+ *                   trees?: {plantedSmall, plantedLarge, preservedSmall, preservedLarge, preservedSpecial, preservedHeritage}}>,
+ *   params:  {rv, cn, bmpDesign, treeCredits, detention: {p2In, p15In, p100In}, detentionCn}
+ * }}
+ * @throws if a required sheet (PROJECT, SDA, CDA, BMP, PARAMS) is missing or
+ *         if PROJECT!B9 (Rainfall) is empty.
+ */
 export function parseWorkbook(wb) {
   for (const name of REQUIRED_SHEETS) requireSheet(wb, name);
 
