@@ -33,3 +33,10 @@ test('smoke: print-mode populates #printArea with every sheet', async ({ page })
   const printCount = await page.evaluate(() => document.querySelectorAll('#printArea .calc-sheet').length);
   expect(printCount).toBe(navCount);
 });
+
+test('smoke: dropzone renders as a single block (not inline-fragmented)', async ({ page }) => {
+  await page.goto(distUrl);
+  await page.waitForSelector('.dropzone');
+  const display = await page.$eval('.dropzone', (el) => getComputedStyle(el).display);
+  expect(display).toBe('block');
+});
