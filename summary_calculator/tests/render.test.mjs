@@ -300,3 +300,29 @@ test('renderMepSheet: aggregates impervious across land-use rows in same PROW SD
   assert.ok(html.includes('10,000'));
   assert.ok(html.includes('1,000'));
 });
+
+test('renderMepSheet: all-pervious PROW SDA still appears with imp=0, target=0, status ✓ MET', () => {
+  const sdas = [
+    { sdaId: 'SDA-1', inProw: 'Yes', landUse: 'Natural (Woods)', hsg: 'C',
+      preIn: 0, preOut: 0, postIn: 5000, postOut: 0 },
+  ];
+  const html = renderMepSheet(sampleProject, sdas, [], [], paramsForMep);
+  // Should NOT trigger the "MEP does not apply" fallback.
+  assert.ok(!html.includes('No PROW SDAs'));
+  // SDA-1 row should be present with ✓ MET.
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('✓ MET'));
+});
+
+test('renderMepSheet: non-PROW SDAs do not appear in the per-PROW-SDA table', () => {
+  const sdas = [
+    { sdaId: 'SDA-1', inProw: 'Yes', landUse: 'Impervious Vehicular', hsg: 'D',
+      preIn: 0, preOut: 0, postIn: 1000, postOut: 0 },
+    { sdaId: 'SDA-2', inProw: 'No', landUse: 'Impervious Vehicular', hsg: 'D',
+      preIn: 0, preOut: 0, postIn: 9999, postOut: 0 },
+  ];
+  const html = renderMepSheet(sampleProject, sdas, [], [], paramsForMep);
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(!html.includes('SDA-2'));
+  assert.ok(!html.includes('9,999'));
+});

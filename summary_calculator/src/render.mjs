@@ -330,6 +330,10 @@ const MEP_STEPS = [
   ['Step 4', 'Discharge to MS4 only if Steps 1-3 are infeasible'],
 ];
 
+// Named MEP_IMPERVIOUS_USES (not IMPERVIOUS_LAND_USES) to avoid a top-level
+// const collision in the single-file build. build.js strips import/export
+// and concatenates all .mjs sources into one script scope; calc.mjs already
+// declares a module-local `IMPERVIOUS_LAND_USES` with the same members.
 const MEP_IMPERVIOUS_USES = new Set([
   'Impervious Vehicular', 'Impervious Non-Vehicular', 'BMP',
 ]);
@@ -337,6 +341,13 @@ const MEP_TARGET_RAIN_IN = 1.2;
 
 function _imperviousInLodByProwSda(sdas) {
   const out = {};
+  // Seed every PROW SDA with 0 so all-pervious PROW SDAs still appear in the table.
+  for (const r of sdas) {
+    if (r.inProw === 'Yes') {
+      out[r.sdaId] = out[r.sdaId] || 0;
+    }
+  }
+  // Accumulate impervious area.
   for (const r of sdas) {
     if (r.inProw !== 'Yes') continue;
     if (!MEP_IMPERVIOUS_USES.has(r.landUse)) continue;
@@ -350,9 +361,8 @@ export function renderMepSheet(project, sdas, bmps, cdas, params) {
     `<div class="cs-formula-line"><b>${esc(n)}</b> — ${esc(desc)}</div>`
   ).join('');
 
-  const impByProwSda = _imperviousInLodByProwSda(sdas);
-  const prowSdaIds = Object.keys(impByProwSda);
-  if (prowSdaIds.length === 0) {
+  const hasProwSdas = sdas.some(r => r.inProw === 'Yes');
+  if (!hasProwSdas) {
     return renderSheetShell({
       title: 'MEP Summary (PROW)',
       sub:   `${project.name || ''} · DDOT Maximum Extent Practicable`,
@@ -363,6 +373,8 @@ export function renderMepSheet(project, sdas, bmps, cdas, params) {
     });
   }
 
+  const impByProwSda = _imperviousInLodByProwSda(sdas);
+  const prowSdaIds = Object.keys(impByProwSda);
   const rvBySda = rvProvidedPerSda(bmps, cdas, params);
   const headers = ['SDA', 'Impervious In LOD (sf)', 'MEP Target @ 1.2″ (cf)',
                    'Rv Provided (cf)', 'Deficit (cf)', 'Status'];
