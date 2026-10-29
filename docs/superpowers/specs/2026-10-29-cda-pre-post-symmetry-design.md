@@ -43,7 +43,7 @@ The purpose is record-keeping parity with SDA — downstream calculators today u
 | L   | `Post CDA SWRv Within (CF)`      | calc  | `=IFERROR(G{r}*I{r}*PROJECT_Rainfall/12,0)` |
 | M   | `Post CDA SWRv Outside (CF)`     | calc  | `=IFERROR(H{r}*I{r}*PROJECT_Rainfall/12,0)` |
 
-Column widths (14 columns total → 13 used; keep width defaults from current CDA for cols A–D, mirror SDA area widths for E–H, keep current widths for I–M).
+Column widths: 13 columns total (A–M). Keep width defaults from current CDA for cols A–D, mirror SDA area widths for E–H, keep current widths for I–M.
 
 Row 3 is the header. Rows 4–53 are data (50 rows). Row 54 is a blank separator; row 56 is the summary header.
 
