@@ -90,3 +90,37 @@ body.print-mode #printArea .calc-sheet:last-child { page-break-after: auto; }
   #printArea .calc-sheet { page-break-after: always; break-after: page; min-height: 9.5in; }
   #printArea .calc-sheet:last-child { page-break-after: auto; }
 }
+
+/* ── Sidebar nav ─────────────────────────────────────────────────────────── */
+.nav { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
+.nav-btn {
+  all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 6px; color: var(--muted);
+  font-size: 13px; border: 1px solid transparent;
+}
+.nav-btn:hover { background: var(--panel-alt); color: var(--text); }
+.nav-btn.active { background: var(--accent-soft); color: var(--accent); border-color: rgba(56, 198, 180, 0.35); }
+.nav-num { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); width: 18px; }
+
+/* ── Topbar ─────────────────────────────────────────────────────────────── */
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.topbar .filename { color: var(--muted); font-size: 13px; }
+.topbar .clear-btn {
+  all: unset; cursor: pointer; color: var(--muted); font-size: 16px; padding: 0 4px;
+}
+.topbar .clear-btn:hover { color: var(--text); }
+.topbar .spacer { flex: 1; }
+.topbar .btn {
+  all: unset; cursor: pointer; padding: 6px 12px; border-radius: 6px;
+  background: var(--accent-soft); color: var(--accent); font-size: 13px;
+  border: 1px solid rgba(56, 198, 180, 0.35);
+}
+.topbar .btn:hover { background: rgba(56, 198, 180, 0.2); }
+
+/* ── Banners ────────────────────────────────────────────────────────────── */
+.banner { padding: 10px 14px; margin: 10px 20px; border-radius: 6px; font-size: 13px; }
+.banner.error { background: rgba(229, 72, 77, 0.1); border: 1px solid var(--fail); color: #FCA5A5; }
+.banner.warn  { background: rgba(229, 185, 77, 0.1); border: 1px solid var(--warn); color: #FDE68A; }
