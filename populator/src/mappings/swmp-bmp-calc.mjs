@@ -2,9 +2,11 @@
 // Mapping for DOEE "SWMP-BMP Calc Spreadsheet" (xlsm with VBA macros).
 // xlsx-surgical.mjs preserves xl/vbaProject.bin automatically.
 //
-// Each BMP-type tab is filled with the FIRST BMP of that type found in the
-// parsed template. If additional BMPs of the same type exist, a warning is
-// emitted naming the type and the total count; those BMPs are NOT written.
+// Each parsed BMP of a supported type (Permeable Pavement, Bioretention,
+// Dry Swale, Planted Trees, Preserve Trees) produces its own output file
+// via the orchestrator's fanOut path — one SWMP-BMP Calc .xlsm per BMP.
+// Each output has only its one BMP's cells populated on its one type-
+// specific sheet; other sheets stay in the blank state.
 //
 // Blank layout investigated against populator/blanks/swmp-bmp-calc.xlsm with
 // openpyxl (keep_vba=True, data_only=False):
@@ -74,6 +76,23 @@ export const target = {
     '3.6 Bioretention',
     '3.14 Tree Planting Preservation',
   ],
+
+  // Skip this mapping entirely if the parsed template has no BMPs of any
+  // supported type. Without this, the fan-out would return an empty array,
+  // the single-output path would run instead, and the user would see a
+  // pristine blank SWMP-BMP Calc download with no indication that nothing
+  // was populated.
+  skipIf(parsed) {
+    const SUPPORTED = new Set([
+      'Permeable Pavement', 'Bioretention', 'Dry Swale',
+      'Planted Trees', 'Preserve Trees',
+    ]);
+    const anySupported = (parsed.bmps ?? []).some(b => SUPPORTED.has(b.type));
+    if (!anySupported) {
+      return 'no supported-type BMPs in template';
+    }
+    return null;
+  },
 
   // build(parsed) generates fanOut entries dynamically — one per BMP.
   // The orchestrator detects fanOut[] and emits N outputs from one blank.

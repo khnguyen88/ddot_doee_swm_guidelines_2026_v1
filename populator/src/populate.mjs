@@ -64,7 +64,9 @@ export async function applyMapping(mapping, parsedOrWb, blankBytes, options = {}
   // If the mapping has a build(parsed, options) hook, let it generate
   // staticCells / tables / warnings dynamically.
   //   - DDOT MEP uses build(parsed, options) to select phases via options.
-  //   - SWMP-BMP Calc uses build(parsed) to pick the first BMP per type.
+  //   - SWMP-BMP Calc uses build(parsed) to emit one fanOut entry per BMP of
+  //     a supported type; the orchestrator fan-out loop produces one output
+  //     file per entry.
   // The hook's return is shallow-merged over the mapping so static definitions
   // can coexist with built ones.
   let effective = mapping;
@@ -87,21 +89,21 @@ export async function applyMapping(mapping, parsedOrWb, blankBytes, options = {}
   const warnings = [...buildWarnings];
 
   // Fan-out path: effective.fanOut is an array of {filename, cells}.
-  // Produce one output per entry by cloning the blank bytes.
+  // Reuse the already-opened `xlsx` for entry 0; clone the blank bytes for 1..N.
   if (Array.isArray(effective.fanOut) && effective.fanOut.length > 0) {
     const outputs = [];
-    for (const entry of effective.fanOut) {
-      const clonedBlank = new Uint8Array(blankBytes); // defensive copy
-      const xlsx = await openXlsx(clonedBlank);
+    for (let i = 0; i < effective.fanOut.length; i++) {
+      const entry = effective.fanOut[i];
+      const workbook = i === 0 ? xlsx : await openXlsx(new Uint8Array(blankBytes));
       const bySheet = {};
       for (const c of entry.cells) {
         if (c.value == null) continue;
         (bySheet[c.sheet] ??= []).push({ ref: c.ref, value: c.value });
       }
       for (const [sheet, entries] of Object.entries(bySheet)) {
-        await setCells(xlsx, sheet, entries);
+        await setCells(workbook, sheet, entries);
       }
-      const blob = await saveXlsx(xlsx);
+      const blob = await saveXlsx(workbook);
       outputs.push({ filename: entry.filename, blob });
     }
     return { targetId: mapping.id, outputs, warnings };

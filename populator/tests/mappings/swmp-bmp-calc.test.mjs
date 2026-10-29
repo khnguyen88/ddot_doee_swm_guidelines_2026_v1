@@ -35,11 +35,18 @@ test('swmp-bmp-calc: 15 outputs for Minnesota Ave (4 PP + 4 Bio + 7 Trees)', () 
   assert.equal(result.outputs.length, 15, `expected 15 outputs, got ${result.outputs.length}`);
 });
 
-test('swmp-bmp-calc: each filename includes the BMP name', () => {
+test('swmp-bmp-calc: each filename starts with the standard prefix and ends .xlsm', () => {
   for (const o of result.outputs) {
-    assert.ok(o.filename.includes('SWMP-BMP Calc Spreadsheet'));
+    assert.ok(o.filename.startsWith('SWMP-BMP Calc Spreadsheet - '));
     assert.ok(o.filename.endsWith('.xlsm'));
   }
+});
+
+test('swmp-bmp-calc: BMP-02-A, BMP-02-B, and BMP-04-T appear in some filename', () => {
+  const names = result.outputs.map(o => o.filename);
+  assert.ok(names.some(n => n.includes('BMP-02-A')), `BMP-02-A not in ${names.join(', ')}`);
+  assert.ok(names.some(n => n.includes('BMP-02-B')), `BMP-02-B not in ${names.join(', ')}`);
+  assert.ok(names.some(n => n.includes('BMP-04-T')), `BMP-04-T not in ${names.join(', ')}`);
 });
 
 test('swmp-bmp-calc: BMP-02-A (first Bioretention) file writes to C57–C66', async () => {
