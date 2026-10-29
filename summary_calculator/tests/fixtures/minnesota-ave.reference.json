@@ -1,0 +1,106 @@
+{
+  "source": "minnesota-ave.xlsx",
+  "rainfall_in": 1.7,
+  "swrv_req_cf_per_sda": {
+    "SDA-1": 935.9917,
+    "SDA-2": 912.5883,
+    "SDA-3": 926.7833,
+    "SDA-4": 792.8375,
+    "SDA-5": 968.8583,
+    "SDA-6": 1144.5179,
+    "SDA-7": 834.0129,
+    "SDA-8": 1481.4083,
+    "SDA-9": 899.2858,
+    "SDA-10": 376.4296
+  },
+  "swrv_req_cf_site_total": 9272.7137,
+  "eisa_direct": {
+    "P_in": 1.7,
+    "pre_cf": 9589.2167,
+    "post_cf": 9589.2167
+  },
+  "detention_per_sda": {
+    "SDA-1": {
+      "pre_cn": 97.4237,
+      "post_cn": 97.4237,
+      "p2_pre_q": 2.8435,
+      "p2_post_q": 2.8435,
+      "p15_pre_q": 4.9255,
+      "p15_post_q": 4.9255
+    },
+    "SDA-2": {
+      "pre_cn": 96.8099,
+      "post_cn": 96.8099,
+      "p2_pre_q": 2.7765,
+      "p2_post_q": 2.7765,
+      "p15_pre_q": 4.8543,
+      "p15_post_q": 4.8543
+    },
+    "SDA-3": {
+      "pre_cn": 97.6552,
+      "post_cn": 97.6552,
+      "p2_pre_q": 2.8692,
+      "p2_post_q": 2.8692,
+      "p15_pre_q": 4.9525,
+      "p15_post_q": 4.9525
+    },
+    "SDA-4": {
+      "pre_cn": 95.551,
+      "post_cn": 95.551,
+      "p2_pre_q": 2.643,
+      "p2_post_q": 2.643,
+      "p15_pre_q": 4.71,
+      "p15_post_q": 4.71
+    },
+    "SDA-5": {
+      "pre_cn": 93.816,
+      "post_cn": 93.816,
+      "p2_pre_q": 2.4675,
+      "p2_post_q": 2.4675,
+      "p15_pre_q": 4.5145,
+      "p15_post_q": 4.5145
+    },
+    "SDA-6": {
+      "pre_cn": 97.3365,
+      "post_cn": 97.3365,
+      "p2_pre_q": 2.8339,
+      "p2_post_q": 2.8339,
+      "p15_pre_q": 4.9154,
+      "p15_post_q": 4.9154
+    },
+    "SDA-7": {
+      "pre_cn": 96.8637,
+      "post_cn": 96.8637,
+      "p2_pre_q": 2.7823,
+      "p2_post_q": 2.7823,
+      "p15_pre_q": 4.8606,
+      "p15_post_q": 4.8606
+    },
+    "SDA-8": {
+      "pre_cn": 95.5315,
+      "post_cn": 95.5315,
+      "p2_pre_q": 2.641,
+      "p2_post_q": 2.641,
+      "p15_pre_q": 4.7077,
+      "p15_post_q": 4.7077
+    },
+    "SDA-9": {
+      "pre_cn": 98.0,
+      "post_cn": 98.0,
+      "p2_pre_q": 2.9077,
+      "p2_post_q": 2.9077,
+      "p15_pre_q": 4.9928,
+      "p15_post_q": 4.9928
+    },
+    "SDA-10": {
+      "pre_cn": 98.0,
+      "post_cn": 98.0,
+      "p2_pre_q": 2.9077,
+      "p2_post_q": 2.9077,
+      "p15_pre_q": 4.9928,
+      "p15_post_q": 4.9928
+    }
+  },
+  "horton_loss_B_in": 9.55,
+  "horton_loss_C_in": 3.228571
+}
