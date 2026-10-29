@@ -1,0 +1,43 @@
+name: summary-calculator
+
+on:
+  push:
+    paths:
+      - 'summary_calculator/**'
+      - 'scripts/dump_reference.py'
+      - 'workbook/**'
+  pull_request:
+    paths:
+      - 'summary_calculator/**'
+      - 'scripts/dump_reference.py'
+      - 'workbook/**'
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Regenerate reference JSON
+        run: python scripts/dump_reference.py
+
+      - name: Verify no drift in reference JSON
+        run: |
+          if ! git diff --quiet summary_calculator/tests/fixtures/minnesota-ave.reference.json; then
+            echo "ERROR: reference JSON drifted. Commit the regenerated file."
+            git --no-pager diff summary_calculator/tests/fixtures/minnesota-ave.reference.json
+            exit 1
+          fi
+
+      - name: Run JS parity tests
+        working-directory: summary_calculator
+        run: node --test tests/parse.test.mjs tests/calc.test.mjs tests/render.test.mjs tests/parity.test.mjs

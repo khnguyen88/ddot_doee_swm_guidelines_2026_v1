@@ -43,6 +43,12 @@ Official DOEE/DDOT calculation tools required for SWMP submissions.
 | DDOT MEP Worksheet | PROW Maximum Extent Practicable documentation — 4-step, 3-phase process | [XLSX](docs/doee_spreadsheet_calculators/DDOT%20MEP%20Worksheet%20012019.xlsx) | [Summary](summary/doee_spreadsheet_calculators/DDOT_MEP_Worksheet.md) |
 | SWDB Template for PROW Information (July 2025) | DOEE Stormwater Database submission form for PROW projects | [XLSX](docs/doee_spreadsheet_calculators/SWDB%20Template%20for%20PROW%20Information_SWMP%20July%202025%20-%20final%20locked.xlsx) | [Summary](summary/doee_spreadsheet_calculators/SWDB_Template_PROW.md) |
 
+## Tools
+
+| Tool | Description | Local |
+|---|---|---|
+| SWM Summary Calculator | Letter-format printable calculation summaries from a filled DOEE EISA 438 template | [HTML](summary_calculator/summary-calculator.html) |
+
 ## Analysis & Working Documents
 
 | Document | Description |
