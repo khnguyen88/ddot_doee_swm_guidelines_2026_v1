@@ -57,25 +57,37 @@ function rowsForTable(table, parsed) {
   return arr;
 }
 
-export async function applyMapping(mapping, parsedOrWb, blankBytes) {
+export async function applyMapping(mapping, parsedOrWb, blankBytes, options = {}) {
   // Accept either a SheetJS workbook or an already-parsed object.
   const parsed = parsedOrWb?.SheetNames ? parseWorkbook(parsedOrWb) : parsedOrWb;
+
+  // If the mapping has a build(options) hook, let it generate staticCells /
+  // tables / warnings dynamically (e.g. DDOT MEP with user-selected phases).
+  // The hook's return is shallow-merged over the mapping so static definitions
+  // can coexist with built ones.
+  let effective = mapping;
+  const buildWarnings = [];
+  if (typeof mapping.build === 'function') {
+    const built = mapping.build(options) || {};
+    effective = { ...mapping, ...built };
+    if (Array.isArray(built.warnings)) buildWarnings.push(...built.warnings);
+  }
 
   const xlsx = await openXlsx(blankBytes);
 
   // Signature check — all signatureSheets must exist in the blank.
-  for (const req of (mapping.signatureSheets ?? [])) {
+  for (const req of (effective.signatureSheets ?? [])) {
     if (!(req in xlsx.sheetMap)) {
       throw new Error(`Mapping ${mapping.id}: signature mismatch — missing sheet "${req}"`);
     }
   }
 
-  const warnings = [];
+  const warnings = [...buildWarnings];
 
   // Static cells.
   const bySheet = {};
-  for (const cell of (mapping.staticCells ?? [])) {
-    const value = resolveFrom(cell.from, parsed, null, mapping);
+  for (const cell of (effective.staticCells ?? [])) {
+    const value = resolveFrom(cell.from, parsed, null, effective);
     if (value == null) {
       warnings.push({ ref: `${cell.sheet}!${cell.ref}`, reason: `source "${cell.from}" is null` });
       continue;
@@ -84,12 +96,12 @@ export async function applyMapping(mapping, parsedOrWb, blankBytes) {
   }
 
   // Tables.
-  for (const table of (mapping.tables ?? [])) {
+  for (const table of (effective.tables ?? [])) {
     const rows = rowsForTable(table, parsed);
     rows.forEach((row, i) => {
       const rowNum = table.firstDataRow + i;
       for (const col of table.columns) {
-        const value = resolveFrom(col.from, parsed, row, mapping);
+        const value = resolveFrom(col.from, parsed, row, effective);
         if (value == null) continue;
         (bySheet[table.sheet] ??= []).push({ ref: `${col.col}${rowNum}`, value });
       }
@@ -126,7 +138,7 @@ export async function populateAll(wbOrParsed, { mappings, blanks, options = {} }
       continue;
     }
     try {
-      const result = await applyMapping(mapping, parsed, blankBytes);
+      const result = await applyMapping(mapping, parsed, blankBytes, options);
       outputs.push(result);
     } catch (err) {
       skipped.push({ targetId: mapping.id, reason: err.message });
