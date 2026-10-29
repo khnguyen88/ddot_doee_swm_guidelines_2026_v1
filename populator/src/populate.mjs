@@ -61,14 +61,16 @@ export async function applyMapping(mapping, parsedOrWb, blankBytes, options = {}
   // Accept either a SheetJS workbook or an already-parsed object.
   const parsed = parsedOrWb?.SheetNames ? parseWorkbook(parsedOrWb) : parsedOrWb;
 
-  // If the mapping has a build(options) hook, let it generate staticCells /
-  // tables / warnings dynamically (e.g. DDOT MEP with user-selected phases).
+  // If the mapping has a build(parsed, options) hook, let it generate
+  // staticCells / tables / warnings dynamically.
+  //   - DDOT MEP uses build(parsed, options) to select phases via options.
+  //   - SWMP-BMP Calc uses build(parsed) to pick the first BMP per type.
   // The hook's return is shallow-merged over the mapping so static definitions
   // can coexist with built ones.
   let effective = mapping;
   const buildWarnings = [];
   if (typeof mapping.build === 'function') {
-    const built = mapping.build(options) || {};
+    const built = mapping.build(parsed, options) || {};
     effective = { ...mapping, ...built };
     if (Array.isArray(built.warnings)) buildWarnings.push(...built.warnings);
   }
@@ -85,11 +87,20 @@ export async function applyMapping(mapping, parsedOrWb, blankBytes, options = {}
   const warnings = [...buildWarnings];
 
   // Static cells.
+  // Each entry may carry either:
+  //   `value:` — a literal (already-resolved) value to write directly, OR
+  //   `from:`  — a path/derive string resolved against the parsed template.
   const bySheet = {};
   for (const cell of (effective.staticCells ?? [])) {
-    const value = resolveFrom(cell.from, parsed, null, effective);
+    let value;
+    if ('value' in cell) {
+      value = cell.value;
+    } else {
+      value = resolveFrom(cell.from, parsed, null, effective);
+    }
     if (value == null) {
-      warnings.push({ ref: `${cell.sheet}!${cell.ref}`, reason: `source "${cell.from}" is null` });
+      const src = 'value' in cell ? `literal ${JSON.stringify(cell.value)}` : `source "${cell.from}"`;
+      warnings.push({ ref: `${cell.sheet}!${cell.ref}`, reason: `${src} is null` });
       continue;
     }
     (bySheet[cell.sheet] ??= []).push({ ref: cell.ref, value });

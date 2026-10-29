@@ -64,7 +64,7 @@ export const target = {
   // Dynamically generate the staticCells / tables based on user-selected
   // phases. The orchestrator's applyMapping() calls build(options) if present
   // and merges the result over the mapping before applying.
-  build(options) {
+  build(_parsed, options) {
     const phases = options?.phases ?? ['30% Phase'];
     const staticCells = [];
     const tables = [];
