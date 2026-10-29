@@ -86,10 +86,28 @@ export async function applyMapping(mapping, parsedOrWb, blankBytes, options = {}
 
   const warnings = [...buildWarnings];
 
-  // Static cells.
-  // Each entry may carry either:
-  //   `value:` — a literal (already-resolved) value to write directly, OR
-  //   `from:`  — a path/derive string resolved against the parsed template.
+  // Fan-out path: effective.fanOut is an array of {filename, cells}.
+  // Produce one output per entry by cloning the blank bytes.
+  if (Array.isArray(effective.fanOut) && effective.fanOut.length > 0) {
+    const outputs = [];
+    for (const entry of effective.fanOut) {
+      const clonedBlank = new Uint8Array(blankBytes); // defensive copy
+      const xlsx = await openXlsx(clonedBlank);
+      const bySheet = {};
+      for (const c of entry.cells) {
+        if (c.value == null) continue;
+        (bySheet[c.sheet] ??= []).push({ ref: c.ref, value: c.value });
+      }
+      for (const [sheet, entries] of Object.entries(bySheet)) {
+        await setCells(xlsx, sheet, entries);
+      }
+      const blob = await saveXlsx(xlsx);
+      outputs.push({ filename: entry.filename, blob });
+    }
+    return { targetId: mapping.id, outputs, warnings };
+  }
+
+  // Single-output path (unchanged).
   const bySheet = {};
   for (const cell of (effective.staticCells ?? [])) {
     let value;
@@ -106,7 +124,6 @@ export async function applyMapping(mapping, parsedOrWb, blankBytes, options = {}
     (bySheet[cell.sheet] ??= []).push({ ref: cell.ref, value });
   }
 
-  // Tables.
   for (const table of (effective.tables ?? [])) {
     const rows = rowsForTable(table, parsed);
     rows.forEach((row, i) => {
@@ -119,7 +136,6 @@ export async function applyMapping(mapping, parsedOrWb, blankBytes, options = {}
     });
   }
 
-  // Apply all cells grouped by sheet (one DOM pass per sheet).
   for (const [sheet, entries] of Object.entries(bySheet)) {
     await setCells(xlsx, sheet, entries);
   }
@@ -150,7 +166,13 @@ export async function populateAll(wbOrParsed, { mappings, blanks, options = {} }
     }
     try {
       const result = await applyMapping(mapping, parsed, blankBytes, options);
-      outputs.push(result);
+      if (Array.isArray(result.outputs)) {
+        for (const o of result.outputs) {
+          outputs.push({ targetId: result.targetId, filename: o.filename, blob: o.blob, warnings: result.warnings });
+        }
+      } else {
+        outputs.push(result);
+      }
     } catch (err) {
       skipped.push({ targetId: mapping.id, reason: err.message });
     }

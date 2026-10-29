@@ -158,7 +158,7 @@ function renderDone() {
     <div class="stage">
       <div class="card">
         <div class="card-title">Populated ${outputs.length} of ${total} files</div>
-        ${outputs.map(o => `
+        ${outputs.map((o, idx) => `
           <div class="result-row ${o.warnings?.length ? 'warn' : 'ok'}">
             <div class="mark">${o.warnings?.length ? '⚠' : '✓'}</div>
             <div class="label">
@@ -166,7 +166,7 @@ function renderDone() {
               ${(o.warnings ?? []).map(w => `<div class="reason">${w}</div>`).join('')}
             </div>
             <div class="size">${(o.blob.size / 1024).toFixed(0)} KB</div>
-            <button class="dl-btn" data-id="${o.targetId}">Download</button>
+            <button class="dl-btn" data-idx="${idx}">Download</button>
           </div>
         `).join('')}
         ${skipped.map(s => `
@@ -188,7 +188,7 @@ function renderDone() {
 
   for (const btn of main.querySelectorAll('.dl-btn')) {
     btn.addEventListener('click', () => {
-      const output = outputs.find(o => o.targetId === btn.dataset.id);
+      const output = outputs[parseInt(btn.dataset.idx, 10)];
       downloadBlob(output.blob, output.filename);
     });
   }

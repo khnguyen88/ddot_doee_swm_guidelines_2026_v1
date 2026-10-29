@@ -75,24 +75,12 @@ export const target = {
     '3.14 Tree Planting Preservation',
   ],
 
-  // build(parsed) generates staticCells dynamically based on the parsed BMPs.
-  // The orchestrator shallow-merges the returned object over this target before
-  // applying, so tables: [] is explicit (no table writes for this workbook).
+  // build(parsed) generates fanOut entries dynamically — one per BMP.
+  // The orchestrator detects fanOut[] and emits N outputs from one blank.
   build(parsed, _options) {
-    const staticCells = [];
     const warnings = [];
+    const fanOut = [];
 
-    // Group BMPs by type, preserving parse order (first-seen = first written).
-    const bmpsByType = {};
-    for (const bmp of (parsed.bmps ?? [])) {
-      (bmpsByType[bmp.type] ??= []).push(bmp);
-    }
-
-    // Map parsed BMP types to the sheet they populate.
-    // Planted Trees and Preserve Trees share the same sheet; if both types
-    // appear, they each emit cells independently on the same sheet (additive
-    // counts). Only the first BMP within each type gets written; a warning fires
-    // if there are more than one BMP per type.
     const typeToSheet = {
       'Permeable Pavement': '3.5 Permeable Pavement',
       'Bioretention':       '3.6 Bioretention',
@@ -101,58 +89,67 @@ export const target = {
       'Preserve Trees':     '3.14 Tree Planting Preservation',
     };
 
-    for (const [type, bmps] of Object.entries(bmpsByType)) {
-      const sheet = typeToSheet[type];
-      if (!sheet) continue;  // unsupported type — silently skip
+    const sanitize = (name) =>
+      String(name || 'unnamed').replace(/[\/\\:*?"<>|]/g, '_');
 
-      const first = bmps[0];
+    const usedFilenames = new Set();
+    const uniqueFilename = (base) => {
+      let name = base;
+      let i = 2;
+      while (usedFilenames.has(name)) name = base.replace(/\.xlsm$/, `-${i++}.xlsm`);
+      usedFilenames.add(name);
+      return name;
+    };
 
-      if (bmps.length > 1) {
-        warnings.push(
-          `${type}: filled only ${first.name}; template has ${bmps.length} ${type} BMPs.`,
+    for (const bmp of (parsed.bmps ?? [])) {
+      const sheet = typeToSheet[bmp.type];
+      if (!sheet) continue;
+
+      const cells = [];
+      if (bmp.type === 'Permeable Pavement') {
+        if (!bmp.pp) { warnings.push(`${bmp.name}: missing pp sub-object; skipped.`); continue; }
+        cells.push(
+          { sheet, ref: 'C56', value: _ppSubType(bmp.subType) },
+          { sheet, ref: 'C57', value: bmp.pp.sa },
+          { sheet, ref: 'C58', value: bmp.pp.dReservoir },
         );
+      } else if (bmp.type === 'Bioretention') {
+        if (!bmp.bio) { warnings.push(`${bmp.name}: missing bio sub-object; skipped.`); continue; }
+        cells.push(
+          { sheet, ref: 'C57', value: _bioSubType(bmp.subType) },
+          { sheet, ref: 'C58', value: bmp.bio.saTop },
+          { sheet, ref: 'C59', value: bmp.bio.saBot },
+          { sheet, ref: 'C61', value: bmp.bio.dMedia },
+          { sheet, ref: 'C63', value: bmp.bio.dGravel },
+          { sheet, ref: 'C66', value: bmp.bio.dPond },
+        );
+      } else if (bmp.type === 'Dry Swale') {
+        if (!bmp.bio) { warnings.push(`${bmp.name}: missing bio sub-object; skipped.`); continue; }
+        cells.push(
+          { sheet, ref: 'C29', value: bmp.bio.saTop },
+          { sheet, ref: 'C30', value: bmp.bio.saBot },
+          { sheet, ref: 'C32', value: bmp.bio.dMedia },
+          { sheet, ref: 'C34', value: bmp.bio.dGravel },
+          { sheet, ref: 'C36', value: bmp.bio.dPond },
+        );
+      } else if (bmp.type === 'Planted Trees' || bmp.type === 'Preserve Trees') {
+        if (!bmp.trees) { warnings.push(`${bmp.name}: missing trees sub-object; skipped.`); continue; }
+        const t = bmp.trees;
+        if (t.plantedSmall)      cells.push({ sheet, ref: 'C37', value: t.plantedSmall });
+        if (t.plantedLarge)      cells.push({ sheet, ref: 'C38', value: t.plantedLarge });
+        if (t.preservedSmall)    cells.push({ sheet, ref: 'C39', value: t.preservedSmall });
+        if (t.preservedLarge)    cells.push({ sheet, ref: 'C40', value: t.preservedLarge });
+        if (t.preservedSpecial)  cells.push({ sheet, ref: 'C41', value: t.preservedSpecial });
+        if (t.preservedHeritage) cells.push({ sheet, ref: 'C42', value: t.preservedHeritage });
       }
 
-      if (type === 'Permeable Pavement') {
-        if (!first.pp) continue;  // guard: pp sub-object must be present
-        staticCells.push(
-          { sheet, ref: 'C56', value: _ppSubType(first.subType) },
-          { sheet, ref: 'C57', value: first.pp.sa },
-          { sheet, ref: 'C58', value: first.pp.dReservoir },
-        );
-      } else if (type === 'Bioretention') {
-        if (!first.bio) continue;
-        staticCells.push(
-          { sheet, ref: 'C57', value: _bioSubType(first.subType) },
-          { sheet, ref: 'C58', value: first.bio.saTop },
-          { sheet, ref: 'C59', value: first.bio.saBot },
-          { sheet, ref: 'C61', value: first.bio.dMedia },
-          { sheet, ref: 'C63', value: first.bio.dGravel },
-          { sheet, ref: 'C66', value: first.bio.dPond },
-        );
-      } else if (type === 'Dry Swale') {
-        if (!first.bio) continue;
-        staticCells.push(
-          { sheet, ref: 'C29', value: first.bio.saTop },
-          { sheet, ref: 'C30', value: first.bio.saBot },
-          { sheet, ref: 'C32', value: first.bio.dMedia },
-          { sheet, ref: 'C34', value: first.bio.dGravel },
-          { sheet, ref: 'C36', value: first.bio.dPond },
-        );
-      } else if (type === 'Planted Trees' || type === 'Preserve Trees') {
-        if (!first.trees) continue;
-        const t = first.trees;
-        // Only push non-zero counts so formula cells with zero stay blank.
-        if (t.plantedSmall)    staticCells.push({ sheet, ref: 'C37', value: t.plantedSmall });
-        if (t.plantedLarge)    staticCells.push({ sheet, ref: 'C38', value: t.plantedLarge });
-        if (t.preservedSmall)  staticCells.push({ sheet, ref: 'C39', value: t.preservedSmall });
-        if (t.preservedLarge)  staticCells.push({ sheet, ref: 'C40', value: t.preservedLarge });
-        if (t.preservedSpecial)   staticCells.push({ sheet, ref: 'C41', value: t.preservedSpecial });
-        if (t.preservedHeritage)  staticCells.push({ sheet, ref: 'C42', value: t.preservedHeritage });
-      }
+      if (cells.length === 0) continue;
+
+      const base = `SWMP-BMP Calc Spreadsheet - ${sanitize(bmp.name)}.xlsm`;
+      fanOut.push({ filename: uniqueFilename(base), cells });
     }
 
-    return { staticCells, tables: [], warnings };
+    return { staticCells: [], tables: [], warnings, fanOut };
   },
 };
 
