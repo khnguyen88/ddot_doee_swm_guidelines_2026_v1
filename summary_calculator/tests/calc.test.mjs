@@ -201,3 +201,43 @@ test('siteSwrv: sum of per-SDA SWRv_req (informational)', () => {
   // (1000+2000) × 0.95 × 1.2 / 12 = 285 CF
   approx(r.value, 285);
 });
+
+import { eisaDirectVolumeTraceCf, tr55VolumeTraceCf } from '../src/calc.mjs';
+
+test('eisaDirectVolumeTraceCf: perRow entries + totals match scalar engine', () => {
+  const rows = [
+    { area: 1000, landUse: 'Impervious Vehicular', hsg: 'D' },
+    { area: 2000, landUse: 'Natural (Woods)',      hsg: 'B' },
+  ];
+  const result = eisaDirectVolumeTraceCf(rows, 1.7);
+  assert.equal(result.perRow.length, 2);
+  // Impervious: depth = 1.7 - 0.1 = 1.6 in; volume = 1000 * 1.6 / 12 ≈ 133.33 cf
+  assert.ok(Math.abs(result.perRow[0].volumeCf - 1000 * 1.6 / 12) < 0.01);
+  // Natural HSG B: depth = max(0, 1.7 - 0.2 - Horton_B); Horton_B dominates so depth = 0.
+  assert.equal(result.perRow[1].volumeCf, 0);
+  const expectedTotal = result.perRow.reduce((s, r) => s + r.volumeCf, 0);
+  assert.ok(Math.abs(result.value - expectedTotal) < 0.001);
+  assert.equal(result.units, 'cf');
+});
+
+test('tr55VolumeTraceCf: perRow entries carry CN and total volume matches scalar', () => {
+  const rows = [
+    { area: 1000, landUse: 'Impervious Vehicular', hsg: 'D' },
+    { area: 2000, landUse: 'Natural (Woods)',      hsg: 'C' },
+  ];
+  const result = tr55VolumeTraceCf(rows, 1.7);
+  assert.equal(result.perRow.length, 2);
+  assert.equal(result.perRow[0].cn, 98);
+  assert.equal(result.perRow[1].cn, 70);
+  const expectedTotal = result.perRow.reduce((s, r) => s + r.volumeCf, 0);
+  assert.ok(Math.abs(result.value - expectedTotal) < 0.001);
+  assert.equal(result.units, 'cf');
+});
+
+test('eisaDirectVolumeTraceCf: emits a formatted top-level steps[0] for renderTrace', () => {
+  const result = eisaDirectVolumeTraceCf([
+    { area: 1000, landUse: 'Impervious Vehicular', hsg: 'D' },
+  ], 1.7);
+  assert.ok(Array.isArray(result.steps));
+  assert.ok(result.steps[0].expr.includes('depth'));
+});

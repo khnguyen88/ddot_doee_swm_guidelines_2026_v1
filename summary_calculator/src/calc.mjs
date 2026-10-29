@@ -342,3 +342,61 @@ export function siteSwrv(sdas, rainfallIn, params) {
     ],
   };
 }
+
+// ─── Trace variants used by EISA render pages ───────────────────────────────
+
+export function eisaDirectVolumeTraceCf(rows, P) {
+  const perRow = rows.map(r => {
+    const depth = eisaDirectRunoffDepth(r.landUse, r.hsg, P);
+    return {
+      landUse: r.landUse,
+      hsg: r.hsg,
+      area: r.area,
+      depthIn: depth,
+      volumeCf: r.area * depth / 12,
+    };
+  });
+  const value = perRow.reduce((s, r) => s + r.volumeCf, 0);
+  return {
+    value,
+    units: 'cf',
+    perRow,
+    steps: [
+      { expr: 'EISA Direct — total runoff = Σ (A_i × depth_i / 12)',
+        sub:  `Σ over ${perRow.length} rows`,
+        eval: `${perRow.map(r => `${r.area}·${r.depthIn.toFixed(3)}/12`).join(' + ')}`,
+        result: value },
+    ],
+  };
+}
+
+export function tr55VolumeTraceCf(rows, P) {
+  const perRow = rows.map(r => {
+    const cnRow = CN[r.landUse];
+    if (!cnRow || cnRow[r.hsg] == null) {
+      throw new Error(`No CN entry for ('${r.landUse}', '${r.hsg}')`);
+    }
+    const cn = cnRow[r.hsg];
+    const depth = tr55RunoffDepth(P, cn);
+    return {
+      landUse: r.landUse,
+      hsg: r.hsg,
+      area: r.area,
+      cn,
+      depthIn: depth,
+      volumeCf: r.area * depth / 12,
+    };
+  });
+  const value = perRow.reduce((s, r) => s + r.volumeCf, 0);
+  return {
+    value,
+    units: 'cf',
+    perRow,
+    steps: [
+      { expr: 'TR-55 — Q = (P − 0.2S)² / (P + 0.8S)   where S = 1000/CN − 10',
+        sub:  `Σ over ${perRow.length} rows (A × Q / 12)`,
+        eval: `${perRow.map(r => `${r.area}·${r.depthIn.toFixed(3)}/12`).join(' + ')}`,
+        result: value },
+    ],
+  };
+}
