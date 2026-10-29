@@ -402,7 +402,7 @@ test('renderEisaComplianceSheet: EISA does not apply when PROJECT!B11 = No', () 
 
 import { renderExecutiveSummarySheet } from '../src/render.mjs';
 
-test('renderExecutiveSummarySheet: shows DA block, SWRv per-SDA, EISA both methods', () => {
+test('renderExecutiveSummarySheet: shows DA block, SWRv per-SDA, EISA block when Yes', () => {
   const agg = {
     pre:  { natural: 500, compacted: 0, impervious: 1000, bmp: 0 },
     post: { natural: 0,   compacted: 0, impervious: 1500, bmp: 0 },
@@ -415,12 +415,27 @@ test('renderExecutiveSummarySheet: shows DA block, SWRv per-SDA, EISA both metho
   const direct = { preCf: 50, postCf: 80, deltaCf: 30, netCf: -20, pass: true };
   const tr55   = { preCf: 60, postCf: 90, deltaCf: 30, netCf: -20, pass: true };
   const html = renderExecutiveSummarySheet(sampleProject, agg, complianceRows,
-                                            direct, tr55, 'Direct Determination');
+                                            direct, tr55, 'Yes');
   assert.ok(html.includes('Executive Summary'));
   assert.ok(html.includes('SDA-1'));
   assert.ok(html.includes('SDA-2'));
   assert.ok(html.includes('66.7%') || html.includes('67%'));
-  assert.ok(html.includes('Direct Determination'));
-  assert.ok(html.includes('TR-55'));
-  assert.ok(html.includes('Elected'));
+  assert.ok(html.includes('Direct —'));
+  assert.ok(html.includes('TR-55 —'));
+  assert.ok(html.includes('EISA §438 applies'));
+});
+
+test('renderExecutiveSummarySheet: EISA block shows "No" when PROJECT!B11 = No', () => {
+  const agg = {
+    pre: { natural:0, compacted:0, impervious:1000, bmp:0 },
+    post:{ natural:0, compacted:0, impervious:1500, bmp:0 },
+    preTotal: 1000, postTotal: 1500, impPctPre: 100, impPctPost: 100,
+  };
+  const direct = { preCf:0, postCf:0, deltaCf:0, netCf:0, pass:true };
+  const tr55   = { preCf:0, postCf:0, deltaCf:0, netCf:0, pass:true };
+  const html = renderExecutiveSummarySheet(sampleProject, agg, [], direct, tr55, 'No');
+  assert.ok(html.includes('EISA §438 applies'));
+  assert.ok(html.includes('No'));
+  // Direct/TR-55 numbers should NOT appear when EISA does not apply
+  assert.ok(!html.includes('Net after BMP storage'));
 });

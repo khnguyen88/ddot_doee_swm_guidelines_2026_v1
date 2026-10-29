@@ -41,6 +41,10 @@ function buildDeck(parsed) {
                    deltaCf: eisaDirectPost.value - eisaDirectPre.value };
   const tr55   = { preCf: eisaTr55Pre.value,   postCf: eisaTr55Post.value,
                    deltaCf: eisaTr55Post.value   - eisaTr55Pre.value };
+  // bmpTotalCf is also recomputed inside renderEisaComplianceSheet because that
+  // renderer needs the raw per-BMP rows anyway. We pre-compute here only to
+  // supply directWithNet / tr55WithNet to renderExecutiveSummarySheet, which
+  // takes summary objects rather than the raw bmpStorage list.
   const bmpTotalCf = bmpStorage.reduce((s, b) => s + b.rvCf, 0);
   const directWithNet = { ...direct, netCf: direct.deltaCf - bmpTotalCf,
                           pass: (direct.deltaCf - bmpTotalCf) <= 0 };

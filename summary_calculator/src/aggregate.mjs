@@ -53,3 +53,30 @@ export function rvProvidedPerBmp(bmps, cdas, params) {
     rvCf: _rvForBmp(bmp, cdas, params),
   }));
 }
+
+// Build SWRv-compliance table rows (SDA + totals) from compliance rows.
+// Used by both the detailed Compliance page and the compact Executive Summary.
+// `shortStatus = true` returns bare ✓/✗ (compact), false returns ✓ PASS / ✗ FAIL (verbose).
+export function swrvComplianceTableRows(rows, shortStatus = false) {
+  const perRow = rows.map(r => {
+    const pct = r.swrvReqCf > 0 ? (r.rvProvidedCf / r.swrvReqCf * 100) : 0;
+    const pass = r.rvProvidedCf >= r.swrvReqCf || r.swrvReqCf === 0;
+    const status = shortStatus
+      ? (pass ? '✓' : '✗')
+      : (pass ? '✓ PASS' : '✗ FAIL');
+    return { sdaId: r.sdaId, swrvReqCf: r.swrvReqCf, rvProvidedCf: r.rvProvidedCf,
+             pct, pass, status };
+  });
+  const totalReq      = rows.reduce((s, r) => s + r.swrvReqCf, 0);
+  const totalProvided = rows.reduce((s, r) => s + r.rvProvidedCf, 0);
+  const sitePass = totalProvided >= totalReq;
+  const siteTotal = {
+    sdaId: 'SITE TOTAL',
+    swrvReqCf: totalReq,
+    rvProvidedCf: totalProvided,
+    pct: totalReq > 0 ? totalProvided / totalReq * 100 : 0,
+    pass: sitePass,
+    status: sitePass ? '✓ PASS' : '✗ FAIL',
+  };
+  return { perRow, siteTotal };
+}

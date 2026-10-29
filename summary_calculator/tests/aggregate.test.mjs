@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rvProvidedPerSda, rvProvidedPerBmp } from '../src/aggregate.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp, swrvComplianceTableRows } from '../src/aggregate.mjs';
 
 const params = {
   bmpDesign: {
@@ -95,4 +95,27 @@ test('rvProvidedPerBmp: correct shape, uncapped Bio, capped PP, zero for unsuppo
 
   // Unsupported type — rvCf = 0
   assert.equal(result[2].rvCf, 0);
+});
+
+// ─── swrvComplianceTableRows ─────────────────────────────────────────────────
+
+test('swrvComplianceTableRows: perRow + siteTotal with pass/fail and %', () => {
+  const rows = [
+    { sdaId: 'SDA-1', swrvReqCf: 100, rvProvidedCf: 150 },
+    { sdaId: 'SDA-2', swrvReqCf: 200, rvProvidedCf: 100 },
+  ];
+  const { perRow, siteTotal } = swrvComplianceTableRows(rows);
+  assert.equal(perRow.length, 2);
+  assert.equal(perRow[0].pass, true);
+  assert.equal(perRow[1].pass, false);
+  assert.equal(siteTotal.swrvReqCf, 300);
+  assert.equal(siteTotal.rvProvidedCf, 250);
+  assert.equal(siteTotal.pass, false);
+  assert.equal(siteTotal.status, '✗ FAIL');
+});
+
+test('swrvComplianceTableRows: shortStatus=true returns bare ✓/✗ per row', () => {
+  const rows = [{ sdaId: 'SDA-1', swrvReqCf: 100, rvProvidedCf: 150 }];
+  const { perRow } = swrvComplianceTableRows(rows, true);
+  assert.equal(perRow[0].status, '✓');
 });

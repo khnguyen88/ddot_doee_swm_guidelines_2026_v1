@@ -16,7 +16,7 @@ export const fmtN = (n, places = 0) => {
 import {
   ppSizingSv, bioSizingSv, rvFromSv, maxBmpCredit, treeRetentionCredit,
 } from './calc.mjs';
-import { rvProvidedPerSda } from './aggregate.mjs';
+import { rvProvidedPerSda, swrvComplianceTableRows } from './aggregate.mjs';
 
 export function renderSheetShell({ title, sub, body, footer, landscape = false }) {
   const cls = landscape ? 'calc-sheet landscape' : 'calc-sheet';
@@ -443,26 +443,14 @@ export function renderDetentionSheet(project, summary, p2In, p15In) {
 }
 
 export function renderCompliancePage(project, rows) {
-  const dataRows = rows.map(r => {
-    const pct = r.swrvReqCf > 0 ? (r.rvProvidedCf / r.swrvReqCf * 100) : 0;
-    const pass = r.rvProvidedCf >= r.swrvReqCf || r.swrvReqCf === 0;
-    return [
-      r.sdaId,
-      fmtN(r.swrvReqCf, 0),
-      fmtN(r.rvProvidedCf, 0),
-      fmtN(pct, 0) + '%',
-      pass ? '✓ PASS' : '✗ FAIL',
-    ];
-  });
-  const totalReq      = rows.reduce((s, r) => s + r.swrvReqCf, 0);
-  const totalProvided = rows.reduce((s, r) => s + r.rvProvidedCf, 0);
-  const sitePass = totalProvided >= totalReq;
+  const { perRow, siteTotal } = swrvComplianceTableRows(rows, false /* verbose */);
+  const dataRows = perRow.map(r => [
+    r.sdaId, fmtN(r.swrvReqCf, 0), fmtN(r.rvProvidedCf, 0),
+    fmtN(r.pct, 0) + '%', r.status,
+  ]);
   const totalRow = [
-    'SITE TOTAL',
-    fmtN(totalReq, 0),
-    fmtN(totalProvided, 0),
-    fmtN(totalReq > 0 ? totalProvided / totalReq * 100 : 0, 0) + '%',
-    sitePass ? '✓ PASS' : '✗ FAIL',
+    siteTotal.sdaId, fmtN(siteTotal.swrvReqCf, 0), fmtN(siteTotal.rvProvidedCf, 0),
+    fmtN(siteTotal.pct, 0) + '%', siteTotal.status,
   ];
   const headers = ['SDA', 'SWRv Required (cf)', 'Rv Provided (cf)', '% Met', 'Status'];
   const body =
@@ -550,34 +538,33 @@ export function renderExecutiveSummarySheet(project, agg, complianceRows, direct
 
   // Block B — Per-SDA SWRv.
   const swrvHeaders = ['SDA', 'SWRv Required (cf)', 'Rv Provided (cf)', '% Met', 'Status'];
-  const swrvRows = complianceRows.map(r => {
-    const pct = r.swrvReqCf > 0 ? (r.rvProvidedCf / r.swrvReqCf * 100) : 0;
-    const pass = r.rvProvidedCf >= r.swrvReqCf || r.swrvReqCf === 0;
-    return [r.sdaId, fmtN(r.swrvReqCf, 0), fmtN(r.rvProvidedCf, 0),
-            fmtN(pct, 0) + '%', pass ? '✓' : '✗'];
-  });
-  const totalReq      = complianceRows.reduce((s, r) => s + r.swrvReqCf, 0);
-  const totalProvided = complianceRows.reduce((s, r) => s + r.rvProvidedCf, 0);
+  const { perRow, siteTotal } = swrvComplianceTableRows(complianceRows, true /* compact */);
+  const swrvRows = perRow.map(r => [
+    r.sdaId, fmtN(r.swrvReqCf, 0), fmtN(r.rvProvidedCf, 0),
+    fmtN(r.pct, 0) + '%', r.status,
+  ]);
   swrvRows.push([
-    'SITE TOTAL',
-    fmtN(totalReq, 0),
-    fmtN(totalProvided, 0),
-    fmtN(totalReq > 0 ? totalProvided / totalReq * 100 : 0, 0) + '%',
-    totalProvided >= totalReq ? '✓ PASS' : '✗ FAIL',
+    siteTotal.sdaId, fmtN(siteTotal.swrvReqCf, 0), fmtN(siteTotal.rvProvidedCf, 0),
+    fmtN(siteTotal.pct, 0) + '%', siteTotal.status,
   ]);
 
   // Block C — EISA.
-  const eisaKv = renderKvTable([
-    ['Direct — Pre',  fmtN(direct.preCf, 0) + ' cf'],
-    ['Direct — Post', fmtN(direct.postCf, 0) + ' cf'],
-    ['Direct — Δ (post − pre)',        fmtN(direct.deltaCf, 0) + ' cf'],
-    ['Direct — Net after BMP storage', fmtN(direct.netCf, 0) + ' cf · ' + (direct.pass ? '✓' : '✗')],
-    ['TR-55 — Pre',  fmtN(tr55.preCf, 0) + ' cf'],
-    ['TR-55 — Post', fmtN(tr55.postCf, 0) + ' cf'],
-    ['TR-55 — Δ (post − pre)',        fmtN(tr55.deltaCf, 0) + ' cf'],
-    ['TR-55 — Net after BMP storage', fmtN(tr55.netCf, 0) + ' cf · ' + (tr55.pass ? '✓' : '✗')],
-    ['Elected method', electedMethod || '(not specified)'],
-  ]);
+  const applies = electedMethod === 'Yes';
+  const eisaKv = applies
+    ? renderKvTable([
+        ['Direct — Pre',  fmtN(direct.preCf, 0) + ' cf'],
+        ['Direct — Post', fmtN(direct.postCf, 0) + ' cf'],
+        ['Direct — Δ (post − pre)',        fmtN(direct.deltaCf, 0) + ' cf'],
+        ['Direct — Net after BMP storage', fmtN(direct.netCf, 0) + ' cf · ' + (direct.pass ? '✓' : '✗')],
+        ['TR-55 — Pre',  fmtN(tr55.preCf, 0) + ' cf'],
+        ['TR-55 — Post', fmtN(tr55.postCf, 0) + ' cf'],
+        ['TR-55 — Δ (post − pre)',        fmtN(tr55.deltaCf, 0) + ' cf'],
+        ['TR-55 — Net after BMP storage', fmtN(tr55.netCf, 0) + ' cf · ' + (tr55.pass ? '✓' : '✗')],
+        ['EISA §438 applies', 'Yes — see EISA Compliance page for engineer-elected method'],
+      ])
+    : renderKvTable([
+        ['EISA §438 applies', electedMethod === 'No' ? 'No' : '(not specified)'],
+      ]);
 
   const body =
     renderBlock('SITE DA — LAND COVER ROLL-UP', renderDataTable(daHeaders, daRows) + daKv) +
