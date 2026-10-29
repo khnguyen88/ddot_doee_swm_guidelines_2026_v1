@@ -43,6 +43,7 @@ def build_workbook() -> openpyxl.Workbook:
     doee.build_doee_sda(wb)
     doee.build_doee_bmp_data(wb)
     doee.build_doee_detention(wb)
+    doee.build_doee_detention_bmp(wb)
     doee.build_doee_compliance(wb)
 
     # Final pass — apply number formats across all sheets.

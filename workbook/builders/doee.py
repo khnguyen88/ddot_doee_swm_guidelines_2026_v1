@@ -12,6 +12,7 @@ Sheet order:
 All rows are auto-populated via SUMIFS and cross-sheet references.
 No user input on any of these sheets.
 """
+import openpyxl
 from openpyxl import Workbook
 
 from workbook import styles
@@ -25,6 +26,21 @@ BMP_LAST = 53
 # SDA summary data starts at row 58 when n_rows=50:
 #   data_end = 53, summary_header_row = 56, sum_row = 57, sum_data_start = 58
 SDA_SUMMARY_FIRST = 58   # row of SDA-1 in SDA summary block
+
+# CDA data table range (used by DOEE_DETENTION_BMP SUMIFS).
+CDA_FIRST = 4
+CDA_LAST = 53
+# CDA summary data starts at row 58 when n_rows=50 (mirrors SDA_SUMMARY_FIRST layout).
+CDA_SUMMARY_FIRST = 58
+
+DETENTION_USER_NOTE = (
+    "Note: Pre/Post CN composites and runoff depths use land cover "
+    "Within LOD per DOEE compliance convention. Physical catchment runoff "
+    "may also include flow from Outside LOD or existing PROW; project-specific "
+    "exceptions apply. For projects where Outside-LOD contribution is material "
+    "(offsite inflow, retrofit along existing ROW, etc.), consult the project's "
+    "drainage study and adjust detention sizing accordingly."
+)
 
 
 def _area_sumifs(area_col: str, sda_cell: str, lu: str) -> str:
@@ -248,6 +264,14 @@ def build_doee_detention(wb: Workbook) -> None:
                styles.BH, span=9)
     ws.row_dimensions[1].height = 24
 
+    # User note on row 2 (spans A-I).
+    styles.lbl(ws, 2, 1, DETENTION_USER_NOTE, styles.BL, bold=False)
+    ws.cell(row=2, column=1).alignment = openpyxl.styles.Alignment(
+        wrap_text=True, vertical="top"
+    )
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=9)
+    ws.row_dimensions[2].height = 48
+
     headers = [
         "SDA Number", "Pre CN", "Post CN",
         "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Det Req'd?",
@@ -416,3 +440,116 @@ def build_doee_compliance(wb: Workbook) -> None:
                     cur = ""
                 if str(cur).endswith(styles.CALC) or str(cur).endswith("DEEAF1"):
                     cell.fill = styles.fill(styles.GRY)
+
+
+def build_doee_detention_bmp(wb: Workbook) -> None:
+    """Add DOEE_DETENTION_BMP — BMP/CDA-level detention compliance (one row per CDA).
+
+    Fully auto-populated: col A is the hard-coded CDA-N label, every other
+    column is a formula pulling from the CDA, BMP, and PARAMS sheets.
+    """
+    ws = wb.create_sheet("DOEE_DETENTION_BMP")
+    ws.sheet_view.showGridLines = False
+
+    widths = [12, 18, 12, 10, 10, 14, 14, 14, 14, 14, 14]
+    for i, w in enumerate(widths, 1):
+        styles.cw(ws, i, w)
+
+    styles.hdr(ws, 1, 1,
+               "DOEE_DETENTION_BMP — BMP/CDA-level detention compliance",
+               styles.BH, span=11)
+    ws.row_dimensions[1].height = 24
+
+    # User note on row 2 (spans A-K).
+    styles.lbl(ws, 2, 1, DETENTION_USER_NOTE, styles.BL, bold=False)
+    ws.cell(row=2, column=1).alignment = openpyxl.styles.Alignment(
+        wrap_text=True, vertical="top"
+    )
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=11)
+    ws.row_dimensions[2].height = 48
+
+    headers = [
+        "CDA Number", "BMP Name", "SDA Number",
+        "Pre CN", "Post CN",
+        "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Det Req'd?",
+        "15-yr Pre Q (in)", "15-yr Post Q (in)", "15-yr Det Req'd?",
+    ]
+    for i, h in enumerate(headers, 1):
+        styles.hdr(ws, 3, i, h, styles.BS)
+    ws.row_dimensions[3].height = 36
+
+    cda_summary_last = CDA_SUMMARY_FIRST + 10 - 1  # row 67
+
+    def _sumifs_cda_landuse(area_col: str, cda_cell: str, land_use: str) -> str:
+        return (
+            f"SUMIFS('CDA'!${area_col}${CDA_FIRST}:${area_col}${CDA_LAST},"
+            f"'CDA'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
+            f"'CDA'!$C${CDA_FIRST}:$C${CDA_LAST},\"{land_use}\")"
+        )
+
+    def _cn_composite(area_col: str, cda_cell: str) -> str:
+        """Area-weighted CN composite formula for the given CDA area column."""
+        nat  = _sumifs_cda_landuse(area_col, cda_cell, "Natural (Woods)")
+        comp = _sumifs_cda_landuse(area_col, cda_cell, "Compacted (Open Space)")
+        imp  = (_sumifs_cda_landuse(area_col, cda_cell, "Impervious Vehicular")
+                + "+" + _sumifs_cda_landuse(area_col, cda_cell, "Impervious Non-Vehicular"))
+        bmp_ = _sumifs_cda_landuse(area_col, cda_cell, "BMP")
+        total = f"({nat}+{comp}+{imp}+{bmp_})"
+        num = (f"({nat}*INDEX(PARAMS_DetentionCN,1,2)"
+               f"+{comp}*INDEX(PARAMS_DetentionCN,2,2)"
+               f"+({imp})*INDEX(PARAMS_DetentionCN,3,2)"
+               f"+{bmp_}*INDEX(PARAMS_DetentionCN,4,2))")
+        return f"=IFERROR({num}/{total},0)"
+
+    for i in range(10):
+        r = 4 + i
+        cda_cell = f"A{r}"
+
+        # Col A: hard-coded CDA label.
+        styles.lbl(ws, r, 1, f"CDA-{i+1}", styles.BL, bold=True)
+
+        # Col B: BMP Name — reverse lookup by CDA_ID into BMP col A.
+        styles.calc_c(ws, r, 2,
+                      f"=IFERROR(INDEX('BMP'!$A$4:$A$53,"
+                      f"MATCH({cda_cell},'BMP'!$C$4:$C$53,0)),\"\")")
+
+        # Col C: SDA Number — from CDA summary block col B.
+        styles.calc_c(ws, r, 3,
+                      f"=IFERROR(INDEX('CDA'!$B${CDA_SUMMARY_FIRST}:$B${cda_summary_last},"
+                      f"MATCH({cda_cell},'CDA'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),\"\")")
+
+        # Col D: Pre CN composite — CDA col E (Pre Within LOD).
+        styles.calc_c(ws, r, 4, _cn_composite("E", cda_cell))
+
+        # Col E: Post CN composite — CDA col G (Post Within LOD).
+        styles.calc_c(ws, r, 5, _cn_composite("G", cda_cell))
+
+        p2  = "INDEX(PARAMS_Detention,1,2)"
+        p15 = "INDEX(PARAMS_Detention,2,2)"
+        s_pre  = f"(1000/D{r}-10)"
+        s_post = f"(1000/E{r}-10)"
+
+        # F, G: 2-yr Pre Q, Post Q.
+        styles.calc_c(ws, r, 6,
+                      f"=IFERROR(IF({p2}>0.2*{s_pre},"
+                      f"({p2}-0.2*{s_pre})^2/({p2}+0.8*{s_pre}),0),0)")
+        styles.calc_c(ws, r, 7,
+                      f"=IFERROR(IF({p2}>0.2*{s_post},"
+                      f"({p2}-0.2*{s_post})^2/({p2}+0.8*{s_post}),0),0)")
+        # H: 2-yr Det Req'd?
+        styles.calc_c(ws, r, 8, f'=IF(G{r}>F{r},"Yes","No")')
+
+        # I, J: 15-yr Pre Q, Post Q.
+        styles.calc_c(ws, r, 9,
+                      f"=IFERROR(IF({p15}>0.2*{s_pre},"
+                      f"({p15}-0.2*{s_pre})^2/({p15}+0.8*{s_pre}),0),0)")
+        styles.calc_c(ws, r, 10,
+                      f"=IFERROR(IF({p15}>0.2*{s_post},"
+                      f"({p15}-0.2*{s_post})^2/({p15}+0.8*{s_post}),0),0)")
+        # K: 15-yr Det Req'd?
+        styles.calc_c(ws, r, 11, f'=IF(J{r}>I{r},"Yes","No")')
+
+    last_row = 4 + 10 - 1
+    styles.apply_right_divider(ws, 3, 3, last_row)   # right of col C (ID block)
+    styles.apply_right_divider(ws, 5, 3, last_row)   # right of col E (CN block)
+    styles.apply_right_divider(ws, 8, 3, last_row)   # right of col H (2-yr block)
