@@ -34,6 +34,8 @@ def build_project_sheet(wb: Workbook) -> None:
         styles.lbl(ws, row, 1, label, styles.GRY, bold=True)
         default = 1.7 if row == 9 else None
         styles.inp(ws, row, 2, default)
+        if row == 9:
+            ws.cell(row=row, column=2).number_format = "0.0"
         if dv_formula:
             dv = DataValidation(type="list", formula1=dv_formula,
                                 allow_blank=True, showDropDown=False)

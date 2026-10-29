@@ -111,3 +111,18 @@ def test_named_range_sda_ids(wb):
     assert "SDA_IDs" in names
     # Should point to A column of summary block (SDA-1 through SDA-10 pre-generated)
     assert "$A$" in names["SDA_IDs"]
+
+
+def test_sda_summary_area_match_columns(wb):
+    """SDA summary cols K-M = Pre Total Within + Post Total Within + Area Match?."""
+    ws = wb["SDA"]
+    # SDA summary header row is at summary_header_row = data_end + 3 = 56 for n_rows=50.
+    # Column K (11) = Pre Total, L (12) = Post Total, M (13) = Match.
+    assert ws.cell(row=57, column=11).value == "Pre Total Within (SF)"
+    assert ws.cell(row=57, column=12).value == "Post Total Within (SF)"
+    assert ws.cell(row=57, column=13).value == "Area Match?"
+    # First summary data row (SDA-1 lives at row 58 when summary data starts at 58).
+    r = 58
+    assert ws.cell(row=r, column=11).value == f"=B{r}+C{r}+D{r}+E{r}"
+    assert ws.cell(row=r, column=12).value == f"=F{r}+G{r}+H{r}+I{r}"
+    assert ws.cell(row=r, column=13).value == f'=IF(ABS(K{r}-L{r})<=1,"OK","⚠ MISMATCH")'

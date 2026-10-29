@@ -65,3 +65,9 @@ def test_data_validations_set(wb):
     assert any("B6" in s for s in sqrefs), "AWDZ dropdown missing"
     assert any("B10" in s for s in sqrefs), "Trigger dropdown missing"
     assert any("B11" in s for s in sqrefs), "EISA dropdown missing"
+
+
+def test_rainfall_cell_number_format_one_decimal(wb):
+    """PROJECT!B9 (rainfall input) must display with one decimal (e.g. '1.7')."""
+    ws = wb["PROJECT"]
+    assert ws.cell(row=9, column=2).number_format == "0.0"

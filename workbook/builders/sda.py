@@ -85,6 +85,9 @@ def build_sda_sheet(wb: Workbook, n_rows: int = 50) -> None:
         "Post Imp Total (SF)", "Post Comp Total (SF)",
         "Post Nat Total (SF)", "Post BMP Total (SF)",
         "Post SWRv Required (CF)",
+        "Pre Total Within (SF)",
+        "Post Total Within (SF)",
+        "Area Match?",
     ]
     sum_row = summary_header_row + 1
     for i, h in enumerate(sum_headers, 1):
@@ -134,6 +137,13 @@ def build_sda_sheet(wb: Workbook, n_rows: int = 50) -> None:
         )
         styles.calc_c(ws, r, 10, swrv_req)
 
+        # Col K (11): Pre Total Within = sum of pre land-use totals.
+        styles.calc_c(ws, r, 11, f"=B{r}+C{r}+D{r}+E{r}")
+        # Col L (12): Post Total Within = sum of post land-use totals.
+        styles.calc_c(ws, r, 12, f"=F{r}+G{r}+H{r}+I{r}")
+        # Col M (13): Area match — pre vs post Within LOD, ±1 SF tolerance.
+        styles.calc_c(ws, r, 13, f'=IF(ABS(K{r}-L{r})<=1,"OK","⚠ MISMATCH")')
+
     # Named range for SDA_IDs (used by CDA/BMP dropdowns).
     wb.defined_names.add(DefinedName(
         "SDA_IDs",
@@ -143,4 +153,4 @@ def build_sda_sheet(wb: Workbook, n_rows: int = 50) -> None:
     # Thick separator above summary block — visually distinguishes data from summary.
     styles.apply_top_divider(ws, summary_header_row, 1, 14)
     # Thick bottom separator under summary data for closure.
-    styles.apply_bottom_divider(ws, sum_data_end, 1, 10)
+    styles.apply_bottom_divider(ws, sum_data_end, 1, 13)
