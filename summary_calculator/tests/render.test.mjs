@@ -188,3 +188,24 @@ test('renderCompliancePage: PASS when Rv_provided ≥ SWRv_req per SDA', () => {
   assert.ok(html.includes('PASS'));
   assert.ok(html.includes('FAIL'));
 });
+
+test('renderSdaCdaSummary: CDA block shows Pre and Post Within LOD columns', () => {
+  const sampleProject = { name: 'Test', number: 'T-1', rainfallIn: 1.2, trigger: 'MLD' };
+  const sdas = [{
+    sdaId: 'SDA-1', landUse: 'Impervious Vehicular', hsg: 'B',
+    preIn: 100, preOut: 0, postIn: 100, postOut: 0,
+  }];
+  const cdas = [{
+    cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Impervious Vehicular', hsg: 'B',
+    preIn: 50, preOut: 0, postIn: 150, postOut: 0,
+  }];
+  const pages = renderSdaCdaSummary(sampleProject, sdas, cdas);
+  // Expect the CDA page to include both headers.
+  const cdaPage = pages.find(p => p.includes('CDA-1'));
+  assert.ok(cdaPage, 'CDA page present');
+  assert.ok(cdaPage.includes('Pre Within LOD'),  'Pre column header present');
+  assert.ok(cdaPage.includes('Post Within LOD'), 'Post column header present');
+  // And the data cells for both.
+  assert.ok(cdaPage.includes('>50<'),  'Pre value rendered');
+  assert.ok(cdaPage.includes('>150<'), 'Post value rendered');
+});

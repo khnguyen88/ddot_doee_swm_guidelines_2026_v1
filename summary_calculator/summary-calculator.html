@@ -577,10 +577,11 @@ function parseSda(sheet) {
   return rows;
 }
 
-// CDA layout (from workbook/builders/cda.py):
-//   data rows DATA_FIRST_ROW..DATA_LAST_ROW; parser reads A, B, C, E only
-//   (col D=HSG and col F=outsideLodSf are not consumed by any current calc).
-//   A=cdaId, B=sdaId, C=landUse, E=withinLodSf
+// CDA layout (from workbook/builders/cda.py — 13 cols A..M):
+//   A=cdaId, B=sdaId, C=landUse, D=hsg,
+//   E=preIn, F=preOut, G=postIn, H=postOut,
+//   I=Rv (calc), J-M=SWRv outputs (calc).
+// Parser reads A, B, C, D, E, F, G, H only; downstream calcs recompute SWRv.
 function parseCda(sheet) {
   const rows = [];
   for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
@@ -588,9 +589,13 @@ function parseCda(sheet) {
     if (!cdaId) break;
     rows.push({
       cdaId,
-      sdaId: cell(sheet, r, 2),
+      sdaId:  cell(sheet, r, 2),
       landUse: cell(sheet, r, 3),
-      withinLodSf: cell(sheet, r, 5) || 0,
+      hsg:    cell(sheet, r, 4) || 'D',
+      preIn:  cell(sheet, r, 5) || 0,
+      preOut: cell(sheet, r, 6) || 0,
+      postIn: cell(sheet, r, 7) || 0,
+      postOut: cell(sheet, r, 8) || 0,
     });
   }
   return rows;
@@ -723,7 +728,7 @@ function parseParams(sheet) {
  * @returns {{
  *   project: {name, number, ms4, awdz, doeeReview, totalLod, rainfallIn, trigger, eisa},
  *   sdas:    Array<{sdaId, inProw, landUse, hsg, preIn, preOut, postIn, postOut}>,
- *   cdas:    Array<{cdaId, sdaId, landUse, withinLodSf}>,
+ *   cdas:    Array<{cdaId, sdaId, landUse, hsg, preIn, preOut, postIn, postOut}>,
  *   bmps:    Array<{name, sdaId, cdaId, type, subType,
  *                   pp?:    {sa, dReservoir},
  *                   bio?:   {saTop, saBot, dMedia, dGravel, dPond},
@@ -870,7 +875,6 @@ const SDA_ROWS_PER_PAGE = 30;
 function renderSdaCdaSummary(project, sdas, cdas) {
   const pages = [];
   const sdaHeaders = ['SDA', 'In PROW', 'Land Use', 'HSG', 'Pre In (sf)', 'Post In (sf)'];
-  const cdaHeaders = ['CDA', 'SDA', 'Land Use', 'Within LOD (sf)'];
 
   // Chunk SDA rows.
   for (let i = 0; i < sdas.length; i += SDA_ROWS_PER_PAGE) {
@@ -895,8 +899,9 @@ function renderSdaCdaSummary(project, sdas, cdas) {
 
   // CDAs on their own trailing page(s).
   if (cdas.length) {
-    const cdaRows = cdas.map(c => [c.cdaId, c.sdaId, c.landUse, fmtN(c.withinLodSf)]);
-    const body = renderBlock('CDA — CONTRIBUTING DRAINAGE AREAS', renderDataTable(cdaHeaders, cdaRows));
+    const cdaHeadersFull = ['CDA', 'SDA', 'Land Use', 'Pre Within LOD (SF)', 'Post Within LOD (SF)'];
+    const cdaRows = cdas.map(c => [c.cdaId, c.sdaId, c.landUse, fmtN(c.preIn), fmtN(c.postIn)]);
+    const body = renderBlock('CDA — CONTRIBUTING DRAINAGE AREAS', renderDataTable(cdaHeadersFull, cdaRows));
     pages.push(renderSheetShell({
       title: 'CDA Summary',
       sub:   project.name || '',
@@ -929,7 +934,7 @@ function _renderPp(project, bmp, cda, params) {
   ]);
   const svTrace = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir);
   const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
-  const cdaArea = cda ? cda.withinLodSf : 0;
+  const cdaArea = cda ? cda.postIn : 0;
   const maxTrace = maxBmpCredit(cdaArea);
   const rvApplied = Math.min(rvTrace.value, maxTrace.value);
   const pass = rvApplied === rvTrace.value;
@@ -972,7 +977,7 @@ function _renderBio(project, bmp, cda, params) {
     bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
   );
   const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
-  const cdaArea = cda ? cda.withinLodSf : 0;
+  const cdaArea = cda ? cda.postIn : 0;
   const maxTrace = maxBmpCredit(cdaArea);
   const rvApplied = Math.min(rvTrace.value, maxTrace.value);
   const pass = rvApplied === rvTrace.value;
@@ -1208,11 +1213,11 @@ function buildDeck(parsed) {
     if (bmp.type === 'Permeable Pavement' && bmp.pp) {
       const design = params.bmpDesign[`Permeable Pavement / ${bmp.subType}`] || { nReservoir: 0.40, retMultiplier: 1.0 };
       const sv = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir).value;
-      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.withinLodSf).value : Infinity);
+      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.postIn).value : Infinity);
     } else if ((bmp.type === 'Bioretention' || bmp.type === 'Dry Swale') && bmp.bio) {
       const design = params.bmpDesign[`${bmp.type} / ${bmp.subType}`] || { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
       const sv = bioSizingSv(bmp.bio.saBot, bmp.bio.dMedia, design.nMedia, bmp.bio.dGravel, design.nGravel, bmp.bio.dPond).value;
-      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.withinLodSf).value : Infinity);
+      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.postIn).value : Infinity);
     } else if ((bmp.type === 'Planted Trees' || bmp.type === 'Preserve Trees') && bmp.trees) {
       rv = treeRetentionCredit(bmp.trees, params.treeCredits).value;
     }

@@ -136,7 +136,6 @@ const SDA_ROWS_PER_PAGE = 30;
 export function renderSdaCdaSummary(project, sdas, cdas) {
   const pages = [];
   const sdaHeaders = ['SDA', 'In PROW', 'Land Use', 'HSG', 'Pre In (sf)', 'Post In (sf)'];
-  const cdaHeaders = ['CDA', 'SDA', 'Land Use', 'Within LOD (sf)'];
 
   // Chunk SDA rows.
   for (let i = 0; i < sdas.length; i += SDA_ROWS_PER_PAGE) {
@@ -161,8 +160,9 @@ export function renderSdaCdaSummary(project, sdas, cdas) {
 
   // CDAs on their own trailing page(s).
   if (cdas.length) {
-    const cdaRows = cdas.map(c => [c.cdaId, c.sdaId, c.landUse, fmtN(c.postIn)]);
-    const body = renderBlock('CDA — CONTRIBUTING DRAINAGE AREAS', renderDataTable(cdaHeaders, cdaRows));
+    const cdaHeadersFull = ['CDA', 'SDA', 'Land Use', 'Pre Within LOD (SF)', 'Post Within LOD (SF)'];
+    const cdaRows = cdas.map(c => [c.cdaId, c.sdaId, c.landUse, fmtN(c.preIn), fmtN(c.postIn)]);
+    const body = renderBlock('CDA — CONTRIBUTING DRAINAGE AREAS', renderDataTable(cdaHeadersFull, cdaRows));
     pages.push(renderSheetShell({
       title: 'CDA Summary',
       sub:   project.name || '',
