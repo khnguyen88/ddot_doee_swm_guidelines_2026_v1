@@ -115,3 +115,93 @@ export function eisaDirectTotalVolumeCf(rows, P) {
   }
   return total;
 }
+
+// ─── BMP sizing ──────────────────────────────────────────────────────────────
+
+export function ppSizingSv(sa, dReservoir, nReservoir) {
+  const value = sa * dReservoir * nReservoir;
+  return {
+    value,
+    units: 'cf',
+    steps: [
+      { expr:   'Sv = SA × d_reservoir × n_reservoir',
+        sub:    `${sa} × ${dReservoir} × ${nReservoir}`,
+        eval:   `${sa * dReservoir} × ${nReservoir}`,
+        result: value },
+    ],
+  };
+}
+
+export function bioSizingSv(saBot, dMedia, nMedia, dGravel, nGravel, dPond) {
+  const inner = dMedia * nMedia + dGravel * nGravel + dPond;
+  const value = saBot * inner;
+  return {
+    value,
+    units: 'cf',
+    steps: [
+      { expr:   'Sv = SA_bot (d_media·n_media + d_gravel·n_gravel + d_pond)',
+        sub:    `${saBot} (${dMedia}·${nMedia} + ${dGravel}·${nGravel} + ${dPond})`,
+        eval:   `${saBot} (${(dMedia*nMedia).toFixed(2)} + ${(dGravel*nGravel).toFixed(2)} + ${dPond})`,
+        result: value },
+    ],
+  };
+}
+
+export function rvFromSv(sv, retMultiplier) {
+  const value = sv * retMultiplier;
+  return {
+    value,
+    units: 'cf',
+    steps: [
+      { expr:   'Rv = Sv × retention_multiplier',
+        sub:    `${sv} × ${retMultiplier}`,
+        eval:   `${sv} × ${retMultiplier}`,
+        result: value },
+    ],
+  };
+}
+
+export function maxBmpCredit(cdaAreaSf, maxCreditInches = 1.7) {
+  const value = cdaAreaSf * maxCreditInches / 12;
+  return {
+    value,
+    units: 'cf',
+    steps: [
+      { expr:   'Max BMP Credit = CDA area × 1.7 / 12',
+        sub:    `${cdaAreaSf} × ${maxCreditInches} / 12`,
+        eval:   `${(cdaAreaSf * maxCreditInches).toFixed(2)} / 12`,
+        result: value },
+    ],
+  };
+}
+
+const TREE_COUNT_KEY = {
+  plantedSmall:     'T-1 Small',
+  plantedLarge:     'T-1 Large',
+  preservedSmall:   'T-2 Small',
+  preservedLarge:   'T-2 Large',
+  preservedSpecial: 'T-2 Special',
+  preservedHeritage:'T-2 Heritage',
+};
+
+export function treeRetentionCredit(counts, treeCredits) {
+  const lines = [];
+  let value = 0;
+  for (const [countKey, creditKey] of Object.entries(TREE_COUNT_KEY)) {
+    const n = counts[countKey] || 0;
+    if (!n) continue;
+    const credit = treeCredits[creditKey] || 0;
+    value += n * credit;
+    lines.push(`${n}×${credit}`);
+  }
+  return {
+    value,
+    units: 'cf',
+    steps: [
+      { expr:   'Rv_trees = Σ (count × credit)',
+        sub:    lines.join(' + ') || '0',
+        eval:   `${value}`,
+        result: value },
+    ],
+  };
+}
