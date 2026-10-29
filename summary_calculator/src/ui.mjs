@@ -3,8 +3,9 @@
 import { parseWorkbook } from './parse.mjs';
 import {
   siteAggregateLandCover, siteSwrv, eisaDirectTotalVolumeCf, detentionSummary,
-  swrvVolume, ppSizingSv, bioSizingSv, maxBmpCredit, treeRetentionCredit,
+  swrvVolume,
 } from './calc.mjs';
+import { rvProvidedPerSda } from './aggregate.mjs';
 import {
   renderCoverSheet, renderSiteDaSheet, renderSiteSwrvSheet,
   renderSdaCdaSummary, renderBmpSheets,
@@ -47,23 +48,7 @@ function buildDeck(parsed) {
     else if (row.landUse === 'Natural (Woods)')          b.natural   += a;
     else if (row.landUse === 'BMP')                      b.bmp       += a;
   }
-  const rvBySda = {};
-  for (const bmp of bmps) {
-    const cda = cdas.find(c => c.cdaId === bmp.cdaId);
-    let rv = 0;
-    if (bmp.type === 'Permeable Pavement' && bmp.pp) {
-      const design = params.bmpDesign[`Permeable Pavement / ${bmp.subType}`] || { nReservoir: 0.40, retMultiplier: 1.0 };
-      const sv = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir).value;
-      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.postIn).value : Infinity);
-    } else if ((bmp.type === 'Bioretention' || bmp.type === 'Dry Swale') && bmp.bio) {
-      const design = params.bmpDesign[`${bmp.type} / ${bmp.subType}`] || { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
-      const sv = bioSizingSv(bmp.bio.saBot, bmp.bio.dMedia, design.nMedia, bmp.bio.dGravel, design.nGravel, bmp.bio.dPond).value;
-      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.postIn).value : Infinity);
-    } else if ((bmp.type === 'Planted Trees' || bmp.type === 'Preserve Trees') && bmp.trees) {
-      rv = treeRetentionCredit(bmp.trees, params.treeCredits).value;
-    }
-    rvBySda[bmp.sdaId] = (rvBySda[bmp.sdaId] || 0) + rv;
-  }
+  const rvBySda = rvProvidedPerSda(bmps, cdas, params);
   const complianceRows = Object.keys(bySda).map(sdaId => ({
     sdaId,
     swrvReqCf:    swrvVolume(bySda[sdaId], project.rainfallIn).value,

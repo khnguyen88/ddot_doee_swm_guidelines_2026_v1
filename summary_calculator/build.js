@@ -4,7 +4,7 @@
 // Inlines:
 //   • lib/sheetjs-bundle.js       → classic <script> (sets window.XLSX)
 //   • src/styles.css              → <style> block
-//   • src/parse.mjs + calc.mjs + render.mjs + ui.mjs → single <script type="module">
+//   • src/parse.mjs + calc.mjs + aggregate.mjs + render.mjs + ui.mjs → single <script type="module">
 //     (import/export statements between these files are rewritten into one combined module)
 
 import { readFile, writeFile, stat } from 'node:fs/promises';
@@ -14,14 +14,15 @@ import { dirname, join } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const paths = {
-  dev:      join(__dirname, 'summary-calculator-dev.html'),
-  styles:   join(__dirname, 'src',  'styles.css'),
-  parse:    join(__dirname, 'src',  'parse.mjs'),
-  calc:     join(__dirname, 'src',  'calc.mjs'),
-  render:   join(__dirname, 'src',  'render.mjs'),
-  ui:       join(__dirname, 'src',  'ui.mjs'),
-  sheetjs:  join(__dirname, 'lib',  'sheetjs-bundle.js'),
-  dist:     join(__dirname, 'summary-calculator.html'),
+  dev:       join(__dirname, 'summary-calculator-dev.html'),
+  styles:    join(__dirname, 'src',  'styles.css'),
+  parse:     join(__dirname, 'src',  'parse.mjs'),
+  calc:      join(__dirname, 'src',  'calc.mjs'),
+  aggregate: join(__dirname, 'src',  'aggregate.mjs'),
+  render:    join(__dirname, 'src',  'render.mjs'),
+  ui:        join(__dirname, 'src',  'ui.mjs'),
+  sheetjs:   join(__dirname, 'lib',  'sheetjs-bundle.js'),
+  dist:      join(__dirname, 'summary-calculator.html'),
 };
 
 function stripRelativeImports(source) {
@@ -34,16 +35,18 @@ function stripRelativeImports(source) {
 }
 
 async function main() {
-  const [devHtml, stylesCss, parseJs, calcJs, renderJs, uiJs, sheetjsJs] = await Promise.all(
-    ['dev', 'styles', 'parse', 'calc', 'render', 'ui', 'sheetjs'].map(k => readFile(paths[k], 'utf8')),
+  const [devHtml, stylesCss, parseJs, calcJs, aggregateJs, renderJs, uiJs, sheetjsJs] = await Promise.all(
+    ['dev', 'styles', 'parse', 'calc', 'aggregate', 'render', 'ui', 'sheetjs'].map(k => readFile(paths[k], 'utf8')),
   );
 
-  // Combined module body: calc first (no deps on parse/render), then render, then ui.
+  // Combined module body: calc first (no deps on parse/render), then aggregate (deps on calc),
+  // then render, then ui.
   const combinedModule = [
-    '// ─ src/calc.mjs ─',   stripRelativeImports(calcJs),
-    '// ─ src/parse.mjs ─',  stripRelativeImports(parseJs),
-    '// ─ src/render.mjs ─', stripRelativeImports(renderJs),
-    '// ─ src/ui.mjs ─',     stripRelativeImports(uiJs),
+    '// ─ src/calc.mjs ─',      stripRelativeImports(calcJs),
+    '// ─ src/parse.mjs ─',     stripRelativeImports(parseJs),
+    '// ─ src/aggregate.mjs ─', stripRelativeImports(aggregateJs),
+    '// ─ src/render.mjs ─',    stripRelativeImports(renderJs),
+    '// ─ src/ui.mjs ─',        stripRelativeImports(uiJs),
   ].join('\n\n');
 
   let out = devHtml;
