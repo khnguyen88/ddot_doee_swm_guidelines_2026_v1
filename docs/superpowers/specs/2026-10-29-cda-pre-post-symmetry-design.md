@@ -16,10 +16,14 @@ Extend the `CDA` sheet in the `SW_Required_Provided_DOEE_EISA438.xlsx` template 
 
 The purpose is record-keeping parity with SDA — downstream calculators today use only post-development CDA land cover, but future exports (DOEE record-keeping, SWMP-BMP, SWDB, DDOT MEP worksheets) are expected to want pre-development CDA land cover for the same catchment footprint, so the data must be captured in the template.
 
+**First consumer of the Pre CDA columns:** a new `DOEE_DETENTION_BMP` sheet (BMP/CDA-level counterpart to the existing SDA-keyed `DOEE_DETENTION`) uses CDA Pre vs Post Within LOD to flag per-BMP detention requirements. See §3.3b.
+
 **Non-goals.**
 - Splitting SDA/CDA into separate `_Existing` / `_Proposed` sheets. Rejected in brainstorming; the single-sheet mirror pattern is sufficient and keeps the sheet count unchanged.
 - Introducing a per-sheet "Scope" marker cell. Not needed when both pre and post live on the same sheet.
 - Changing SDA (unchanged — SDA already has this layout).
+- Changing the existing SDA-keyed `DOEE_DETENTION` sheet. It stays as-is; the new `DOEE_DETENTION_BMP` is additive.
+- Rendering `DOEE_DETENTION_BMP` on the summary_calculator (`summary-calculator.html`) output. The webapp's existing SDA-level Detention page stays unchanged. If a BMP-level page is wanted later it's a separate spec.
 - Fixing the latent "CDA inside a PROW SDA should use rainfall = 0" issue. CDA SWRv formulas continue to use `PROJECT_Rainfall` directly. Out of scope.
 - Resuming populator tasks 06–08. They proceed only after this schema change lands.
 
@@ -79,9 +83,82 @@ f"SUMIFS('CDA'!$G${CDA_D1}:$G${CDA_DL}, …"
 
 The Max BMP Credit VLOOKUP references the CDA summary block, column index 4 — unchanged, since the summary block shape doesn't move.
 
-### 3.3 `workbook/builders/doee.py` — unchanged semantics, verify refs
+### 3.3 `workbook/builders/doee.py` — repoint `DOEE_BMP_DATA` + add new BMP-level detention sheet
 
-`DOEE_BMP_DATA` consumes CDA land cover for the post-development BMP record. It currently references the single post-equivalent CDA columns; after the schema change those are columns G–H. Update any direct `'CDA'!$E`/`'CDA'!$F` references to `'CDA'!$G`/`'CDA'!$H`. `DOEE_BMP_DATA` does **not** surface pre-development CDA land cover. (The pre columns exist on the CDA sheet for record-keeping; downstream consumers continue to use post only until an explicit requirement adds pre.)
+#### 3.3a `DOEE_BMP_DATA` repoint
+
+`DOEE_BMP_DATA` consumes CDA land cover for the post-development BMP record. It currently references the single post-equivalent CDA columns; after the schema change those are columns G–H. Update any direct `'CDA'!$E`/`'CDA'!$F` references to `'CDA'!$G`/`'CDA'!$H`. `DOEE_BMP_DATA` does **not** surface pre-development CDA land cover.
+
+#### 3.3b New sheet `DOEE_DETENTION_BMP` — BMP/CDA-level detention compliance
+
+Add a new sheet named `DOEE_DETENTION_BMP`, parallel to the existing SDA-keyed `DOEE_DETENTION` but with one row per CDA. 10 fixed rows (`CDA-1` through `CDA-10`). The existing `DOEE_DETENTION` sheet is unchanged (except for the shared user note described below).
+
+**Fully auto-populated.** Column A is a hard-coded `CDA-N` label (same convention as `DOEE_DETENTION` and the CDA summary block). Every other column is a formula — the sheet requires zero manual data entry. BMP Name and SDA Number auto-resolve as soon as the corresponding CDA_ID is used on the BMP and CDA sheets; CN composites and runoff depths auto-update as the user edits CDA land-cover rows.
+
+**Columns (A–K, 11 total):**
+
+| Col | Header               | Formula                                                                                                                                             |
+|-----|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| A   | `CDA Number`         | hard-coded label (`CDA-1` … `CDA-10`)                                                                                                               |
+| B   | `BMP Name`           | `=IFERROR(INDEX('BMP'!$A$4:$A$53,MATCH(A{r},'BMP'!$C$4:$C$53,0)),"")` — reverse lookup by CDA_ID into BMP sheet col A                               |
+| C   | `SDA Number`         | `=IFERROR(INDEX('CDA'!$B$58:$B$67,MATCH(A{r},'CDA'!$A$58:$A$67,0)),"")` — pull from CDA summary block                                               |
+| D   | `Pre CN`             | area-weighted composite from CDA Pre Within LOD (col E) × Land Use                                                                                  |
+| E   | `Post CN`            | area-weighted composite from CDA Post Within LOD (col G) × Land Use                                                                                 |
+| F   | `2-yr Pre Q (in)`    | SCS CN runoff at `INDEX(PARAMS_Detention,1,2)`                                                                                                      |
+| G   | `2-yr Post Q (in)`   | SCS CN runoff at same storm with Post CN                                                                                                            |
+| H   | `2-yr Det Req'd?`    | `=IF(G{r}>F{r},"Yes","No")`                                                                                                                         |
+| I   | `15-yr Pre Q (in)`   | SCS CN runoff at `INDEX(PARAMS_Detention,2,2)`                                                                                                      |
+| J   | `15-yr Post Q (in)`  | SCS CN runoff at same storm with Post CN                                                                                                            |
+| K   | `15-yr Det Req'd?`   | `=IF(J{r}>I{r},"Yes","No")`                                                                                                                         |
+
+**Pre CN composite formula (col D, parametric by row `r`):**
+
+Pre area per land use (SUMIFS on CDA col E = Pre Within LOD, filtered by CDA_ID + Land Use):
+
+```
+pre_nat  = SUMIFS('CDA'!$E$4:$E$53, 'CDA'!$A$4:$A$53, A{r}, 'CDA'!$C$4:$C$53, "Natural (Woods)")
+pre_comp = SUMIFS('CDA'!$E$4:$E$53, 'CDA'!$A$4:$A$53, A{r}, 'CDA'!$C$4:$C$53, "Compacted (Open Space)")
+pre_imp  = SUMIFS('CDA'!$E$4:$E$53, 'CDA'!$A$4:$A$53, A{r}, 'CDA'!$C$4:$C$53, "Impervious Vehicular")
+         + SUMIFS('CDA'!$E$4:$E$53, 'CDA'!$A$4:$A$53, A{r}, 'CDA'!$C$4:$C$53, "Impervious Non-Vehicular")
+pre_bmp  = SUMIFS('CDA'!$E$4:$E$53, 'CDA'!$A$4:$A$53, A{r}, 'CDA'!$C$4:$C$53, "BMP")
+```
+
+```
+D{r} = IFERROR(
+  (pre_nat  * INDEX(PARAMS_DetentionCN,1,2)
+ + pre_comp * INDEX(PARAMS_DetentionCN,2,2)
+ + pre_imp  * INDEX(PARAMS_DetentionCN,3,2)
+ + pre_bmp  * INDEX(PARAMS_DetentionCN,4,2))
+  / (pre_nat + pre_comp + pre_imp + pre_bmp),
+  0)
+```
+
+**Post CN composite (col E)** is identical in shape but SUMIFSes on CDA col G (Post Within LOD).
+
+**Runoff formulas** (SCS CN method, same as existing `DOEE_DETENTION`):
+
+```
+S_pre  = 1000/D{r} - 10
+S_post = 1000/E{r} - 10
+F{r}   = IFERROR(IF(P2 > 0.2*S_pre,  (P2  - 0.2*S_pre )^2 / (P2  + 0.8*S_pre ), 0), 0)
+G{r}   = IFERROR(IF(P2 > 0.2*S_post, (P2  - 0.2*S_post)^2 / (P2  + 0.8*S_post), 0), 0)
+I{r}   = IFERROR(IF(P15> 0.2*S_pre,  (P15 - 0.2*S_pre )^2 / (P15 + 0.8*S_pre ), 0), 0)
+J{r}   = IFERROR(IF(P15> 0.2*S_post, (P15 - 0.2*S_post)^2 / (P15 + 0.8*S_post), 0), 0)
+```
+
+Where `P2 = INDEX(PARAMS_Detention,1,2)` and `P15 = INDEX(PARAMS_Detention,2,2)`.
+
+**Row scope.** If a CDA has no data (no CDA_ID present on the CDA sheet, or no land cover entered), SUMIFS returns 0 for every land use → total area = 0 → Pre CN = 0 (via IFERROR fallback) → runoff formulas IFERROR to 0 → `Det Req'd? = No`. Blank rows are self-silencing.
+
+**Sample-data caveat.** The Minnesota Ave sample leaves CDA Pre Within LOD blank (§3.11). Consequently the sample's `DOEE_DETENTION_BMP` rows will show Pre CN = 0, Pre Q = 0, Post Q > 0, and `Det Req'd? = Yes` for every CDA with a filled Post column. This is a sample-data gap, not a code bug — a reviewer will see the Pre blanks on the CDA sheet and understand. Populating sample CDA Pre data is out of scope.
+
+**User note on the sheet (row 2, spans cols A–K).** A visible annotation reads:
+
+> **Note:** Pre/Post CN composites and runoff depths are computed from CDA **Within LOD** land cover, following the DOEE compliance convention. Physical catchment runoff can also include flow from Outside LOD or from existing PROW; project-specific exceptions apply. For projects where Outside-LOD contribution is material (e.g., offsite inflow, retrofit along existing ROW), consult the project's drainage study and adjust detention sizing accordingly.
+
+The same note is added to the existing SDA-keyed `DOEE_DETENTION` sheet for consistency — the two sheets share the convention and the caveat. Note cell styled with `styles.hdr`-equivalent light-background and italic text; implementer picks the closest existing helper (`styles.lbl` with italic flag, or a new helper if none fits).
+
+**Wiring.** Add `doee.build_doee_detention_bmp` to `workbook/__main__.py` immediately after `doee.build_doee_detention(wb)`.
 
 ### 3.4 `summary_calculator/src/parse.mjs` — expand `parseCda`
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extend the `CDA` sheet in `SW_Required_Provided_DOEE_EISA438.xlsx` from a 9-column single-area layout to a 13-column pre/post-mirror of `SDA`. Repoint every downstream consumer (`workbook/builders/*`, `summary_calculator/src/*`, `populator/src/*`) to the new post-development column positions. Pre columns exist for record-keeping — no new calc consumes them in v1.
+**Goal:** Extend the `CDA` sheet in `SW_Required_Provided_DOEE_EISA438.xlsx` from a 9-column single-area layout to a 13-column pre/post-mirror of `SDA`. Repoint existing downstream consumers (`workbook/builders/*`, `summary_calculator/src/*`, `populator/src/*`) to the new post-development column positions. Add a new BMP/CDA-level detention sheet `DOEE_DETENTION_BMP` as the first consumer of the Pre CDA columns.
 
 **Architecture:** Thin schema change, deep fan-out. Each builder/mjs file touched independently with its own test. TDD throughout. Keep the summary block's shape identical (only its area-source SUMIFS shifts from col E → col G). Rename `cda.withinLodSf` → `cda.postIn` globally in JS.
 
@@ -22,7 +22,8 @@
 |---|---|
 | `workbook/builders/cda.py` | Full rewrite — 13-column layout, four SWRv output columns, updated summary SUMIFS |
 | `workbook/builders/bmp.py` | `_cda_dominant_hsg_formula`: SUMIFS source col `$E` → `$G` |
-| `workbook/builders/doee.py` | `DOEE_BMP_DATA` five SUMIFS: `'CDA'!$E` → `'CDA'!$G` |
+| `workbook/builders/doee.py` | `DOEE_BMP_DATA` five SUMIFS: `'CDA'!$E` → `'CDA'!$G`; add `build_doee_detention_bmp` + user note on both detention sheets |
+| `workbook/__main__.py` | Wire `doee.build_doee_detention_bmp(wb)` after `doee.build_doee_detention(wb)` |
 | `workbook/builders/correct_mep_summary.py` | CDA within/outside SUMIFS: `$E` → `$G`, `$F` → `$H` |
 | `workbook/sample.py` | CDA area writes: `column=5` → `column=7` |
 | `summary_calculator/src/parse.mjs` | `parseCda` returns `{cdaId, sdaId, landUse, hsg, preIn, preOut, postIn, postOut}` |
@@ -481,7 +482,318 @@ git commit -m "workbook: repoint CDA consumers to new post-development columns"
 
 ---
 
-## Task 03: Update `workbook/sample.py` to write to the new Post Within column
+## Task 03: Add `DOEE_DETENTION_BMP` sheet (CDA-keyed) + user note on both detention sheets
+
+**Files:**
+- Modify: `workbook/builders/doee.py` (add `build_doee_detention_bmp` + inject user note into `build_doee_detention`)
+- Modify: `workbook/__main__.py` (wire the new builder)
+- Modify: `tests/test_doee.py` (add tests)
+
+**Context:** Pre CDA columns are introduced in Task 01 for record-keeping. This task gives them their first consumer: a BMP-level detention compliance sheet mirroring the existing SDA-keyed `DOEE_DETENTION` but keyed by CDA_ID, so each proposed BMP's catchment gets its own pre-vs-post runoff check.
+
+- [ ] **Step 1: Write failing test for new sheet existence, headers, and auto-populated formulas**
+
+Append to `tests/test_doee.py`:
+
+```python
+def test_doee_detention_bmp_sheet_exists_with_11_cols():
+    """New BMP/CDA-level detention sheet is emitted with the expected headers."""
+    w = openpyxl.Workbook()
+    w.remove(w.active)
+    params.build_params_sheet(w)
+    project.build_project_sheet(w)
+    sda.build_sda_sheet(w, n_rows=50)
+    cda.build_cda_sheet(w, n_rows=50)
+    bmp.build_bmp_sheet(w, n_rows=50)
+    doee.build_doee_sda(w)
+    doee.build_doee_detention(w)
+    doee.build_doee_detention_bmp(w)
+    assert "DOEE_DETENTION_BMP" in w.sheetnames
+    ws = w["DOEE_DETENTION_BMP"]
+    expected = [
+        "CDA Number", "BMP Name", "SDA Number",
+        "Pre CN", "Post CN",
+        "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Det Req'd?",
+        "15-yr Pre Q (in)", "15-yr Post Q (in)", "15-yr Det Req'd?",
+    ]
+    for i, h in enumerate(expected, 1):
+        assert ws.cell(row=3, column=i).value == h, f"header col {i}"
+
+
+def test_doee_detention_bmp_rows_fully_formula_driven():
+    """Rows 4..13 should be CDA-1..CDA-10 labels in col A; cols B..K all formulas."""
+    w = openpyxl.Workbook()
+    w.remove(w.active)
+    params.build_params_sheet(w)
+    project.build_project_sheet(w)
+    sda.build_sda_sheet(w, n_rows=50)
+    cda.build_cda_sheet(w, n_rows=50)
+    bmp.build_bmp_sheet(w, n_rows=50)
+    doee.build_doee_sda(w)
+    doee.build_doee_detention(w)
+    doee.build_doee_detention_bmp(w)
+    ws = w["DOEE_DETENTION_BMP"]
+    for i in range(10):
+        r = 4 + i
+        assert ws.cell(row=r, column=1).value == f"CDA-{i+1}"
+        for c in range(2, 12):
+            v = ws.cell(row=r, column=c).value
+            assert isinstance(v, str) and v.startswith("="), (
+                f"row {r} col {c} should be a formula; got {v!r}"
+            )
+
+
+def test_doee_detention_bmp_pre_cn_uses_cda_col_e():
+    """Pre CN composite must SUMIFS 'CDA'!$E (Pre Within LOD), not $G (Post)."""
+    w = openpyxl.Workbook()
+    w.remove(w.active)
+    params.build_params_sheet(w)
+    project.build_project_sheet(w)
+    sda.build_sda_sheet(w, n_rows=50)
+    cda.build_cda_sheet(w, n_rows=50)
+    bmp.build_bmp_sheet(w, n_rows=50)
+    doee.build_doee_sda(w)
+    doee.build_doee_detention(w)
+    doee.build_doee_detention_bmp(w)
+    ws = w["DOEE_DETENTION_BMP"]
+    pre_cn = ws.cell(row=4, column=4).value  # Pre CN first row
+    assert "'CDA'!$E$4:$E$53" in pre_cn
+    assert "'CDA'!$G" not in pre_cn
+    post_cn = ws.cell(row=4, column=5).value
+    assert "'CDA'!$G$4:$G$53" in post_cn
+    assert "'CDA'!$E$4:$E$53" not in post_cn
+
+
+def test_doee_detention_sheets_have_user_note():
+    """Both DOEE_DETENTION (SDA) and DOEE_DETENTION_BMP (CDA) carry a user note on row 2."""
+    w = openpyxl.Workbook()
+    w.remove(w.active)
+    params.build_params_sheet(w)
+    project.build_project_sheet(w)
+    sda.build_sda_sheet(w, n_rows=50)
+    cda.build_cda_sheet(w, n_rows=50)
+    bmp.build_bmp_sheet(w, n_rows=50)
+    doee.build_doee_sda(w)
+    doee.build_doee_detention(w)
+    doee.build_doee_detention_bmp(w)
+    for sheet in ("DOEE_DETENTION", "DOEE_DETENTION_BMP"):
+        note = w[sheet].cell(row=2, column=1).value
+        assert note and "Within LOD" in note and "project-specific" in note.lower(), (
+            f"{sheet} row-2 note missing or incomplete: {note!r}"
+        )
+```
+
+- [ ] **Step 2: Run tests to verify failure**
+
+```
+pytest tests/test_doee.py -k "detention_bmp or detention_sheets_have_user_note" -v
+```
+
+Expected: 4 FAILs (sheet not created, `build_doee_detention_bmp` not defined).
+
+- [ ] **Step 3: Add constants + user-note helper at the top of `workbook/builders/doee.py`**
+
+Just after the existing `SDA_SUMMARY_FIRST = 58` line, add:
+
+```python
+# CDA data table range (used by DOEE_DETENTION_BMP SUMIFS).
+CDA_FIRST = 4
+CDA_LAST = 53
+# CDA summary data starts at row 58 when n_rows=50 (mirrors SDA_SUMMARY_FIRST layout).
+CDA_SUMMARY_FIRST = 58
+
+DETENTION_USER_NOTE = (
+    "Note: Pre/Post CN composites and runoff depths use land cover "
+    "Within LOD per DOEE compliance convention. Physical catchment runoff "
+    "may also include flow from Outside LOD or existing PROW; project-specific "
+    "exceptions apply. For projects where Outside-LOD contribution is material "
+    "(offsite inflow, retrofit along existing ROW, etc.), consult the project's "
+    "drainage study and adjust detention sizing accordingly."
+)
+```
+
+- [ ] **Step 4: Inject the user note into the existing `build_doee_detention`**
+
+Inside `build_doee_detention`, immediately after `styles.hdr(ws, 1, 1, "DOEE_DETENTION — Compliance Calc Sheet 3 mirror", styles.BH, span=9)` (line ~247) and the `ws.row_dimensions[1].height = 24` line, insert:
+
+```python
+    # User note on row 2 (spans A-I).
+    styles.lbl(ws, 2, 1, DETENTION_USER_NOTE, styles.BL, bold=False)
+    ws.cell(row=2, column=1).alignment = openpyxl.styles.Alignment(
+        wrap_text=True, vertical="top"
+    )
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=9)
+    ws.row_dimensions[2].height = 48
+```
+
+(Adjust imports in `doee.py` as needed: `from openpyxl.styles import Alignment` already imported? If not, add it at the top.)
+
+- [ ] **Step 5: Add `build_doee_detention_bmp` to `workbook/builders/doee.py`**
+
+Append to the file, after `build_doee_detention`:
+
+```python
+def build_doee_detention_bmp(wb: Workbook) -> None:
+    """Add DOEE_DETENTION_BMP — BMP/CDA-level detention compliance (one row per CDA).
+
+    Fully auto-populated: col A is the hard-coded CDA-N label, every other
+    column is a formula pulling from the CDA, BMP, and PARAMS sheets.
+    """
+    ws = wb.create_sheet("DOEE_DETENTION_BMP")
+    ws.sheet_view.showGridLines = False
+
+    widths = [12, 18, 12, 10, 10, 14, 14, 14, 14, 14, 14]
+    for i, w in enumerate(widths, 1):
+        styles.cw(ws, i, w)
+
+    styles.hdr(ws, 1, 1,
+               "DOEE_DETENTION_BMP — BMP/CDA-level detention compliance",
+               styles.BH, span=11)
+    ws.row_dimensions[1].height = 24
+
+    # User note on row 2 (spans A-K).
+    styles.lbl(ws, 2, 1, DETENTION_USER_NOTE, styles.BL, bold=False)
+    ws.cell(row=2, column=1).alignment = openpyxl.styles.Alignment(
+        wrap_text=True, vertical="top"
+    )
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=11)
+    ws.row_dimensions[2].height = 48
+
+    headers = [
+        "CDA Number", "BMP Name", "SDA Number",
+        "Pre CN", "Post CN",
+        "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Det Req'd?",
+        "15-yr Pre Q (in)", "15-yr Post Q (in)", "15-yr Det Req'd?",
+    ]
+    for i, h in enumerate(headers, 1):
+        styles.hdr(ws, 3, i, h, styles.BS)
+    ws.row_dimensions[3].height = 36
+
+    cda_summary_last = CDA_SUMMARY_FIRST + 10 - 1  # row 67
+
+    def _sumifs_cda_landuse(area_col: str, cda_cell: str, land_use: str) -> str:
+        return (
+            f"SUMIFS('CDA'!${area_col}${CDA_FIRST}:${area_col}${CDA_LAST},"
+            f"'CDA'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
+            f"'CDA'!$C${CDA_FIRST}:$C${CDA_LAST},\"{land_use}\")"
+        )
+
+    def _cn_composite(area_col: str, cda_cell: str) -> str:
+        """Area-weighted CN composite formula for the given CDA area column."""
+        nat  = _sumifs_cda_landuse(area_col, cda_cell, "Natural (Woods)")
+        comp = _sumifs_cda_landuse(area_col, cda_cell, "Compacted (Open Space)")
+        imp  = (_sumifs_cda_landuse(area_col, cda_cell, "Impervious Vehicular")
+                + "+" + _sumifs_cda_landuse(area_col, cda_cell, "Impervious Non-Vehicular"))
+        bmp_ = _sumifs_cda_landuse(area_col, cda_cell, "BMP")
+        total = f"({nat}+{comp}+{imp}+{bmp_})"
+        num = (f"({nat}*INDEX(PARAMS_DetentionCN,1,2)"
+               f"+{comp}*INDEX(PARAMS_DetentionCN,2,2)"
+               f"+({imp})*INDEX(PARAMS_DetentionCN,3,2)"
+               f"+{bmp_}*INDEX(PARAMS_DetentionCN,4,2))")
+        return f"=IFERROR({num}/{total},0)"
+
+    for i in range(10):
+        r = 4 + i
+        cda_cell = f"A{r}"
+
+        # Col A: hard-coded CDA label.
+        styles.lbl(ws, r, 1, f"CDA-{i+1}", styles.BL, bold=True)
+
+        # Col B: BMP Name — reverse lookup by CDA_ID into BMP col A.
+        styles.calc_c(ws, r, 2,
+                      f"=IFERROR(INDEX('BMP'!$A$4:$A$53,"
+                      f"MATCH({cda_cell},'BMP'!$C$4:$C$53,0)),\"\")")
+
+        # Col C: SDA Number — from CDA summary block col B.
+        styles.calc_c(ws, r, 3,
+                      f"=IFERROR(INDEX('CDA'!$B${CDA_SUMMARY_FIRST}:$B${cda_summary_last},"
+                      f"MATCH({cda_cell},'CDA'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),\"\")")
+
+        # Col D: Pre CN composite — CDA col E (Pre Within LOD).
+        styles.calc_c(ws, r, 4, _cn_composite("E", cda_cell))
+
+        # Col E: Post CN composite — CDA col G (Post Within LOD).
+        styles.calc_c(ws, r, 5, _cn_composite("G", cda_cell))
+
+        p2  = "INDEX(PARAMS_Detention,1,2)"
+        p15 = "INDEX(PARAMS_Detention,2,2)"
+        s_pre  = f"(1000/D{r}-10)"
+        s_post = f"(1000/E{r}-10)"
+
+        # F, G: 2-yr Pre Q, Post Q.
+        styles.calc_c(ws, r, 6,
+                      f"=IFERROR(IF({p2}>0.2*{s_pre},"
+                      f"({p2}-0.2*{s_pre})^2/({p2}+0.8*{s_pre}),0),0)")
+        styles.calc_c(ws, r, 7,
+                      f"=IFERROR(IF({p2}>0.2*{s_post},"
+                      f"({p2}-0.2*{s_post})^2/({p2}+0.8*{s_post}),0),0)")
+        # H: 2-yr Det Req'd?
+        styles.calc_c(ws, r, 8, f'=IF(G{r}>F{r},"Yes","No")')
+
+        # I, J: 15-yr Pre Q, Post Q.
+        styles.calc_c(ws, r, 9,
+                      f"=IFERROR(IF({p15}>0.2*{s_pre},"
+                      f"({p15}-0.2*{s_pre})^2/({p15}+0.8*{s_pre}),0),0)")
+        styles.calc_c(ws, r, 10,
+                      f"=IFERROR(IF({p15}>0.2*{s_post},"
+                      f"({p15}-0.2*{s_post})^2/({p15}+0.8*{s_post}),0),0)")
+        # K: 15-yr Det Req'd?
+        styles.calc_c(ws, r, 11, f'=IF(J{r}>I{r},"Yes","No")')
+
+    last_row = 4 + 10 - 1
+    styles.apply_right_divider(ws, 3, 3, last_row)   # right of col C (ID block)
+    styles.apply_right_divider(ws, 5, 3, last_row)   # right of col E (CN block)
+    styles.apply_right_divider(ws, 8, 3, last_row)   # right of col H (2-yr block)
+```
+
+Make sure `import openpyxl` is at the top of `doee.py` (for `openpyxl.styles.Alignment`). If only `from openpyxl import Workbook` is present, add `import openpyxl` alongside or `from openpyxl.styles import Alignment` and use `Alignment(...)` directly.
+
+- [ ] **Step 6: Wire the new builder into `workbook/__main__.py`**
+
+Edit `workbook/__main__.py` — add `build_doee_detention_bmp` after the existing `doee.build_doee_detention(wb)` line:
+
+```python
+    doee.build_doee_detention(wb)
+    doee.build_doee_detention_bmp(wb)
+    doee.build_doee_compliance(wb)
+```
+
+- [ ] **Step 7: Run tests to verify pass**
+
+```
+pytest tests/test_doee.py -v
+```
+
+Expected: all tests PASS, including the four new ones.
+
+- [ ] **Step 8: Smoke-check by rebuilding the full workbook**
+
+```
+python -m workbook
+python -c "
+import openpyxl
+wb = openpyxl.load_workbook('SW_Required_Provided_DOEE_EISA438.xlsx')
+assert 'DOEE_DETENTION_BMP' in wb.sheetnames
+ws = wb['DOEE_DETENTION_BMP']
+print('row 2 note:', ws['A2'].value[:80], '...')
+print('row 4 col A:', ws['A4'].value)
+print('row 4 col B:', ws['B4'].value[:60], '...')
+print('row 4 col D (Pre CN):', ws['D4'].value[:80], '...')
+"
+```
+
+Expected: no errors; row-2 note present; row-4 col-A is `CDA-1`; cols B and D are formulas.
+
+- [ ] **Step 9: Commit**
+
+```
+git add workbook/builders/doee.py workbook/__main__.py tests/test_doee.py
+git commit -m "workbook: add DOEE_DETENTION_BMP sheet for per-BMP detention compliance"
+```
+
+---
+
+## Task 04: Update `workbook/sample.py` to write to the new Post Within column
 
 **Files:**
 - Modify: `workbook/sample.py:188` (single cell write)
@@ -530,7 +842,7 @@ git commit -m "workbook: write CDA sample area to new Post Within LOD column"
 
 ---
 
-## Task 04: Regenerate blank template and smoke-verify
+## Task 05: Regenerate blank template and smoke-verify
 
 **Files:**
 - Modify: `SW_Required_Provided_DOEE_EISA438.xlsx` (regenerated)
@@ -590,7 +902,7 @@ git commit -m "workbook: regenerate blank template with new CDA layout"
 
 ---
 
-## Task 05: Expand `summary_calculator/src/parse.mjs` `parseCda`
+## Task 06: Expand `summary_calculator/src/parse.mjs` `parseCda`
 
 **Files:**
 - Modify: `summary_calculator/src/parse.mjs:80-97, 220-240`
@@ -688,7 +1000,7 @@ git commit -m "summary_calculator: parseCda returns pre/post land-cover fields"
 
 ---
 
-## Task 06: Rename `withinLodSf` → `postIn` across `summary_calculator/src/`
+## Task 07: Rename `withinLodSf` → `postIn` across `summary_calculator/src/`
 
 **Files:**
 - Modify: `summary_calculator/src/calc.mjs` (none directly — verify via grep; renames live in ui.mjs and render.mjs)
@@ -769,7 +1081,7 @@ git commit -m "summary_calculator: rename cda.withinLodSf to cda.postIn"
 
 ---
 
-## Task 07: Extend SDA/CDA Summary CDA block to show Pre + Post Within LOD
+## Task 08: Extend SDA/CDA Summary CDA block to show Pre + Post Within LOD
 
 **Files:**
 - Modify: `summary_calculator/src/render.mjs:160-170` (the `renderSdaCdaSummary` CDA table)
@@ -866,7 +1178,7 @@ git commit -m "summary_calculator: CDA summary block shows Pre and Post Within L
 
 ---
 
-## Task 08: Sync populator `parse.mjs` + rename in mappings
+## Task 09: Sync populator `parse.mjs` + rename in mappings
 
 **Files:**
 - Modify: `populator/src/parse.mjs` (overwrite with summary_calculator version)
@@ -930,7 +1242,7 @@ git commit -m "populator: sync parse.mjs and rename cda.withinLodSf to cda.postI
 
 ---
 
-## Task 09: Regenerate populator fixture + verify mapping tests
+## Task 10: Regenerate populator fixture + verify mapping tests
 
 **Files:**
 - Modify: `populator/tests/fixtures/minnesota-ave.xlsx` (replace with new sample)
@@ -973,7 +1285,7 @@ git commit -m "populator: regenerate Minnesota Ave fixture for new CDA layout"
 
 ---
 
-## Task 10: Full project-level test sweep
+## Task 11: Full project-level test sweep
 
 **Files:** no changes; validation only.
 
@@ -1018,6 +1330,12 @@ Expected: all PASS.
 Open `summary_calculator/summary-calculator.html` in a browser from `file://`. Load `SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx`. Verify:
 - SDA/CDA Summary page CDA block shows Pre Within LOD and Post Within LOD columns with sample values.
 - A BMP page's Max Credit cap is unchanged vs. pre-refactor (regression check — if numbers moved, a formula is still pointing at the wrong column).
+
+Then open the regenerated workbook `SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx` directly in Excel (or LibreOffice). Verify:
+- `DOEE_DETENTION_BMP` sheet is present.
+- Row 2 shows the user note about Within LOD / project-specific exceptions.
+- Row 4 col A is `CDA-1`; col B shows the BMP name auto-looked-up from the BMP sheet; col C shows the parent SDA number from the CDA summary block.
+- Pre CN column reads 0 (sample doesn't fill CDA Pre), Post CN reads a reasonable composite CN (e.g., 90-98 for impervious-dominated catchments), and `Det Req'd?` reads `Yes` on populated rows.
 
 - [ ] **Step 6: No commit** (validation only). If the browser smoke check surfaces an issue, open a new task to fix and loop back.
 
