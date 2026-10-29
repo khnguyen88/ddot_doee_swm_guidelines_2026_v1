@@ -161,7 +161,7 @@ export function renderSdaCdaSummary(project, sdas, cdas) {
 
   // CDAs on their own trailing page(s).
   if (cdas.length) {
-    const cdaRows = cdas.map(c => [c.cdaId, c.sdaId, c.landUse, fmtN(c.withinLodSf)]);
+    const cdaRows = cdas.map(c => [c.cdaId, c.sdaId, c.landUse, fmtN(c.postIn)]);
     const body = renderBlock('CDA — CONTRIBUTING DRAINAGE AREAS', renderDataTable(cdaHeaders, cdaRows));
     pages.push(renderSheetShell({
       title: 'CDA Summary',
@@ -195,7 +195,7 @@ function _renderPp(project, bmp, cda, params) {
   ]);
   const svTrace = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir);
   const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
-  const cdaArea = cda ? cda.withinLodSf : 0;
+  const cdaArea = cda ? cda.postIn : 0;
   const maxTrace = maxBmpCredit(cdaArea);
   const rvApplied = Math.min(rvTrace.value, maxTrace.value);
   const pass = rvApplied === rvTrace.value;
@@ -238,7 +238,7 @@ function _renderBio(project, bmp, cda, params) {
     bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
   );
   const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
-  const cdaArea = cda ? cda.withinLodSf : 0;
+  const cdaArea = cda ? cda.postIn : 0;
   const maxTrace = maxBmpCredit(cdaArea);
   const rvApplied = Math.min(rvTrace.value, maxTrace.value);
   const pass = rvApplied === rvTrace.value;

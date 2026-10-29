@@ -54,11 +54,11 @@ function buildDeck(parsed) {
     if (bmp.type === 'Permeable Pavement' && bmp.pp) {
       const design = params.bmpDesign[`Permeable Pavement / ${bmp.subType}`] || { nReservoir: 0.40, retMultiplier: 1.0 };
       const sv = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir).value;
-      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.withinLodSf).value : Infinity);
+      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.postIn).value : Infinity);
     } else if ((bmp.type === 'Bioretention' || bmp.type === 'Dry Swale') && bmp.bio) {
       const design = params.bmpDesign[`${bmp.type} / ${bmp.subType}`] || { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
       const sv = bioSizingSv(bmp.bio.saBot, bmp.bio.dMedia, design.nMedia, bmp.bio.dGravel, design.nGravel, bmp.bio.dPond).value;
-      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.withinLodSf).value : Infinity);
+      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.postIn).value : Infinity);
     } else if ((bmp.type === 'Planted Trees' || bmp.type === 'Preserve Trees') && bmp.trees) {
       rv = treeRetentionCredit(bmp.trees, params.treeCredits).value;
     }

@@ -93,7 +93,7 @@ test('renderSdaCdaSummary: one SDA page + one CDA page when both are small', () 
     sdaId: `SDA-${i+1}`, landUse: 'Impervious Vehicular', hsg: 'D',
     preIn: 100, postIn: 100,
   }));
-  const cdas = [{ cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Impervious Vehicular', withinLodSf: 100 }];
+  const cdas = [{ cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Impervious Vehicular', postIn: 100 }];
   const pages = renderSdaCdaSummary(sampleProject, sdas, cdas);
   assert.equal(pages.length, 2);
   assert.ok(pages[0].includes('SDA-1'));
@@ -115,7 +115,7 @@ test('renderBmpSheets: one page per BMP with 3-step math', () => {
     type: 'Bioretention', subType: 'Enhanced',
     bio: { saTop: 210, saBot: 210, dMedia: 2.0, dGravel: 0.5, dPond: 0.5 },
   }];
-  const cdas = [{ cdaId: 'CDA-2', sdaId: 'SDA-2', landUse: 'Impervious Vehicular', withinLodSf: 1000 }];
+  const cdas = [{ cdaId: 'CDA-2', sdaId: 'SDA-2', landUse: 'Impervious Vehicular', postIn: 1000 }];
   const params = {
     bmpDesign: { 'Bioretention / Enhanced': { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 } },
     treeCredits: {},
