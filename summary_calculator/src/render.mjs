@@ -67,3 +67,62 @@ export function renderDataTable(headers, rows) {
   ).join('');
   return `<table class="data"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
 }
+
+export function renderCoverSheet(project, tocLabels) {
+  const kv = renderKvTable([
+    ['Project',       project.name || '—'],
+    ['Project No.',   project.number || '—'],
+    ['Trigger',       project.trigger || '—'],
+    ['MS4 / Non-MS4', project.ms4 || '—'],
+    ['Total LOD',     fmtN(project.totalLod, 0) + ' sf'],
+    ['Rainfall (SWRv storm)', fmtN(project.rainfallIn, 2) + '″'],
+    ['EISA §438',     project.eisa || '—'],
+  ]);
+  const toc = tocLabels.map((label, i) =>
+    `<div class="cs-formula-line">${String(i + 1).padStart(2, '0')} · ${label}</div>`
+  ).join('');
+  const body =
+    renderBlock('PROJECT', kv) +
+    renderBlock('CONTENTS', toc);
+  return renderSheetShell({
+    title:  'Stormwater Compliance Summary',
+    sub:    `${project.name || ''}${project.number ? '  ·  ' + project.number : ''}`,
+    body,
+    footer: '21 DCMR §599 · DOEE Guidebook Jan 2020 · DDOT GI Standards 2014 · EISA §438',
+  });
+}
+
+export function renderSiteDaSheet(project, agg) {
+  const headers = ['Land Cover', 'Pre (sf)', 'Post (sf)', 'Δ (sf)'];
+  const rows = [
+    ['Natural (Woods)',    fmtN(agg.pre.natural),    fmtN(agg.post.natural),    fmtN(agg.post.natural    - agg.pre.natural)],
+    ['Compacted (Open)',   fmtN(agg.pre.compacted),  fmtN(agg.post.compacted),  fmtN(agg.post.compacted  - agg.pre.compacted)],
+    ['Impervious',         fmtN(agg.pre.impervious), fmtN(agg.post.impervious), fmtN(agg.post.impervious - agg.pre.impervious)],
+    ['BMP (as land cover)',fmtN(agg.pre.bmp),        fmtN(agg.post.bmp),        fmtN(agg.post.bmp        - agg.pre.bmp)],
+    ['Total',              fmtN(agg.preTotal),       fmtN(agg.postTotal),       fmtN(agg.postTotal       - agg.preTotal)],
+  ];
+  const body =
+    renderBlock('SITE DRAINAGE AREA — LAND COVER', renderDataTable(headers, rows)) +
+    renderBlock('IMPERVIOUS COVER', renderKvTable([
+      ['Pre impervious %',  fmtN(agg.impPctPre, 1) + '%'],
+      ['Post impervious %', fmtN(agg.impPctPost, 1) + '%'],
+    ]));
+  return renderSheetShell({
+    title: 'Site DA — Land Cover (Pre vs Post)',
+    sub:   `${project.name || ''} · Total LOD ${fmtN(project.totalLod)} sf`,
+    body,
+    footer: 'Aggregated across all SDAs. Compliance is calculated per SDA — see Site Compliance roll-up.',
+  });
+}
+
+export function renderSiteSwrvSheet(project, trace) {
+  const body =
+    renderBlock('SITE SWRv (post-condition, within LOD)', renderTrace(trace)) +
+    renderNote('Informational — 21 DCMR §599 requires SWRv be met per SDA, not site-wide. Per-SDA compliance is on the Site Compliance roll-up page.');
+  return renderSheetShell({
+    title: 'Site SWRv Required',
+    sub:   `${project.name || ''} · Rainfall ${fmtN(project.rainfallIn, 2)}″`,
+    body,
+    footer: '21 DCMR §599 · DOEE Guidebook §2',
+  });
+}

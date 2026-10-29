@@ -46,3 +46,42 @@ test('renderKvTable produces label/value rows', () => {
   assert.ok(html.includes('210 sf'));
   assert.ok(html.includes('d_media'));
 });
+
+import { renderCoverSheet, renderSiteDaSheet, renderSiteSwrvSheet } from '../src/render.mjs';
+import { siteAggregateLandCover, siteSwrv } from '../src/calc.mjs';
+
+const sampleProject = {
+  name: 'Test Project', number: 'DTA-X', trigger: 'MLD',
+  totalLod: 50000, rainfallIn: 1.2, eisa: 'No', ms4: 'MS4',
+};
+
+test('renderCoverSheet: shows project fields and TOC', () => {
+  const html = renderCoverSheet(sampleProject, ['Cover', 'Site DA', 'Site SWRv']);
+  assert.ok(html.includes('Test Project'));
+  assert.ok(html.includes('DTA-X'));
+  assert.ok(html.includes('MLD'));
+  assert.ok(html.includes('1.2'));
+  assert.ok(html.includes('Site SWRv'));
+});
+
+test('renderSiteDaSheet: shows pre and post totals', () => {
+  const sdas = [
+    { landUse: 'Impervious Vehicular', preIn: 1000, postIn: 1500 },
+    { landUse: 'Natural (Woods)',      preIn: 500,  postIn: 0 },
+  ];
+  const agg = siteAggregateLandCover(sdas);
+  const html = renderSiteDaSheet(sampleProject, agg);
+  assert.ok(html.includes('Site DA'));
+  assert.ok(html.includes('1,500'));          // post impervious
+  assert.ok(html.includes('500'));            // pre natural
+});
+
+test('renderSiteSwrvSheet: shows formula with substituted values', () => {
+  const sdas = [{ landUse: 'Impervious Vehicular', postIn: 1000, sdaId: 'SDA-1' }];
+  const params = { rv: { 'Impervious Vehicular': 0.95 } };
+  const trace = siteSwrv(sdas, 1.2, params);
+  const html = renderSiteSwrvSheet(sampleProject, trace);
+  assert.ok(html.includes('Site SWRv'));
+  assert.ok(html.includes('95'));             // final CF
+  assert.ok(html.includes('informational'));  // the per-SDA compliance note
+});
