@@ -110,11 +110,19 @@ test('renderBmpSheets: one page per BMP with 3-step math', () => {
 
 import { renderMepSheet, renderEisa438Sheet } from '../src/render.mjs';
 
-test('renderMepSheet: lists SDAs with 4-step status', () => {
+const paramsForMep = {
+  bmpDesign: { 'Bioretention / Enhanced': { nMedia: 0.4, nGravel: 0.4, retMultiplier: 1.0 } },
+  treeCredits: {},
+};
+
+test('renderMepSheet: shows MEP steps in all cases', () => {
   const sdas = [
-    { sdaId: 'SDA-1' }, { sdaId: 'SDA-2' },
+    { sdaId: 'SDA-1', inProw: 'Yes', landUse: 'Impervious Vehicular', hsg: 'D',
+      preIn: 0, preOut: 0, postIn: 1000, postOut: 0 },
+    { sdaId: 'SDA-2', inProw: 'No', landUse: 'Impervious Vehicular', hsg: 'D',
+      preIn: 0, preOut: 0, postIn: 500, postOut: 0 },
   ];
-  const html = renderMepSheet(sampleProject, sdas);
+  const html = renderMepSheet(sampleProject, sdas, [], [], paramsForMep);
   assert.ok(html.includes('MEP'));
   assert.ok(html.includes('SDA-1'));
   assert.ok(html.includes('Step 1'));
@@ -245,4 +253,50 @@ test('renderCdaPreSheet: chunks when more than SDA_ROWS_PER_PAGE rows', () => {
 
 test('renderCdaPreSheet: returns [] when no CDAs', () => {
   assert.deepEqual(renderCdaPreSheet(sampleProject, []), []);
+});
+
+test('renderMepSheet: shows derived table when PROW SDAs exist', () => {
+  const sdas = [
+    { sdaId: 'SDA-1', inProw: 'Yes', landUse: 'Impervious Vehicular', hsg: 'D',
+      preIn: 0, preOut: 0, postIn: 10000, postOut: 0 },
+  ];
+  const bmps = [
+    { name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Bioretention', subType: 'Enhanced',
+      bio: { saTop: 500, saBot: 500, dMedia: 2, dGravel: 0.5, dPond: 0.5 } },
+  ];
+  const cdas = [{ cdaId: 'CDA-1', postIn: 10000 }];
+  const html = renderMepSheet(sampleProject, sdas, bmps, cdas, paramsForMep);
+  // MEP target: 10000 * 1.2 / 12 = 1000 cf
+  assert.ok(html.includes('1,000'), `target 1000 not found; got: ${html.slice(0, 400)}`);
+  // Rv provided: 500 * (2*0.4 + 0.5*0.4 + 0.5) = 500*1.5 = 750 cf
+  assert.ok(html.includes('750'));
+  // Deficit: 1000-750 = 250
+  assert.ok(html.includes('250'));
+  assert.ok(html.includes('DEFICIT') || html.includes('✓'));
+  // The old placeholder text must be absent.
+  assert.ok(!html.includes('Documented'));
+});
+
+test('renderMepSheet: shows "No PROW SDAs" note when none are in PROW', () => {
+  const sdas = [
+    { sdaId: 'SDA-1', inProw: 'No', landUse: 'Impervious Vehicular', hsg: 'D',
+      preIn: 0, preOut: 0, postIn: 1000, postOut: 0 },
+  ];
+  const html = renderMepSheet(sampleProject, sdas, [], [], paramsForMep);
+  assert.ok(html.includes('No PROW SDAs'));
+});
+
+test('renderMepSheet: aggregates impervious across land-use rows in same PROW SDA', () => {
+  const sdas = [
+    { sdaId: 'SDA-1', inProw: 'Yes', landUse: 'Impervious Vehicular', hsg: 'D',
+      preIn: 0, preOut: 0, postIn: 6000, postOut: 0 },
+    { sdaId: 'SDA-1', inProw: 'Yes', landUse: 'Impervious Non-Vehicular', hsg: 'D',
+      preIn: 0, preOut: 0, postIn: 4000, postOut: 0 },
+    { sdaId: 'SDA-1', inProw: 'Yes', landUse: 'Natural (Woods)', hsg: 'C',
+      preIn: 0, preOut: 0, postIn: 2000, postOut: 0 }, // not counted toward MEP target
+  ];
+  const html = renderMepSheet(sampleProject, sdas, [], [], paramsForMep);
+  // Impervious inside LOD = 6000 + 4000 = 10000; target = 10000*1.2/12 = 1000
+  assert.ok(html.includes('10,000'));
+  assert.ok(html.includes('1,000'));
 });

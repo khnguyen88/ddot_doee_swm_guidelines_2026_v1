@@ -15,6 +15,7 @@ export const fmtN = (n, places = 0) => {
 import {
   ppSizingSv, bioSizingSv, rvFromSv, maxBmpCredit, treeRetentionCredit,
 } from './calc.mjs';
+import { rvProvidedPerSda } from './aggregate.mjs';
 
 export function renderSheetShell({ title, sub, body, footer, landscape = false }) {
   const cls = landscape ? 'calc-sheet landscape' : 'calc-sheet';
@@ -329,22 +330,56 @@ const MEP_STEPS = [
   ['Step 4', 'Discharge to MS4 only if Steps 1-3 are infeasible'],
 ];
 
-export function renderMepSheet(project, sdas) {
+const MEP_IMPERVIOUS_USES = new Set([
+  'Impervious Vehicular', 'Impervious Non-Vehicular', 'BMP',
+]);
+const MEP_TARGET_RAIN_IN = 1.2;
+
+function _imperviousInLodByProwSda(sdas) {
+  const out = {};
+  for (const r of sdas) {
+    if (r.inProw !== 'Yes') continue;
+    if (!MEP_IMPERVIOUS_USES.has(r.landUse)) continue;
+    out[r.sdaId] = (out[r.sdaId] || 0) + (r.postIn || 0);
+  }
+  return out;
+}
+
+export function renderMepSheet(project, sdas, bmps, cdas, params) {
   const stepsHtml = MEP_STEPS.map(([n, desc]) =>
     `<div class="cs-formula-line"><b>${esc(n)}</b> — ${esc(desc)}</div>`
   ).join('');
-  const sdaRows = sdas.map(s => [
-    s.sdaId,
-    'Documented',  // Step 1 status — pulled from CORRECT_MEP_SUMMARY in a later iteration
-    'Documented',
-    'Documented',
-    'Documented',
-  ]);
+
+  const impByProwSda = _imperviousInLodByProwSda(sdas);
+  const prowSdaIds = Object.keys(impByProwSda);
+  if (prowSdaIds.length === 0) {
+    return renderSheetShell({
+      title: 'MEP Summary (PROW)',
+      sub:   `${project.name || ''} · DDOT Maximum Extent Practicable`,
+      body:
+        renderBlock('DDOT MEP 4-STEP PROCESS', stepsHtml) +
+        renderNote('No PROW SDAs in this project — MEP does not apply.'),
+      footer: 'DOEE Guidebook Appendix B · DDOT GI Standards 2014',
+    });
+  }
+
+  const rvBySda = rvProvidedPerSda(bmps, cdas, params);
+  const headers = ['SDA', 'Impervious In LOD (sf)', 'MEP Target @ 1.2″ (cf)',
+                   'Rv Provided (cf)', 'Deficit (cf)', 'Status'];
+  const rows = prowSdaIds.map(sdaId => {
+    const imp = impByProwSda[sdaId];
+    const target = imp * MEP_TARGET_RAIN_IN / 12;
+    const provided = rvBySda[sdaId] || 0;
+    const deficit = Math.max(0, target - provided);
+    const status = deficit <= 0 ? '✓ MET' : 'DEFICIT — document in SWMP narrative';
+    return [sdaId, fmtN(imp), fmtN(target, 0), fmtN(provided, 0), fmtN(deficit, 0), status];
+  });
+
   const body =
     renderBlock('DDOT MEP 4-STEP PROCESS', stepsHtml) +
-    renderBlock('PER-SDA DOCUMENTATION STATUS',
-      renderDataTable(['SDA', 'Step 1', 'Step 2', 'Step 3', 'Step 4'], sdaRows)) +
-    renderNote('Per-step evidence lives on the DDOT MEP Worksheet (template sheet CORRECT_MEP_SUMMARY). This page summarizes status only — reviewers should also inspect the worksheet.');
+    renderBlock('PER-PROW-SDA METRICS', renderDataTable(headers, rows)) +
+    renderNote('Narrative evidence for Steps 2–4 (infiltration suitability, infrastructure constraints, BMP placement rationale) lives in the DDOT MEP Worksheet file produced by the populator. This page summarizes derivable numerical metrics only.');
+
   return renderSheetShell({
     title: 'MEP Summary (PROW)',
     sub:   `${project.name || ''} · DDOT Maximum Extent Practicable`,

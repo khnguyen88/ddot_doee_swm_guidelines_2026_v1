@@ -92,7 +92,7 @@ function buildDeck(parsed) {
   cdaPrePages.forEach((html, i)  => push(cdaPreLabels[i],  html));
   cdaPostPages.forEach((html, i) => push(cdaPostLabels[i], html));
   bmpPages.forEach((html, i) => push(`${bmps[i].name} — ${bmps[i].type}`, html));
-  push('MEP Summary', renderMepSheet(project, sdas));
+  push('MEP Summary', renderMepSheet(project, sdas, bmps, cdas, params));
   push('EISA §438',   renderEisa438Sheet(project, eisa));
   push('Detention Summary', renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
   push('Site Compliance',   renderCompliancePage(project, complianceRows));
