@@ -108,7 +108,7 @@ test('renderBmpSheets: one page per BMP with 3-step math', () => {
   assert.ok(pages[0].includes('STEP 3'));
 });
 
-import { renderMepSheet, renderEisa438Sheet } from '../src/render.mjs';
+import { renderMepSheet } from '../src/render.mjs';
 
 const paramsForMep = {
   bmpDesign: { 'Bioretention / Enhanced': { nMedia: 0.4, nGravel: 0.4, retMultiplier: 1.0 } },
@@ -129,15 +129,6 @@ test('renderMepSheet: shows MEP steps in all cases', () => {
   assert.ok(html.includes('Step 4'));
 });
 
-test('renderEisa438Sheet: pre vs post comparison', () => {
-  const html = renderEisa438Sheet(sampleProject, {
-    preCf: 2000, postCf: 1500, deltaCf: -500, pass: true,
-  });
-  assert.ok(html.includes('EISA'));
-  assert.ok(html.includes('2,000'));
-  assert.ok(html.includes('1,500'));
-  assert.ok(html.includes('95th percentile'));
-});
 
 import { renderDetentionSheet, renderCompliancePage } from '../src/render.mjs';
 
@@ -325,4 +316,56 @@ test('renderMepSheet: non-PROW SDAs do not appear in the per-PROW-SDA table', ()
   assert.ok(html.includes('SDA-1'));
   assert.ok(!html.includes('SDA-2'));
   assert.ok(!html.includes('9,999'));
+});
+
+import {
+  renderEisaDirectSheet, renderEisaTr55Sheet, renderEisaComplianceSheet,
+} from '../src/render.mjs';
+import { eisaDirectVolumeTraceCf, tr55VolumeTraceCf } from '../src/calc.mjs';
+
+const eisaRows = [
+  { area: 10000, landUse: 'Impervious Vehicular', hsg: 'D' },
+  { area:  5000, landUse: 'Natural (Woods)',      hsg: 'C' },
+];
+const preDirect  = eisaDirectVolumeTraceCf(eisaRows, 1.7);
+const postDirect = eisaDirectVolumeTraceCf(eisaRows, 1.7);
+const preTr55    = tr55VolumeTraceCf(eisaRows, 1.7);
+const postTr55   = tr55VolumeTraceCf(eisaRows, 1.7);
+
+test('renderEisaDirectSheet: shows pre and post per-row tables', () => {
+  const html = renderEisaDirectSheet(sampleProject, preDirect, postDirect);
+  assert.ok(html.includes('EISA §438'));
+  assert.ok(html.includes('Direct Determination'));
+  assert.ok(html.includes('Impervious Vehicular'));
+  assert.ok(html.includes('Natural (Woods)'));
+  // Δ should be 0 (same pre/post inputs)
+  assert.ok(html.includes('Δ'));
+});
+
+test('renderEisaTr55Sheet: shows CN column and TR-55 formulas', () => {
+  const html = renderEisaTr55Sheet(sampleProject, preTr55, postTr55);
+  assert.ok(html.includes('TR-55'));
+  assert.ok(html.includes('CN'));
+  // Impervious CN = 98
+  assert.ok(html.includes('98'));
+});
+
+test('renderEisaComplianceSheet: lists BMP storage, both methods, elected method', () => {
+  const bmpStorage = [
+    { name: 'B-1', type: 'Bioretention', sdaId: 'SDA-1', rvCf: 500 },
+    { name: 'T-1', type: 'Planted Trees', sdaId: 'SDA-1', rvCf: 40 },
+  ];
+  const html = renderEisaComplianceSheet(
+    sampleProject,
+    { preCf: 100, postCf: 150, deltaCf: 50 },  // direct
+    { preCf: 120, postCf: 180, deltaCf: 60 },  // tr55
+    bmpStorage,
+    'Direct Determination',
+  );
+  assert.ok(html.includes('B-1'));
+  assert.ok(html.includes('T-1'));
+  assert.ok(html.includes('540'));           // total BMP storage
+  assert.ok(html.includes('Direct Determination'));
+  assert.ok(html.includes('TR-55'));
+  assert.ok(html.includes('Elected method'));
 });

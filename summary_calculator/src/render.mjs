@@ -475,26 +475,92 @@ export function renderCompliancePage(project, rows) {
   });
 }
 
-export function renderEisa438Sheet(project, eisa) {
-  const kv = renderKvTable([
-    ['95th percentile storm (DC)', '1.7″'],
-    ['Pre-development runoff',     fmtN(eisa.preCf, 0) + ' cf'],
-    ['Post-development runoff',    fmtN(eisa.postCf, 0) + ' cf'],
-    ['Δ (post − pre)',             fmtN(eisa.deltaCf, 0) + ' cf'],
+function _eisaDirectTableRows(trace) {
+  return trace.perRow.map(r => [
+    r.landUse, r.hsg, fmtN(r.area), r.depthIn.toFixed(3), fmtN(r.volumeCf, 0),
   ]);
+}
+
+function _eisaTr55TableRows(trace) {
+  return trace.perRow.map(r => [
+    r.landUse, r.hsg, fmtN(r.area), r.cn, r.depthIn.toFixed(3), fmtN(r.volumeCf, 0),
+  ]);
+}
+
+export function renderEisaDirectSheet(project, pre, post) {
+  const headers = ['Land Use', 'HSG', 'Area (sf)', 'Depth @ 1.7″ (in)', 'Volume (cf)'];
+  const delta = post.value - pre.value;
+  const pass  = delta <= 0;
   const body =
-    renderBlock('EISA §438 DIRECT DETERMINATION', kv) +
-    renderResult(
-      eisa.pass
-        ? 'EISA §438 compliant — post ≤ pre at the 95th percentile storm'
-        : 'EISA §438 NOT compliant — post exceeds pre at the 95th percentile storm',
-      eisa.deltaCf, 'cf', eisa.pass,
-    ) +
-    renderNote('Method: direct determination per EPA EISA §438 Technical Guidance (Dec 2009). Impervious surfaces lose 0.1″ to depression storage only; pervious surfaces lose depression + Horton infiltration over 24 hr.');
+    renderBlock('PRE-DEVELOPMENT', renderDataTable(headers, _eisaDirectTableRows(pre))) +
+    renderResult('Pre total', pre.value, 'cf', true) +
+    renderBlock('POST-DEVELOPMENT', renderDataTable(headers, _eisaDirectTableRows(post))) +
+    renderResult('Post total', post.value, 'cf', true) +
+    renderResult(pass ? 'Δ ≤ 0 — Direct method passes (pre-BMP)' : 'Δ > 0 — relies on BMP storage',
+                 delta, 'cf', pass) +
+    renderNote('Depth deductions: impervious loses 0.1″ to depression; pervious loses 0.2″ depression + Horton infiltration (24 hr). See EISA §438 TG (EPA, Dec 2009).');
   return renderSheetShell({
-    title: 'EISA §438 Direct Determination',
+    title: 'EISA §438 — Direct Determination',
+    sub:   `${project.name || ''} · 95th percentile storm = 1.7″`,
+    body,
+    footer: 'EISA §438 TG (EPA, Dec 2009)',
+  });
+}
+
+export function renderEisaTr55Sheet(project, pre, post) {
+  const headers = ['Land Use', 'HSG', 'Area (sf)', 'CN', 'Depth @ 1.7″ (in)', 'Volume (cf)'];
+  const delta = post.value - pre.value;
+  const pass  = delta <= 0;
+  const formula =
+    '<div class="cs-formula-line">S  = 1000 / CN − 10</div>' +
+    '<div class="cs-formula-line">Ia = 0.2 · S</div>' +
+    '<div class="cs-formula-line">Q  = (P − Ia)² / (P − Ia + S)   if P > Ia, else 0</div>';
+  const body =
+    renderBlock('TR-55 FORMULAS', formula) +
+    renderBlock('PRE-DEVELOPMENT', renderDataTable(headers, _eisaTr55TableRows(pre))) +
+    renderResult('Pre total', pre.value, 'cf', true) +
+    renderBlock('POST-DEVELOPMENT', renderDataTable(headers, _eisaTr55TableRows(post))) +
+    renderResult('Post total', post.value, 'cf', true) +
+    renderResult(pass ? 'Δ ≤ 0 — TR-55 method passes (pre-BMP)' : 'Δ > 0 — relies on BMP storage',
+                 delta, 'cf', pass) +
+    renderNote('CN values from PARAMS table (SCS method). Impervious CN = 98 for all HSGs.');
+  return renderSheetShell({
+    title: 'EISA §438 — TR-55 (SCS CN method)',
+    sub:   `${project.name || ''} · 95th percentile storm = 1.7″`,
+    body,
+    footer: 'EISA §438 TG (EPA, Dec 2009) · TR-55 1986',
+  });
+}
+
+export function renderEisaComplianceSheet(project, direct, tr55, bmpStorage, electedMethod) {
+  const bmpHeaders = ['BMP', 'Type', 'SDA', 'Rv Provided (cf)'];
+  const bmpRows = bmpStorage.map(b => [b.name, b.type, b.sdaId, fmtN(b.rvCf, 0)]);
+  const bmpTotal = bmpStorage.reduce((s, b) => s + (b.rvCf || 0), 0);
+  bmpRows.push(['', '', 'TOTAL', fmtN(bmpTotal, 0)]);
+
+  const directNet = direct.deltaCf - bmpTotal;
+  const tr55Net   = tr55.deltaCf   - bmpTotal;
+  const comparison = [
+    ['Direct Determination', fmtN(direct.preCf, 0), fmtN(direct.postCf, 0), fmtN(direct.deltaCf, 0),
+      fmtN(directNet, 0), directNet <= 0 ? '✓ PASS' : '✗ FAIL'],
+    ['TR-55 (SCS CN)',       fmtN(tr55.preCf, 0),   fmtN(tr55.postCf, 0),   fmtN(tr55.deltaCf, 0),
+      fmtN(tr55Net, 0),   tr55Net   <= 0 ? '✓ PASS' : '✗ FAIL'],
+  ];
+  const cmpHeaders = ['Method', 'Pre (cf)', 'Post (cf)', 'Δ (cf)', 'Net after BMP (cf)', 'Status'];
+
+  const electedResult =
+    electedMethod && electedMethod.toLowerCase().includes('tr-55')
+      ? (tr55Net <= 0 ? 'PASS' : 'FAIL')
+      : (directNet <= 0 ? 'PASS' : 'FAIL');
+
+  const body =
+    renderBlock('BMP STORAGE (RETENTION CREDIT)', renderDataTable(bmpHeaders, bmpRows)) +
+    renderBlock('METHOD COMPARISON', renderDataTable(cmpHeaders, comparison)) +
+    renderNote(`Elected method: ${electedMethod || '(not specified in PROJECT!B11)'} — ${electedResult}`);
+  return renderSheetShell({
+    title: 'EISA §438 — Compliance with BMP Storage',
     sub:   project.name || '',
     body,
-    footer: 'EISA §438 Technical Guidance (EPA, Dec 2009) · 95th percentile storm = 1.7″ for Washington, DC',
+    footer: 'EISA §438 TG (EPA, Dec 2009)',
   });
 }

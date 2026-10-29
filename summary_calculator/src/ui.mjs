@@ -2,15 +2,16 @@
 
 import { parseWorkbook } from './parse.mjs';
 import {
-  siteAggregateLandCover, siteSwrv, eisaDirectTotalVolumeCf, detentionSummary,
-  swrvVolume,
+  siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
+  eisaDirectVolumeTraceCf, tr55VolumeTraceCf,
 } from './calc.mjs';
-import { rvProvidedPerSda } from './aggregate.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp } from './aggregate.mjs';
 import {
   renderCoverSheet, renderSiteDaSheet, renderSiteSwrvSheet,
   renderSdaPreSheet, renderSdaPostSheet, renderCdaPreSheet, renderCdaPostSheet,
   renderBmpSheets,
-  renderMepSheet, renderEisa438Sheet,
+  renderMepSheet,
+  renderEisaDirectSheet, renderEisaTr55Sheet, renderEisaComplianceSheet,
   renderDetentionSheet, renderCompliancePage,
 } from './render.mjs';
 
@@ -28,11 +29,17 @@ function buildDeck(parsed) {
 
   const agg       = siteAggregateLandCover(sdas);
   const swrvTrace = siteSwrv(sdas, project.rainfallIn, params);
-  const preRows   = sdas.map(r => [r.preIn,  r.landUse, r.hsg]);
-  const postRows  = sdas.map(r => [r.postIn, r.landUse, r.hsg]);
-  const preCf     = eisaDirectTotalVolumeCf(preRows,  1.7);
-  const postCf    = eisaDirectTotalVolumeCf(postRows, 1.7);
-  const eisa      = { preCf, postCf, deltaCf: postCf - preCf, pass: postCf <= preCf };
+  const preRows  = sdas.map(r => ({ area: r.preIn,  landUse: r.landUse, hsg: r.hsg }));
+  const postRows = sdas.map(r => ({ area: r.postIn, landUse: r.landUse, hsg: r.hsg }));
+  const eisaDirectPre  = eisaDirectVolumeTraceCf(preRows,  1.7);
+  const eisaDirectPost = eisaDirectVolumeTraceCf(postRows, 1.7);
+  const eisaTr55Pre    = tr55VolumeTraceCf(preRows,  1.7);
+  const eisaTr55Post   = tr55VolumeTraceCf(postRows, 1.7);
+  const bmpStorage = rvProvidedPerBmp(bmps, cdas, params).filter(b => b.rvCf > 0);
+  const direct = { preCf: eisaDirectPre.value, postCf: eisaDirectPost.value,
+                   deltaCf: eisaDirectPost.value - eisaDirectPre.value };
+  const tr55   = { preCf: eisaTr55Pre.value,   postCf: eisaTr55Post.value,
+                   deltaCf: eisaTr55Post.value   - eisaTr55Pre.value };
   const detention = detentionSummary(
     sdas, params.detention.p2In, params.detention.p15In, params.detentionCn,
   );
@@ -80,7 +87,9 @@ function buildDeck(parsed) {
   laterLabels.push(...sdaPreLabels, ...sdaPostLabels, ...cdaPreLabels, ...cdaPostLabels);
   bmps.forEach(b => laterLabels.push(`${b.name} — ${b.type}`));
   laterLabels.push('MEP Summary');
-  laterLabels.push('EISA §438');
+  laterLabels.push('EISA §438 — Direct');
+  laterLabels.push('EISA §438 — TR-55');
+  laterLabels.push('EISA §438 — Compliance');
   laterLabels.push('Detention Summary');
   laterLabels.push('Site Compliance');
 
@@ -93,7 +102,9 @@ function buildDeck(parsed) {
   cdaPostPages.forEach((html, i) => push(cdaPostLabels[i], html));
   bmpPages.forEach((html, i) => push(`${bmps[i].name} — ${bmps[i].type}`, html));
   push('MEP Summary', renderMepSheet(project, sdas, bmps, cdas, params));
-  push('EISA §438',   renderEisa438Sheet(project, eisa));
+  push('EISA §438 — Direct',     renderEisaDirectSheet(project, eisaDirectPre, eisaDirectPost));
+  push('EISA §438 — TR-55',      renderEisaTr55Sheet(project, eisaTr55Pre, eisaTr55Post));
+  push('EISA §438 — Compliance', renderEisaComplianceSheet(project, direct, tr55, bmpStorage, project.eisa));
   push('Detention Summary', renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
   push('Site Compliance',   renderCompliancePage(project, complianceRows));
 
