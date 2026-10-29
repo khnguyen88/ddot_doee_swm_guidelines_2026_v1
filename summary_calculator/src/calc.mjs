@@ -344,9 +344,17 @@ export function siteSwrv(sdas, rainfallIn, params) {
 }
 
 // ─── Trace variants used by EISA render pages ───────────────────────────────
+// Row shape divergence: trace variants take `{area, landUse, hsg}` objects
+// (easier to destructure in .map and makes perRow output self-describing).
+// The scalar siblings eisaDirectTotalVolumeCf and tr55TotalVolumeCf take
+// `[area, landUse, hsg]` tuples. If you call both from one call site, build
+// two row arrays.
 
 export function eisaDirectVolumeTraceCf(rows, P) {
   const perRow = rows.map(r => {
+    if (!['A', 'B', 'C', 'D'].includes(r.hsg)) {
+      throw new Error(`No EISA Direct entry for ('${r.landUse}', '${r.hsg}')`);
+    }
     const depth = eisaDirectRunoffDepth(r.landUse, r.hsg, P);
     return {
       landUse: r.landUse,

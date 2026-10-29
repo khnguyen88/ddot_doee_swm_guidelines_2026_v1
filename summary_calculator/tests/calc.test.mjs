@@ -241,3 +241,11 @@ test('eisaDirectVolumeTraceCf: emits a formatted top-level steps[0] for renderTr
   assert.ok(Array.isArray(result.steps));
   assert.ok(result.steps[0].expr.includes('depth'));
 });
+
+test('tr55VolumeTraceCf: emits a formatted top-level steps[0] with TR-55 formula', () => {
+  const result = tr55VolumeTraceCf([
+    { area: 1000, landUse: 'Impervious Vehicular', hsg: 'D' },
+  ], 1.7);
+  assert.ok(Array.isArray(result.steps));
+  assert.ok(result.steps[0].expr.includes('TR-55'));
+});
