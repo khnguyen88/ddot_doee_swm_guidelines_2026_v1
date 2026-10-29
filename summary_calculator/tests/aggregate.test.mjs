@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rvProvidedPerSda } from '../src/aggregate.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp } from '../src/aggregate.mjs';
 
 const params = {
   bmpDesign: {
@@ -28,7 +28,9 @@ test('rvProvidedPerSda: PP Rv capped by CDA max credit when oversized', () => {
   ];
   const cdas = [{ cdaId: 'CDA-1', postIn: 100 }]; // cap = 100*1.7/12 ≈ 14.17
   const result = rvProvidedPerSda(bmps, cdas, params);
-  assert.ok(result['SDA-1'] < 15, `expected capped Rv ~14.17, got ${result['SDA-1']}`);
+  const expectedCap = 100 * 1.7 / 12;
+  assert.ok(Math.abs(result['SDA-1'] - expectedCap) < 1e-9,
+    `expected capped Rv ${expectedCap}, got ${result['SDA-1']}`);
 });
 
 test('rvProvidedPerSda: sums multiple BMPs within one SDA', () => {
@@ -43,8 +45,9 @@ test('rvProvidedPerSda: sums multiple BMPs within one SDA', () => {
 
 test('rvProvidedPerSda: BMP without a CDA entry is NOT capped', () => {
   const bmps = [
+    // Bio sizing is driven by saBot only; saTop is not used in the calculation.
     { name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-X', type: 'Bioretention', subType: 'Enhanced',
-      bio: { saTop: 100, saBot: 100, dMedia: 2, dGravel: 0.5, dPond: 0.5 } },
+      bio: { saBot: 100, dMedia: 2, dGravel: 0.5, dPond: 0.5 } },
   ];
   const result = rvProvidedPerSda(bmps, [], params);
   // Sv = 100 * (2*0.4 + 0.5*0.4 + 0.5) = 100*1.5 = 150
@@ -53,4 +56,43 @@ test('rvProvidedPerSda: BMP without a CDA entry is NOT capped', () => {
 
 test('rvProvidedPerSda: empty BMP list returns empty object', () => {
   assert.deepEqual(rvProvidedPerSda([], [], params), {});
+});
+
+// ─── rvProvidedPerBmp ────────────────────────────────────────────────────────
+
+test('rvProvidedPerBmp: correct shape, uncapped Bio, capped PP, zero for unsupported', () => {
+  const bmps = [
+    // Bio with no matching CDA → Sv = 100*(2*0.4 + 0.5*0.4 + 0.5) = 150, Rv = 150*1.0 = 150
+    { name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-X', type: 'Bioretention', subType: 'Enhanced',
+      bio: { saBot: 100, dMedia: 2, dGravel: 0.5, dPond: 0.5 } },
+    // PP with matching CDA → Sv = 10000*5*0.4 = 20000, capped at 100*1.7/12 ≈ 14.17
+    { name: 'PP-1', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Permeable Pavement', subType: 'Enhanced',
+      pp: { sa: 10000, dReservoir: 5 } },
+    // Unsupported type → rvCf = 0
+    { name: 'GR-1', sdaId: 'SDA-2', cdaId: null, type: 'Green Roof', subType: 'Intensive' },
+  ];
+  const cdas = [{ cdaId: 'CDA-1', postIn: 100 }];
+  const result = rvProvidedPerBmp(bmps, cdas, params);
+
+  // Correct length
+  assert.equal(result.length, 3);
+
+  // Each row has the required shape keys
+  for (const row of result) {
+    for (const key of ['name', 'type', 'subType', 'sdaId', 'cdaId', 'rvCf']) {
+      assert.ok(key in row, `row missing key: ${key}`);
+    }
+  }
+
+  // Bio row — uncapped, Rv = 150
+  assert.equal(result[0].name, 'B-1');
+  assert.equal(result[0].rvCf, 150);
+
+  // PP row — capped at 100*1.7/12
+  const expectedCap = 100 * 1.7 / 12;
+  assert.ok(Math.abs(result[1].rvCf - expectedCap) < 1e-9,
+    `expected capped PP rvCf ${expectedCap}, got ${result[1].rvCf}`);
+
+  // Unsupported type — rvCf = 0
+  assert.equal(result[2].rvCf, 0);
 });

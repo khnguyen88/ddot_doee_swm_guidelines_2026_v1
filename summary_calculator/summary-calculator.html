@@ -764,7 +764,7 @@ function _rvForBmp(bmp, cdas, params) {
   if (bmp.type === 'Permeable Pavement' && bmp.pp) {
     const design = params.bmpDesign[`Permeable Pavement / ${bmp.subType}`] || DEFAULT_PP_DESIGN;
     const sv = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir).value;
-    const rv = sv * design.retMultiplier;
+    const rv = rvFromSv(sv, design.retMultiplier).value;
     const cda = cdas.find(c => c.cdaId === bmp.cdaId);
     return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
   }
@@ -774,7 +774,7 @@ function _rvForBmp(bmp, cdas, params) {
       bmp.bio.saBot, bmp.bio.dMedia, design.nMedia,
       bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
     ).value;
-    const rv = sv * design.retMultiplier;
+    const rv = rvFromSv(sv, design.retMultiplier).value;
     const cda = cdas.find(c => c.cdaId === bmp.cdaId);
     return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
   }

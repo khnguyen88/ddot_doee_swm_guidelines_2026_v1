@@ -3,7 +3,7 @@
 // so Rv-applied is computed in exactly one place.
 
 import {
-  ppSizingSv, bioSizingSv, maxBmpCredit, treeRetentionCredit,
+  ppSizingSv, bioSizingSv, rvFromSv, maxBmpCredit, treeRetentionCredit,
 } from './calc.mjs';
 
 const DEFAULT_PP_DESIGN  = { nReservoir: 0.40, retMultiplier: 1.0 };
@@ -13,7 +13,7 @@ function _rvForBmp(bmp, cdas, params) {
   if (bmp.type === 'Permeable Pavement' && bmp.pp) {
     const design = params.bmpDesign[`Permeable Pavement / ${bmp.subType}`] || DEFAULT_PP_DESIGN;
     const sv = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir).value;
-    const rv = sv * design.retMultiplier;
+    const rv = rvFromSv(sv, design.retMultiplier).value;
     const cda = cdas.find(c => c.cdaId === bmp.cdaId);
     return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
   }
@@ -23,7 +23,7 @@ function _rvForBmp(bmp, cdas, params) {
       bmp.bio.saBot, bmp.bio.dMedia, design.nMedia,
       bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
     ).value;
-    const rv = sv * design.retMultiplier;
+    const rv = rvFromSv(sv, design.retMultiplier).value;
     const cda = cdas.find(c => c.cdaId === bmp.cdaId);
     return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
   }
