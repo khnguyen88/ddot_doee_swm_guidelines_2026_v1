@@ -399,3 +399,28 @@ test('renderEisaComplianceSheet: EISA does not apply when PROJECT!B11 = No', () 
   );
   assert.ok(html.includes('does not apply'));
 });
+
+import { renderExecutiveSummarySheet } from '../src/render.mjs';
+
+test('renderExecutiveSummarySheet: shows DA block, SWRv per-SDA, EISA both methods', () => {
+  const agg = {
+    pre:  { natural: 500, compacted: 0, impervious: 1000, bmp: 0 },
+    post: { natural: 0,   compacted: 0, impervious: 1500, bmp: 0 },
+    preTotal: 1500, postTotal: 1500, impPctPre: 66.7, impPctPost: 100,
+  };
+  const complianceRows = [
+    { sdaId: 'SDA-1', swrvReqCf: 100, rvProvidedCf: 150 },
+    { sdaId: 'SDA-2', swrvReqCf: 200, rvProvidedCf: 100 },
+  ];
+  const direct = { preCf: 50, postCf: 80, deltaCf: 30, netCf: -20, pass: true };
+  const tr55   = { preCf: 60, postCf: 90, deltaCf: 30, netCf: -20, pass: true };
+  const html = renderExecutiveSummarySheet(sampleProject, agg, complianceRows,
+                                            direct, tr55, 'Direct Determination');
+  assert.ok(html.includes('Executive Summary'));
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('SDA-2'));
+  assert.ok(html.includes('66.7%') || html.includes('67%'));
+  assert.ok(html.includes('Direct Determination'));
+  assert.ok(html.includes('TR-55'));
+  assert.ok(html.includes('Elected'));
+});

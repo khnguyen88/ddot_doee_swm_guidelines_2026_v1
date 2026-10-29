@@ -13,6 +13,7 @@ import {
   renderMepSheet,
   renderEisaDirectSheet, renderEisaTr55Sheet, renderEisaComplianceSheet,
   renderDetentionSheet, renderCompliancePage,
+  renderExecutiveSummarySheet,
 } from './render.mjs';
 
 const main = document.getElementById('main');
@@ -40,6 +41,11 @@ function buildDeck(parsed) {
                    deltaCf: eisaDirectPost.value - eisaDirectPre.value };
   const tr55   = { preCf: eisaTr55Pre.value,   postCf: eisaTr55Post.value,
                    deltaCf: eisaTr55Post.value   - eisaTr55Pre.value };
+  const bmpTotalCf = bmpStorage.reduce((s, b) => s + b.rvCf, 0);
+  const directWithNet = { ...direct, netCf: direct.deltaCf - bmpTotalCf,
+                          pass: (direct.deltaCf - bmpTotalCf) <= 0 };
+  const tr55WithNet   = { ...tr55,   netCf: tr55.deltaCf   - bmpTotalCf,
+                          pass: (tr55.deltaCf   - bmpTotalCf) <= 0 };
   const detention = detentionSummary(
     sdas, params.detention.p2In, params.detention.p15In, params.detentionCn,
   );
@@ -82,6 +88,7 @@ function buildDeck(parsed) {
   const cdaPostLabels = _labelsFor(cdaPostPages, 'CDA — Post-development');
 
   const laterLabels = [];
+  laterLabels.push('Executive Summary');
   laterLabels.push('Site DA — Land Cover');
   laterLabels.push('Site SWRv Required');
   laterLabels.push(...sdaPreLabels, ...sdaPostLabels, ...cdaPreLabels, ...cdaPostLabels);
@@ -94,6 +101,9 @@ function buildDeck(parsed) {
   laterLabels.push('Site Compliance');
 
   push('Cover', renderCoverSheet(project, laterLabels));
+  push('Executive Summary', renderExecutiveSummarySheet(
+    project, agg, complianceRows, directWithNet, tr55WithNet, project.eisa,
+  ));
   push('Site DA — Land Cover', renderSiteDaSheet(project, agg));
   push('Site SWRv Required',    renderSiteSwrvSheet(project, swrvTrace));
   sdaPrePages.forEach((html, i)  => push(sdaPreLabels[i],  html));

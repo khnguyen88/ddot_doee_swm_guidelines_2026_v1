@@ -1378,6 +1378,64 @@ function renderEisaTr55Sheet(project, pre, post) {
     footer: 'EISA §438 TG (EPA, Dec 2009) · TR-55 1986',
   });
 }
+function renderExecutiveSummarySheet(project, agg, complianceRows, direct, tr55, electedMethod) {
+  // Block A — Site DA roll-up.
+  const daHeaders = ['Land Cover', 'Pre (sf)', 'Post (sf)', 'Δ (sf)'];
+  const daRows = [
+    ['Natural (Woods)',   fmtN(agg.pre.natural),    fmtN(agg.post.natural),    fmtN(agg.post.natural    - agg.pre.natural)],
+    ['Compacted (Open)',  fmtN(agg.pre.compacted),  fmtN(agg.post.compacted),  fmtN(agg.post.compacted  - agg.pre.compacted)],
+    ['Impervious',        fmtN(agg.pre.impervious), fmtN(agg.post.impervious), fmtN(agg.post.impervious - agg.pre.impervious)],
+    ['BMP',               fmtN(agg.pre.bmp),        fmtN(agg.post.bmp),        fmtN(agg.post.bmp        - agg.pre.bmp)],
+    ['TOTAL LOD',         fmtN(agg.preTotal),       fmtN(agg.postTotal),       fmtN(agg.postTotal       - agg.preTotal)],
+  ];
+  const daKv = renderKvTable([
+    ['Pre impervious %',  fmtN(agg.impPctPre, 1) + '%'],
+    ['Post impervious %', fmtN(agg.impPctPost, 1) + '%'],
+  ]);
+
+  // Block B — Per-SDA SWRv.
+  const swrvHeaders = ['SDA', 'SWRv Required (cf)', 'Rv Provided (cf)', '% Met', 'Status'];
+  const swrvRows = complianceRows.map(r => {
+    const pct = r.swrvReqCf > 0 ? (r.rvProvidedCf / r.swrvReqCf * 100) : 0;
+    const pass = r.rvProvidedCf >= r.swrvReqCf || r.swrvReqCf === 0;
+    return [r.sdaId, fmtN(r.swrvReqCf, 0), fmtN(r.rvProvidedCf, 0),
+            fmtN(pct, 0) + '%', pass ? '✓' : '✗'];
+  });
+  const totalReq      = complianceRows.reduce((s, r) => s + r.swrvReqCf, 0);
+  const totalProvided = complianceRows.reduce((s, r) => s + r.rvProvidedCf, 0);
+  swrvRows.push([
+    'SITE TOTAL',
+    fmtN(totalReq, 0),
+    fmtN(totalProvided, 0),
+    fmtN(totalReq > 0 ? totalProvided / totalReq * 100 : 0, 0) + '%',
+    totalProvided >= totalReq ? '✓ PASS' : '✗ FAIL',
+  ]);
+
+  // Block C — EISA.
+  const eisaKv = renderKvTable([
+    ['Direct — Pre',  fmtN(direct.preCf, 0) + ' cf'],
+    ['Direct — Post', fmtN(direct.postCf, 0) + ' cf'],
+    ['Direct — Δ (post − pre)',        fmtN(direct.deltaCf, 0) + ' cf'],
+    ['Direct — Net after BMP storage', fmtN(direct.netCf, 0) + ' cf · ' + (direct.pass ? '✓' : '✗')],
+    ['TR-55 — Pre',  fmtN(tr55.preCf, 0) + ' cf'],
+    ['TR-55 — Post', fmtN(tr55.postCf, 0) + ' cf'],
+    ['TR-55 — Δ (post − pre)',        fmtN(tr55.deltaCf, 0) + ' cf'],
+    ['TR-55 — Net after BMP storage', fmtN(tr55.netCf, 0) + ' cf · ' + (tr55.pass ? '✓' : '✗')],
+    ['Elected method', electedMethod || '(not specified)'],
+  ]);
+
+  const body =
+    renderBlock('SITE DA — LAND COVER ROLL-UP', renderDataTable(daHeaders, daRows) + daKv) +
+    renderBlock('PER-SDA SWRv COMPLIANCE',       renderDataTable(swrvHeaders, swrvRows)) +
+    renderBlock('EISA §438 RESULT',              eisaKv);
+
+  return renderSheetShell({
+    title: 'Executive Summary',
+    sub:   `${project.name || ''} · ${project.number || ''}`,
+    body,
+    footer: '21 DCMR §599 · EISA §438 · DOEE Guidebook Jan 2020',
+  });
+}
 
 // electedMethod is the value of PROJECT!B11 — a Yes/No field indicating whether
 // EISA §438 applies to this project, NOT a method selector.
@@ -1451,6 +1509,11 @@ function buildDeck(parsed) {
                    deltaCf: eisaDirectPost.value - eisaDirectPre.value };
   const tr55   = { preCf: eisaTr55Pre.value,   postCf: eisaTr55Post.value,
                    deltaCf: eisaTr55Post.value   - eisaTr55Pre.value };
+  const bmpTotalCf = bmpStorage.reduce((s, b) => s + b.rvCf, 0);
+  const directWithNet = { ...direct, netCf: direct.deltaCf - bmpTotalCf,
+                          pass: (direct.deltaCf - bmpTotalCf) <= 0 };
+  const tr55WithNet   = { ...tr55,   netCf: tr55.deltaCf   - bmpTotalCf,
+                          pass: (tr55.deltaCf   - bmpTotalCf) <= 0 };
   const detention = detentionSummary(
     sdas, params.detention.p2In, params.detention.p15In, params.detentionCn,
   );
@@ -1493,6 +1556,7 @@ function buildDeck(parsed) {
   const cdaPostLabels = _labelsFor(cdaPostPages, 'CDA — Post-development');
 
   const laterLabels = [];
+  laterLabels.push('Executive Summary');
   laterLabels.push('Site DA — Land Cover');
   laterLabels.push('Site SWRv Required');
   laterLabels.push(...sdaPreLabels, ...sdaPostLabels, ...cdaPreLabels, ...cdaPostLabels);
@@ -1505,6 +1569,9 @@ function buildDeck(parsed) {
   laterLabels.push('Site Compliance');
 
   push('Cover', renderCoverSheet(project, laterLabels));
+  push('Executive Summary', renderExecutiveSummarySheet(
+    project, agg, complianceRows, directWithNet, tr55WithNet, project.eisa,
+  ));
   push('Site DA — Land Cover', renderSiteDaSheet(project, agg));
   push('Site SWRv Required',    renderSiteSwrvSheet(project, swrvTrace));
   sdaPrePages.forEach((html, i)  => push(sdaPreLabels[i],  html));
