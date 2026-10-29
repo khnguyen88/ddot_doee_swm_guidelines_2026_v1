@@ -2,6 +2,84 @@
 
 Reference documents and summaries for DC stormwater management guidelines (DOEE/DDOT), compiled for the 2026 project cycle.
 
+## Getting Started
+
+Three artifacts cover the full SWMP compliance workflow — a project workbook plus two offline webapps. **No install needed to use them.**
+
+### 1. Compliance Template — `SW_Required_Provided_DOEE_EISA438.xlsx`
+
+The master project workbook. Fill in project info, drainage areas, BMPs, and land cover; formulas handle the rest.
+
+- **Blank:** [`SW_Required_Provided_DOEE_EISA438.xlsx`](SW_Required_Provided_DOEE_EISA438.xlsx)
+- **Filled example:** [`SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx`](SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx) (Minnesota Ave Great Street test case)
+
+**Open the blank in Excel.** It has 13 sheets:
+
+| Group | Sheets | What to do |
+|---|---|---|
+| **Project header** | `PROJECT` | Fill in project name/number, LOD area, rainfall (default 1.7"), trigger (MLD/MSI/PROW), and EISA §438 applicability |
+| **Reference** | `PARAMS` | Don't edit — Rv coefficients, CN table, detention storm depths |
+| **Land cover inputs** | `SDA`, `CDA` | Enter one row per drainage area × land use × HSG. Both sheets carry **Pre** and **Post** area columns (Within + Outside LOD). SDA and CDA summary blocks flag `⚠ MISMATCH` if pre-area and post-area totals disagree |
+| **BMP inputs** | `BMP` | Enter one row per BMP (name, parent SDA/CDA, type, dimensions). Ksat and max-credit auto-fill from CDA land cover |
+| **Auto-calculated outputs** (don't edit) | `CORRECT_MEP_SUMMARY`, `EISA_DIRECT`, `EISA_TR55`, `DOEE_SDA`, `DOEE_BMP_DATA`, `DOEE_DETENTION` (SDA-keyed), `DOEE_DETENTION_BMP` (CDA-keyed, per BMP), `DOEE_COMPLIANCE` | Mirrors of the DOEE compliance calc sheets. All formulas auto-update from your SDA/CDA/BMP entries |
+
+The two detention sheets carry a note on row 2 reminding you that CN composites and runoff depths use Within-LOD land cover per DOEE convention — project-specific exceptions (offsite inflow, retrofit along existing ROW) require manual adjustment.
+
+### 2. Summary Calculator — `summary_calculator/summary-calculator.html`
+
+Reads the filled template and produces letter-format printable pages for DOEE submission.
+
+**To use:**
+1. Open [`summary_calculator/summary-calculator.html`](summary_calculator/summary-calculator.html) by double-clicking (any modern browser, works offline from `file://`)
+2. Click the dropzone, select your filled `SW_Required_Provided_DOEE_EISA438.xlsx`
+3. The sidebar lists each page — click to preview
+4. Click **Print** (or Ctrl/Cmd+P) → each page is sized for US Letter at 0.5" margins
+
+Pages generated: Cover, Site DA Land Cover, Site SWRv Required, SDA/CDA Summary (with Pre + Post land cover columns), one page per BMP, MEP Summary (DDOT 4-step), EISA §438 Direct Determination, Detention Summary, and Site Compliance Roll-up.
+
+### 3. Populator — `populator/summary-populator.html`
+
+Reads the filled template and auto-populates the five official DOEE/DDOT submission workbooks. Preserves charts, VBA macros, cell protection, and formatting via surgical XML edits.
+
+**To use:**
+1. Open [`populator/summary-populator.html`](populator/summary-populator.html) by double-clicking (works offline from `file://`)
+2. Upload your filled template
+3. (Optional) Override any bundled DOEE blank with a newer version if DOEE has released one
+4. Check the DDOT MEP phases you want populated (30% / 65% / 90%)
+5. Click **Populate** → download individual files, or **Download all as ZIP**
+
+Targets filled:
+
+| Workbook | Behavior |
+|---|---|
+| General Retention Compliance Calculator | Full — project header + per-SDA + per-BMP |
+| DDOT MEP Worksheet | Full — user-selected phases |
+| SWDB PROW Import Template | Full — Drainage Areas + BMPs sheets (`.xlsx` with sheet protection; written at XML level) |
+| SWMP-BMP Calc Spreadsheet (`.xlsm`) | First BMP per type (3.5 Permeable Pavement, 3.6 Bioretention, 3.9 O-2 Dry Swale, 3.14 Tree Planting) — warns on additional. VBA preserved |
+| Rainwater Harvesting Calculator | Skipped unless the template has an RWH BMP |
+
+### Rebuilding the template or webapps (developers only)
+
+```bash
+# Install Python deps
+pip install -r requirements.txt
+
+# Rebuild the blank template + Minnesota Ave sample
+python -m workbook
+python -m workbook.sample
+
+# Rebuild the webapp dists
+node summary_calculator/build.js
+node populator/build.js
+
+# Run tests
+pytest tests/                                                  # workbook builders
+cd summary_calculator && node --test tests/*.mjs && cd ..      # calc engine
+cd populator && node --test tests/**/*.test.mjs && cd ..       # populator
+```
+
+End users never need to run any of the above — just open the HTML files.
+
 ## Reference Documents
 
 | Document | Description | Local | Online |
