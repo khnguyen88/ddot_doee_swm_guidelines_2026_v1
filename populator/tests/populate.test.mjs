@@ -55,3 +55,42 @@ test('populateAll returns one result per mapping', async () => {
   assert.equal(results.outputs[0].targetId, 'fake');
   assert.equal(results.skipped.length, 0);
 });
+
+// ── End-to-end: all 5 real mappings against the Minnesota Ave fixture ──────────
+
+const { target: generalRetention } = await import('../src/mappings/general-retention.mjs');
+const { target: ddotMep }          = await import('../src/mappings/ddot-mep.mjs');
+const { target: swdbProw }         = await import('../src/mappings/swdb-prow.mjs');
+const { target: swmpBmpCalc }      = await import('../src/mappings/swmp-bmp-calc.mjs');
+const { target: rwh }              = await import('../src/mappings/rainwater-harvesting.mjs');
+
+const ALL_MAPPINGS = [generalRetention, ddotMep, swdbProw, swmpBmpCalc, rwh];
+
+const blankPath = (name) => join(__dirname, '..', 'blanks', name);
+
+test('populateAll: 4 outputs + 1 skipped on Minnesota Ave', async () => {
+  const start = Date.now();
+  const blanks = {
+    'general-retention':    await readFile(blankPath('general-retention.xlsx')),
+    'ddot-mep':             await readFile(blankPath('ddot-mep.xlsx')),
+    'swdb-prow':            await readFile(blankPath('swdb-prow.xlsx')),
+    'swmp-bmp-calc':        await readFile(blankPath('swmp-bmp-calc.xlsm')),
+    'rainwater-harvesting': await readFile(blankPath('rainwater-harvesting.xlsx')),
+  };
+  const results = await populateAll(wb, { mappings: ALL_MAPPINGS, blanks });
+  const elapsedMs = Date.now() - start;
+
+  assert.equal(results.outputs.length, 4, `expected 4 outputs, got ${results.outputs.length}`);
+  assert.equal(results.skipped.length, 1);
+  assert.equal(results.skipped[0].targetId, 'rainwater-harvesting');
+
+  // Every output must be a valid XLSX (JSZip can re-open it and find workbook.xml).
+  for (const out of results.outputs) {
+    const bytes = Buffer.from(await out.blob.arrayBuffer());
+    const zip = await globalThis.JSZip.loadAsync(bytes);
+    assert.ok(zip.file('xl/workbook.xml'), `${out.targetId} missing xl/workbook.xml`);
+  }
+
+  // Perf budget — allow headroom for CI machines.
+  assert.ok(elapsedMs < 5000, `populate took ${elapsedMs}ms — should be <5s`);
+});
