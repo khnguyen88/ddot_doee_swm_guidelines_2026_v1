@@ -593,11 +593,11 @@ def _write_da_rows(ws) -> None:
 
         # AC — Total BMP CDA within LOD
         ws.cell(row=r, column=29, value=_guard(
-            f"SUMIFS('CDA'!$E${CD1}:$E${CDL},'CDA'!$B${CD1}:$B${CDL},{a})", a))
+            f"SUMIFS('CDA'!$G${CD1}:$G${CDL},'CDA'!$B${CD1}:$B${CDL},{a})", a))
 
         # AD — Total BMP CDA outside LOD
         ws.cell(row=r, column=30, value=_guard(
-            f"SUMIFS('CDA'!$F${CD1}:$F${CDL},'CDA'!$B${CD1}:$B${CDL},{a})", a))
+            f"SUMIFS('CDA'!$H${CD1}:$H${CDL},'CDA'!$B${CD1}:$B${CDL},{a})", a))
 
         # AG — Max Bioretention Sv (Bio + Dry Swale)
         ws.cell(row=r, column=33, value=_guard(

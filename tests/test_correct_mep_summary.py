@@ -129,11 +129,11 @@ def test_row12_col_q_preserved_small_sumifs(ws):
 
 
 def test_row12_col_ac_cda_sumifs(ws):
-    # AC12 (col 29) — Total BMP CDA within LOD — SUMIFS over CDA $E column
+    # AC12 (col 29) — Total BMP CDA within LOD — SUMIFS over CDA post-within column G
     v = ws.cell(row=12, column=29).value
     assert isinstance(v, str)
     assert "SUMIFS" in v
-    assert "$E$" in v
+    assert "$G$" in v
     assert "'CDA'" in v
 
 
@@ -237,3 +237,37 @@ def test_row1_project_name_value_has_inp_fill(ws):
     # INP = "FFFFC7"
     assert cell.fill.fgColor.rgb in ("00FFFFC7", "FFFFFFC7"), \
         f"D1 should have INP fill, got {cell.fill.fgColor.rgb}"
+
+
+MEP_SHEET = "CORRECT_MEP_SUMMARY"
+
+
+def _mep_wb():
+    w = openpyxl.Workbook()
+    w.remove(w.active)
+    params.build_params_sheet(w)
+    project.build_project_sheet(w)
+    sda.build_sda_sheet(w, n_rows=50)
+    cda.build_cda_sheet(w, n_rows=50)
+    bmp.build_bmp_sheet(w, n_rows=50)
+    correct_mep_summary.build_correct_mep_summary(w)
+    return w
+
+
+def test_correct_mep_summary_cda_sumifs_use_post_columns():
+    """AC/AD CDA within/outside SUMIFS must use post columns G/H, not pre E/F."""
+    ws = _mep_wb()[MEP_SHEET]
+    found_g = found_h = False
+    for row in ws.iter_rows():
+        for c in row:
+            v = c.value
+            if not isinstance(v, str) or "'CDA'!" not in v:
+                continue
+            if "'CDA'!$G$" in v:
+                found_g = True
+            if "'CDA'!$H$" in v:
+                found_h = True
+            assert "'CDA'!$E$" not in v, f"stale $E at {c.coordinate}: {v}"
+            assert "'CDA'!$F$" not in v, f"stale $F at {c.coordinate}: {v}"
+    assert found_g, "no CDA post-within SUMIFS emitted on MEP summary"
+    assert found_h, "no CDA post-outside SUMIFS emitted on MEP summary"

@@ -183,22 +183,22 @@ def build_doee_bmp_data(wb: Workbook) -> None:
         # CDA land cover — SUMIFS from CDA sheet by CDA_ID (BMP col C) + Land Use
         cda_cell = f"'BMP'!C{src}"
         styles.calc_c(ws, r, 6,
-                      f"=SUMIFS('CDA'!$E$4:$E$53,"
+                      f"=SUMIFS('CDA'!$G$4:$G$53,"
                       f"'CDA'!$A$4:$A$53,{cda_cell},"
                       f"'CDA'!$C$4:$C$53,\"Natural (Woods)\")")
         styles.calc_c(ws, r, 7,
-                      f"=SUMIFS('CDA'!$E$4:$E$53,"
+                      f"=SUMIFS('CDA'!$G$4:$G$53,"
                       f"'CDA'!$A$4:$A$53,{cda_cell},"
                       f"'CDA'!$C$4:$C$53,\"Compacted (Open Space)\")")
         styles.calc_c(ws, r, 8,
-                      f"=SUMIFS('CDA'!$E$4:$E$53,"
+                      f"=SUMIFS('CDA'!$G$4:$G$53,"
                       f"'CDA'!$A$4:$A$53,{cda_cell},"
                       f"'CDA'!$C$4:$C$53,\"Impervious Vehicular\")"
-                      f"+SUMIFS('CDA'!$E$4:$E$53,"
+                      f"+SUMIFS('CDA'!$G$4:$G$53,"
                       f"'CDA'!$A$4:$A$53,{cda_cell},"
                       f"'CDA'!$C$4:$C$53,\"Impervious Non-Vehicular\")")
         styles.calc_c(ws, r, 9,
-                      f"=SUMIFS('CDA'!$E$4:$E$53,"
+                      f"=SUMIFS('CDA'!$G$4:$G$53,"
                       f"'CDA'!$A$4:$A$53,{cda_cell},"
                       f"'CDA'!$C$4:$C$53,\"BMP\")")
 

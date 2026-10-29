@@ -26,7 +26,7 @@ def _cda_dominant_hsg_formula(cda_cell: str) -> str:
     """
     def _sumifs(hsg: str) -> str:
         return (
-            f"SUMIFS('CDA'!$E${CDA_D1}:$E${CDA_DL},"
+            f"SUMIFS('CDA'!$G${CDA_D1}:$G${CDA_DL},"
             f"'CDA'!$A${CDA_D1}:$A${CDA_DL},{cda_cell},"
             f"'CDA'!$D${CDA_D1}:$D${CDA_DL},\"{hsg}\")"
         )

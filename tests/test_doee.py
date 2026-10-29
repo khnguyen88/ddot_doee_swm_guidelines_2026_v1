@@ -80,3 +80,31 @@ def test_doee_compliance_pass_fail(wb):
             if isinstance(v, str) and ("PASS" in v or "✓" in v):
                 found_pass = True
     assert found_pass
+
+
+def _full_wb():
+    w = openpyxl.Workbook()
+    w.remove(w.active)
+    params.build_params_sheet(w)
+    project.build_project_sheet(w)
+    sda.build_sda_sheet(w, n_rows=50)
+    cda.build_cda_sheet(w, n_rows=50)
+    bmp.build_bmp_sheet(w, n_rows=50)
+    doee.build_doee_sda(w)
+    doee.build_doee_bmp_data(w)
+    return w
+
+
+def test_doee_bmp_data_cda_sumifs_reads_post_within_column():
+    """DOEE_BMP_DATA land-cover SUMIFS must point at CDA col G (post within), not E."""
+    ws = _full_wb()["DOEE_BMP_DATA"]
+    saw_g = False
+    for row in ws.iter_rows():
+        for c in row:
+            v = c.value
+            if not isinstance(v, str) or "'CDA'!" not in v:
+                continue
+            assert "'CDA'!$E$" not in v, f"stale pre-within $E at {c.coordinate}: {v}"
+            if "'CDA'!$G$" in v:
+                saw_g = True
+    assert saw_g, "no CDA post-within SUMIFS emitted on DOEE_BMP_DATA"

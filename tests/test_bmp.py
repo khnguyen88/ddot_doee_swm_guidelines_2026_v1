@@ -172,3 +172,13 @@ def test_bmp_sheet_has_ksat_note():
     assert note_text is not None
     assert "Ksat" in note_text
     assert "Enhanced" in note_text
+
+
+from workbook.builders.bmp import _cda_dominant_hsg_formula
+
+
+def test_cda_dominant_hsg_sumifs_reads_post_within_column():
+    """Ksat HSG lookup must SUMIFS CDA's post-within column (G), not pre-within (E)."""
+    formula = _cda_dominant_hsg_formula("C4")
+    assert "'CDA'!$G$4:$G$53" in formula
+    assert "'CDA'!$E$4:$E$53" not in formula
