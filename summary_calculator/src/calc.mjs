@@ -205,3 +205,140 @@ export function treeRetentionCredit(counts, treeCredits) {
     ],
   };
 }
+
+// ─── Composite CN + detention ────────────────────────────────────────────────
+
+export function compositeCn(areas, cnByLandUse) {
+  const keys = Object.keys(areas);
+  const totalArea = keys.reduce((s, k) => s + (areas[k] || 0), 0);
+  if (totalArea === 0) return { value: 0, units: '', steps: [] };
+  const num = keys.reduce((s, k) => s + (areas[k] || 0) * cnByLandUse[k], 0);
+  const value = num / totalArea;
+  const subs = keys
+    .filter(k => areas[k] > 0)
+    .map(k => `${areas[k]}·${cnByLandUse[k]}`)
+    .join(' + ');
+  return {
+    value,
+    units: '',
+    steps: [
+      { expr:   'CN = Σ(A_i · CN_i) / Σ A_i',
+        sub:    `(${subs}) / ${totalArea}`,
+        eval:   `${num.toFixed(0)} / ${totalArea}`,
+        result: value },
+    ],
+  };
+}
+
+export const scsRunoffDepth = tr55RunoffDepth;
+
+const LAND_USE_TO_DETENTION_KEY = {
+  'Natural (Woods)':          'Natural',
+  'Compacted (Open Space)':   'Compacted',
+  'Impervious Vehicular':     'Impervious',
+  'Impervious Non-Vehicular': 'Impervious',
+  'BMP':                      'BMP',
+};
+
+function _sdaAreasFromRows(sdaRows, which) {
+  // which = 'pre' | 'post'
+  const key = which + 'In';
+  const out = { Natural: 0, Compacted: 0, Impervious: 0, BMP: 0 };
+  for (const row of sdaRows) {
+    const k = LAND_USE_TO_DETENTION_KEY[row.landUse];
+    if (k) out[k] += row[key] || 0;
+  }
+  return out;
+}
+
+export function detentionSummary(sdas, p2In, p15In, detentionCn) {
+  // sdas can either be: (a) list of per-SDA {sdaId, pre, post} objects (pre-aggregated), or
+  // (b) list of SDA data rows with landUse + preIn + postIn. We detect by checking for
+  //     'pre' / 'post' keys on the first element.
+  let perSdaInput;
+  if (sdas.length === 0) {
+    perSdaInput = [];
+  } else if ('pre' in sdas[0] && 'post' in sdas[0]) {
+    perSdaInput = sdas;
+  } else {
+    // Group raw rows by sdaId first.
+    const by = {};
+    for (const r of sdas) {
+      if (!by[r.sdaId]) by[r.sdaId] = [];
+      by[r.sdaId].push(r);
+    }
+    perSdaInput = Object.entries(by).map(([sdaId, rows]) => ({
+      sdaId,
+      pre:  _sdaAreasFromRows(rows, 'pre'),
+      post: _sdaAreasFromRows(rows, 'post'),
+    }));
+  }
+
+  const perSda = perSdaInput.map(sda => {
+    const preCn  = compositeCn(sda.pre,  detentionCn).value;
+    const postCn = compositeCn(sda.post, detentionCn).value;
+    const p2PreQ   = scsRunoffDepth(p2In,  preCn);
+    const p2PostQ  = scsRunoffDepth(p2In,  postCn);
+    const p15PreQ  = scsRunoffDepth(p15In, preCn);
+    const p15PostQ = scsRunoffDepth(p15In, postCn);
+    return {
+      sdaId: sda.sdaId,
+      preCn, postCn,
+      p2PreQ, p2PostQ, p2Required: p2PostQ > p2PreQ,
+      p15PreQ, p15PostQ, p15Required: p15PostQ > p15PreQ,
+    };
+  });
+  const anyRequired = perSda.some(s => s.p2Required || s.p15Required);
+  return { perSda, anyRequired };
+}
+
+// ─── Site aggregates ─────────────────────────────────────────────────────────
+
+const LAND_USE_TO_SITE_KEY = {
+  'Natural (Woods)':          'natural',
+  'Compacted (Open Space)':   'compacted',
+  'Impervious Vehicular':     'impervious',
+  'Impervious Non-Vehicular': 'impervious',
+  'BMP':                      'bmp',
+};
+
+export function siteAggregateLandCover(sdas) {
+  const empty = () => ({ natural: 0, compacted: 0, impervious: 0, bmp: 0 });
+  const pre = empty();
+  const post = empty();
+  for (const row of sdas) {
+    const k = LAND_USE_TO_SITE_KEY[row.landUse];
+    if (!k) continue;
+    pre[k]  += row.preIn  || 0;
+    post[k] += row.postIn || 0;
+  }
+  const total = (o) => o.natural + o.compacted + o.impervious + o.bmp;
+  return {
+    pre, post,
+    preTotal:  total(pre),
+    postTotal: total(post),
+    impPctPre:  total(pre)  ? pre.impervious  / total(pre)  * 100 : 0,
+    impPctPost: total(post) ? post.impervious / total(post) * 100 : 0,
+  };
+}
+
+export function siteSwrv(sdas, rainfallIn, params) {
+  const terms = sdas.map(r => ({
+    landUse: r.landUse,
+    area:    r.postIn || 0,
+    rv:      params.rv[r.landUse] || 0,
+  })).filter(t => t.area > 0);
+  const sumAR = terms.reduce((s, t) => s + t.area * t.rv, 0);
+  const value = sumAR * rainfallIn / 12;
+  const subs = terms.map(t => `${t.area}·${t.rv}`).join(' + ') || '0';
+  return {
+    value,
+    units: 'cf',
+    steps: [
+      { expr:   'Site SWRv = (P/12) × Σ(A_i · Rv_i)   [informational — compliance is per-SDA]',
+        sub:    `(${rainfallIn}/12) × (${subs})`,
+        eval:   `${(rainfallIn/12).toFixed(4)} × ${sumAR.toFixed(2)}`,
+        result: value },
+    ],
+  };
+}

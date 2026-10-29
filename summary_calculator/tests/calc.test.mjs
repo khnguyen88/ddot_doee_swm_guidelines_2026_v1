@@ -128,3 +128,76 @@ test('treeRetentionCredit sums per PARAMS_Trees table', () => {
   // 1×5 + 2×10 + 3×20 = 85 CF
   approx(r.value, 85);
 });
+
+import {
+  compositeCn,
+  scsRunoffDepth,
+  detentionSummary,
+  siteAggregateLandCover,
+  siteSwrv,
+} from '../src/calc.mjs';
+
+test('compositeCn: area-weighted', () => {
+  // 1000 sf Impervious (CN 98) + 1000 sf Natural (CN 70) → (98+70)/2 = 84
+  const r = compositeCn(
+    { Natural: 1000, Compacted: 0, Impervious: 1000, BMP: 0 },
+    { Natural: 70, Compacted: 74, Impervious: 98, BMP: 98 },
+  );
+  approx(r.value, 84);
+});
+
+test('compositeCn: zero area returns 0', () => {
+  const r = compositeCn(
+    { Natural: 0, Compacted: 0, Impervious: 0, BMP: 0 },
+    { Natural: 70, Compacted: 74, Impervious: 98, BMP: 98 },
+  );
+  approx(r.value, 0);
+});
+
+test('scsRunoffDepth alias == tr55RunoffDepth', () => {
+  approx(scsRunoffDepth(3.14, 98), tr55RunoffDepth(3.14, 98), 1e-9);
+});
+
+test('detentionSummary: flags SDAs where post Q > pre Q', () => {
+  const sdas = [
+    { sdaId: 'SDA-1',
+      pre:  { Natural: 1000, Compacted: 0, Impervious: 0,    BMP: 0 },
+      post: { Natural: 0,    Compacted: 0, Impervious: 1000, BMP: 0 } },
+    { sdaId: 'SDA-2',
+      pre:  { Natural: 1000, Compacted: 0, Impervious: 0, BMP: 0 },
+      post: { Natural: 1000, Compacted: 0, Impervious: 0, BMP: 0 } },
+  ];
+  const detentionCn = { Natural: 70, Compacted: 74, Impervious: 98, BMP: 98 };
+  const r = detentionSummary(sdas, 3.14, 5.23, detentionCn);
+  assert.equal(r.anyRequired, true);
+  const sda1 = r.perSda[0];
+  assert.equal(sda1.sdaId, 'SDA-1');
+  assert.equal(sda1.p2Required, true);
+  assert.equal(sda1.p15Required, true);
+  const sda2 = r.perSda[1];
+  assert.equal(sda2.p2Required, false);
+  assert.equal(sda2.p15Required, false);
+});
+
+test('siteAggregateLandCover: sums across SDAs', () => {
+  const sdas = [
+    { landUse: 'Impervious Vehicular', preIn: 1000, postIn: 1200 },
+    { landUse: 'Natural (Woods)',      preIn: 500,  postIn: 300 },
+    { landUse: 'Impervious Vehicular', preIn: 200,  postIn: 400 },
+  ];
+  const r = siteAggregateLandCover(sdas);
+  assert.equal(r.pre.impervious, 1200);
+  assert.equal(r.pre.natural, 500);
+  assert.equal(r.post.impervious, 1600);
+  assert.equal(r.post.natural, 300);
+});
+
+test('siteSwrv: sum of per-SDA SWRv_req (informational)', () => {
+  const sdas = [
+    { sdaId: 'SDA-1', landUse: 'Impervious Vehicular', postIn: 1000 },
+    { sdaId: 'SDA-2', landUse: 'Impervious Vehicular', postIn: 2000 },
+  ];
+  const r = siteSwrv(sdas, 1.2, { rv: { 'Impervious Vehicular': 0.95 } });
+  // (1000+2000) × 0.95 × 1.2 / 12 = 285 CF
+  approx(r.value, 285);
+});
