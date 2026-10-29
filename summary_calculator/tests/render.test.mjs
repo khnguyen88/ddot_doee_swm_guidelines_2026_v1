@@ -128,3 +128,26 @@ test('renderBmpSheets: one page per BMP with 3-step math', () => {
   assert.ok(pages[0].includes('STEP 2'));
   assert.ok(pages[0].includes('STEP 3'));
 });
+
+import { renderMepSheet, renderEisa438Sheet } from '../src/render.mjs';
+
+test('renderMepSheet: lists SDAs with 4-step status', () => {
+  const sdas = [
+    { sdaId: 'SDA-1' }, { sdaId: 'SDA-2' },
+  ];
+  const html = renderMepSheet(sampleProject, sdas);
+  assert.ok(html.includes('MEP'));
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('Step 1'));
+  assert.ok(html.includes('Step 4'));
+});
+
+test('renderEisa438Sheet: pre vs post comparison', () => {
+  const html = renderEisa438Sheet(sampleProject, {
+    preCf: 2000, postCf: 1500, deltaCf: -500, pass: true,
+  });
+  assert.ok(html.includes('EISA'));
+  assert.ok(html.includes('2,000'));
+  assert.ok(html.includes('1,500'));
+  assert.ok(html.includes('95th percentile'));
+});

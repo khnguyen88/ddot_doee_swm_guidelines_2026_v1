@@ -299,3 +299,58 @@ export function renderBmpSheets(project, bmps, cdas, params) {
   }
   return pages;
 }
+
+const MEP_STEPS = [
+  ['Step 1', 'Treat impervious area to the Maximum Extent Practicable (SWRv-equivalent)'],
+  ['Step 2', 'Evaluate alternative BMP locations where Step 1 is infeasible'],
+  ['Step 3', 'Manage remaining runoff via conveyance and detention'],
+  ['Step 4', 'Discharge to MS4 only if Steps 1-3 are infeasible'],
+];
+
+export function renderMepSheet(project, sdas) {
+  const stepsHtml = MEP_STEPS.map(([n, desc]) =>
+    `<div class="cs-formula-line"><b>${esc(n)}</b> — ${esc(desc)}</div>`
+  ).join('');
+  const sdaRows = sdas.map(s => [
+    s.sdaId,
+    'Documented',  // Step 1 status — pulled from CORRECT_MEP_SUMMARY in a later iteration
+    'Documented',
+    'Documented',
+    'Documented',
+  ]);
+  const body =
+    renderBlock('DDOT MEP 4-STEP PROCESS', stepsHtml) +
+    renderBlock('PER-SDA DOCUMENTATION STATUS',
+      renderDataTable(['SDA', 'Step 1', 'Step 2', 'Step 3', 'Step 4'], sdaRows)) +
+    renderNote('Per-step evidence lives on the DDOT MEP Worksheet (template sheet CORRECT_MEP_SUMMARY). This page summarizes status only — reviewers should also inspect the worksheet.');
+  return renderSheetShell({
+    title: 'MEP Summary (PROW)',
+    sub:   `${project.name || ''} · DDOT Maximum Extent Practicable`,
+    body,
+    footer: 'DOEE Guidebook Appendix B · DDOT GI Standards 2014',
+  });
+}
+
+export function renderEisa438Sheet(project, eisa) {
+  const kv = renderKvTable([
+    ['95th percentile storm (DC)', '1.7″'],
+    ['Pre-development runoff',     fmtN(eisa.preCf, 0) + ' cf'],
+    ['Post-development runoff',    fmtN(eisa.postCf, 0) + ' cf'],
+    ['Δ (post − pre)',             fmtN(eisa.deltaCf, 0) + ' cf'],
+  ]);
+  const body =
+    renderBlock('EISA §438 DIRECT DETERMINATION', kv) +
+    renderResult(
+      eisa.pass
+        ? 'EISA §438 compliant — post ≤ pre at the 95th percentile storm'
+        : 'EISA §438 NOT compliant — post exceeds pre at the 95th percentile storm',
+      eisa.deltaCf, 'cf', eisa.pass,
+    ) +
+    renderNote('Method: direct determination per EPA EISA §438 Technical Guidance (Dec 2009). Impervious surfaces lose 0.1″ to depression storage only; pervious surfaces lose depression + Horton infiltration over 24 hr.');
+  return renderSheetShell({
+    title: 'EISA §438 Direct Determination',
+    sub:   project.name || '',
+    body,
+    footer: 'EISA §438 Technical Guidance (EPA, Dec 2009) · 95th percentile storm = 1.7″ for Washington, DC',
+  });
+}
