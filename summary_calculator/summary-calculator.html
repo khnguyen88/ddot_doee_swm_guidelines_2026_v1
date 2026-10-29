@@ -1178,14 +1178,14 @@ let state = { parsed: null, pages: null, activeIdx: 0, filename: null };
 function buildDeck(parsed) {
   const { project, sdas, cdas, bmps, params } = parsed;
 
-  const agg       = calc.siteAggregateLandCover(sdas);
-  const swrvTrace = calc.siteSwrv(sdas, project.rainfallIn, params);
+  const agg       = siteAggregateLandCover(sdas);
+  const swrvTrace = siteSwrv(sdas, project.rainfallIn, params);
   const preRows   = sdas.map(r => [r.preIn,  r.landUse, r.hsg]);
   const postRows  = sdas.map(r => [r.postIn, r.landUse, r.hsg]);
-  const preCf     = calc.eisaDirectTotalVolumeCf(preRows,  1.7);
-  const postCf    = calc.eisaDirectTotalVolumeCf(postRows, 1.7);
+  const preCf     = eisaDirectTotalVolumeCf(preRows,  1.7);
+  const postCf    = eisaDirectTotalVolumeCf(postRows, 1.7);
   const eisa      = { preCf, postCf, deltaCf: postCf - preCf, pass: postCf <= preCf };
-  const detention = calc.detentionSummary(
+  const detention = detentionSummary(
     sdas, params.detention.p2In, params.detention.p15In, params.detentionCn,
   );
 
@@ -1207,26 +1207,26 @@ function buildDeck(parsed) {
     let rv = 0;
     if (bmp.type === 'Permeable Pavement' && bmp.pp) {
       const design = params.bmpDesign[`Permeable Pavement / ${bmp.subType}`] || { nReservoir: 0.40, retMultiplier: 1.0 };
-      const sv = calc.ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir).value;
-      rv = Math.min(sv * design.retMultiplier, cda ? calc.maxBmpCredit(cda.withinLodSf).value : Infinity);
+      const sv = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir).value;
+      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.withinLodSf).value : Infinity);
     } else if ((bmp.type === 'Bioretention' || bmp.type === 'Dry Swale') && bmp.bio) {
       const design = params.bmpDesign[`${bmp.type} / ${bmp.subType}`] || { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
-      const sv = calc.bioSizingSv(bmp.bio.saBot, bmp.bio.dMedia, design.nMedia, bmp.bio.dGravel, design.nGravel, bmp.bio.dPond).value;
-      rv = Math.min(sv * design.retMultiplier, cda ? calc.maxBmpCredit(cda.withinLodSf).value : Infinity);
+      const sv = bioSizingSv(bmp.bio.saBot, bmp.bio.dMedia, design.nMedia, bmp.bio.dGravel, design.nGravel, bmp.bio.dPond).value;
+      rv = Math.min(sv * design.retMultiplier, cda ? maxBmpCredit(cda.withinLodSf).value : Infinity);
     } else if ((bmp.type === 'Planted Trees' || bmp.type === 'Preserve Trees') && bmp.trees) {
-      rv = calc.treeRetentionCredit(bmp.trees, params.treeCredits).value;
+      rv = treeRetentionCredit(bmp.trees, params.treeCredits).value;
     }
     rvBySda[bmp.sdaId] = (rvBySda[bmp.sdaId] || 0) + rv;
   }
   const complianceRows = Object.keys(bySda).map(sdaId => ({
     sdaId,
-    swrvReqCf:    calc.swrvVolume(bySda[sdaId], project.rainfallIn).value,
+    swrvReqCf:    swrvVolume(bySda[sdaId], project.rainfallIn).value,
     rvProvidedCf: rvBySda[sdaId] || 0,
   }));
 
   // Assemble deck in TOC order.
-  const sdaCdaPages = render.renderSdaCdaSummary(project, sdas, cdas);
-  const bmpPages    = render.renderBmpSheets(project, bmps, cdas, params);
+  const sdaCdaPages = renderSdaCdaSummary(project, sdas, cdas);
+  const bmpPages    = renderBmpSheets(project, bmps, cdas, params);
 
   const deck = [];
   const push = (label, html) => deck.push({ label, html });
@@ -1242,15 +1242,15 @@ function buildDeck(parsed) {
   laterLabels.push('Detention Summary');
   laterLabels.push('Site Compliance');
 
-  push('Cover', render.renderCoverSheet(project, laterLabels));
-  push('Site DA — Land Cover', render.renderSiteDaSheet(project, agg));
-  push('Site SWRv Required',    render.renderSiteSwrvSheet(project, swrvTrace));
+  push('Cover', renderCoverSheet(project, laterLabels));
+  push('Site DA — Land Cover', renderSiteDaSheet(project, agg));
+  push('Site SWRv Required',    renderSiteSwrvSheet(project, swrvTrace));
   sdaCdaPages.forEach((html, i) => push(laterLabels[2 + i], html));
   bmpPages.forEach((html, i) => push(`${bmps[i].name} — ${bmps[i].type}`, html));
-  push('MEP Summary', render.renderMepSheet(project, sdas));
-  push('EISA §438',   render.renderEisa438Sheet(project, eisa));
-  push('Detention Summary', render.renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
-  push('Site Compliance',   render.renderCompliancePage(project, complianceRows));
+  push('MEP Summary', renderMepSheet(project, sdas));
+  push('EISA §438',   renderEisa438Sheet(project, eisa));
+  push('Detention Summary', renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
+  push('Site Compliance',   renderCompliancePage(project, complianceRows));
 
   return deck;
 }

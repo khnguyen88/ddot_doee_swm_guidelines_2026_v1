@@ -6,3 +6,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 manual_guidance/
+node_modules/
+playwright-report/
+test-results/
