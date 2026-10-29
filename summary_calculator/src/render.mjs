@@ -8,7 +8,8 @@ const esc = (s) => String(s)
 
 export const fmtN = (n, places = 0) => {
   if (n == null || Number.isNaN(n)) return '—';
-  const rounded = Number(n).toFixed(places);
+  let rounded = Number(n).toFixed(places);
+  if (rounded === '-0' || /^-0\.0+$/.test(rounded)) rounded = rounded.slice(1); // strip "-" from signed zero
   return rounded.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
@@ -532,6 +533,8 @@ export function renderEisaTr55Sheet(project, pre, post) {
   });
 }
 
+// electedMethod is the value of PROJECT!B11 — a Yes/No field indicating whether
+// EISA §438 applies to this project, NOT a method selector.
 export function renderEisaComplianceSheet(project, direct, tr55, bmpStorage, electedMethod) {
   const bmpHeaders = ['BMP', 'Type', 'SDA', 'Rv Provided (cf)'];
   const bmpRows = bmpStorage.map(b => [b.name, b.type, b.sdaId, fmtN(b.rvCf, 0)]);
@@ -548,15 +551,19 @@ export function renderEisaComplianceSheet(project, direct, tr55, bmpStorage, ele
   ];
   const cmpHeaders = ['Method', 'Pre (cf)', 'Post (cf)', 'Δ (cf)', 'Net after BMP (cf)', 'Status'];
 
-  const electedResult =
-    electedMethod && electedMethod.toLowerCase().includes('tr-55')
-      ? (tr55Net <= 0 ? 'PASS' : 'FAIL')
-      : (directNet <= 0 ? 'PASS' : 'FAIL');
+  const applies = electedMethod === 'Yes';
+  const bothPass = directNet <= 0 && tr55Net <= 0;
+  const eitherPass = directNet <= 0 || tr55Net <= 0;
+  const summary =
+    !applies ? 'EISA §438 does not apply (PROJECT!B11 = "No").'
+    : bothPass ? 'Both methods pass with BMP storage credited — compliant.'
+    : eitherPass ? 'One method passes with BMP storage credited — compliant under the passing method; engineer selects which to submit.'
+    : 'Neither method passes with BMP storage credited — additional retention required to meet EISA §438.';
 
   const body =
     renderBlock('BMP STORAGE (RETENTION CREDIT)', renderDataTable(bmpHeaders, bmpRows)) +
     renderBlock('METHOD COMPARISON', renderDataTable(cmpHeaders, comparison)) +
-    renderNote(`Elected method: ${electedMethod || '(not specified in PROJECT!B11)'} — ${electedResult}`);
+    renderNote(`EISA §438 applies: ${electedMethod || '(PROJECT!B11 not specified)'}. ${summary}`);
   return renderSheetShell({
     title: 'EISA §438 — Compliance with BMP Storage',
     sub:   project.name || '',

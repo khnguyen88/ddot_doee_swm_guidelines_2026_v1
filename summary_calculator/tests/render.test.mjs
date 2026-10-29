@@ -332,14 +332,21 @@ const postDirect = eisaDirectVolumeTraceCf(eisaRows, 1.7);
 const preTr55    = tr55VolumeTraceCf(eisaRows, 1.7);
 const postTr55   = tr55VolumeTraceCf(eisaRows, 1.7);
 
-test('renderEisaDirectSheet: shows pre and post per-row tables', () => {
-  const html = renderEisaDirectSheet(sampleProject, preDirect, postDirect);
+test('renderEisaDirectSheet: shows pre and post tables and non-zero Δ', () => {
+  const preRowsDirect  = [{ area:  5000, landUse: 'Impervious Vehicular', hsg: 'D' }];
+  const postRowsDirect = [{ area: 10000, landUse: 'Impervious Vehicular', hsg: 'D' }];
+  const pre  = eisaDirectVolumeTraceCf(preRowsDirect,  1.7);
+  const post = eisaDirectVolumeTraceCf(postRowsDirect, 1.7);
+  const html = renderEisaDirectSheet(sampleProject, pre, post);
   assert.ok(html.includes('EISA §438'));
   assert.ok(html.includes('Direct Determination'));
   assert.ok(html.includes('Impervious Vehicular'));
-  assert.ok(html.includes('Natural (Woods)'));
-  // Δ should be 0 (same pre/post inputs)
-  assert.ok(html.includes('Δ'));
+  // Pre volume ≈ 5000 * 1.6 / 12 ≈ 667 cf
+  assert.ok(html.includes('667'));
+  // Post volume ≈ 10000 * 1.6 / 12 ≈ 1,333 cf
+  assert.ok(html.includes('1,333'));
+  // Δ = 1333-667 = 667 cf (positive — fails pre-BMP) → should show relies on BMP storage
+  assert.ok(html.includes('relies on BMP storage'));
 });
 
 test('renderEisaTr55Sheet: shows CN column and TR-55 formulas', () => {
@@ -350,7 +357,7 @@ test('renderEisaTr55Sheet: shows CN column and TR-55 formulas', () => {
   assert.ok(html.includes('98'));
 });
 
-test('renderEisaComplianceSheet: lists BMP storage, both methods, elected method', () => {
+test('renderEisaComplianceSheet: lists BMP storage, both methods, applies note', () => {
   const bmpStorage = [
     { name: 'B-1', type: 'Bioretention', sdaId: 'SDA-1', rvCf: 500 },
     { name: 'T-1', type: 'Planted Trees', sdaId: 'SDA-1', rvCf: 40 },
@@ -360,12 +367,35 @@ test('renderEisaComplianceSheet: lists BMP storage, both methods, elected method
     { preCf: 100, postCf: 150, deltaCf: 50 },  // direct
     { preCf: 120, postCf: 180, deltaCf: 60 },  // tr55
     bmpStorage,
-    'Direct Determination',
+    'Yes',
   );
   assert.ok(html.includes('B-1'));
   assert.ok(html.includes('T-1'));
   assert.ok(html.includes('540'));           // total BMP storage
-  assert.ok(html.includes('Direct Determination'));
-  assert.ok(html.includes('TR-55'));
-  assert.ok(html.includes('Elected method'));
+  assert.ok(html.includes('TR-55'));                   // still appears in method comparison
+  assert.ok(html.includes('EISA §438 applies'));       // new note phrasing
+});
+
+test('renderEisaComplianceSheet: pass with BMP credits, correct messaging', () => {
+  const bmpStorage = [{ name: 'B-1', type: 'Bioretention', sdaId: 'SDA-1', rvCf: 100 }];
+  const html = renderEisaComplianceSheet(
+    sampleProject,
+    { preCf: 100, postCf: 150, deltaCf: 50 },   // direct: Δ=50, net=50-100=-50 → PASS
+    { preCf: 100, postCf: 160, deltaCf: 60 },   // tr55:   Δ=60, net=60-100=-40 → PASS
+    bmpStorage,
+    'Yes',
+  );
+  assert.ok(html.includes('Both methods pass'));
+  assert.ok(html.includes('EISA §438 applies: Yes'));
+});
+
+test('renderEisaComplianceSheet: EISA does not apply when PROJECT!B11 = No', () => {
+  const html = renderEisaComplianceSheet(
+    sampleProject,
+    { preCf: 100, postCf: 150, deltaCf: 50 },
+    { preCf: 100, postCf: 160, deltaCf: 60 },
+    [],
+    'No',
+  );
+  assert.ok(html.includes('does not apply'));
 });
