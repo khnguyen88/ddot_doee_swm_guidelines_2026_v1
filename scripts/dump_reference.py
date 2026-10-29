@@ -79,13 +79,9 @@ def _composite_cn(rows_for_sda, condition):
     return num / total_area
 
 
-def _scs_runoff(P, cn):
-    if cn <= 0:
-        return 0.0
-    S = 1000.0 / cn - 10.0
-    if P <= 0.2 * S:
-        return 0.0
-    return (P - 0.2 * S) ** 2 / (P + 0.8 * S)
+# TR-55 / SCS CN runoff — delegated to the shared calc module so this dumper
+# cannot silently drift from Task 07's parity ground truth.
+_scs_runoff = calc.tr55_runoff_depth
 
 
 def main() -> None:
@@ -143,8 +139,8 @@ def main() -> None:
     }
 
     FIXTURE_JSON.parent.mkdir(parents=True, exist_ok=True)
-    FIXTURE_JSON.write_text(json.dumps(out, indent=2))
-    print(f"Wrote {FIXTURE_JSON} ({len(json.dumps(out))} bytes)")
+    FIXTURE_JSON.write_text(json.dumps(out, indent=2) + "\n", newline="\n")
+    print(f"Wrote {FIXTURE_JSON} ({FIXTURE_JSON.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":
