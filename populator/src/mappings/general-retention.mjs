@@ -225,13 +225,13 @@ function _sumSdaByLandUse(sdas, sdaId, landUses, key) {
     .reduce((n, s) => n + (s[key] || 0), 0);
 }
 
-// Sum a parsed CDA's withinLodSf across rows matching cdaId + landUse list.
+// Sum a parsed CDA's postIn across rows matching cdaId + landUse list.
 function _sumCdaByLandUse(cdas, cdaId, landUses) {
   if (!cdaId) return 0;
   const set = new Set(landUses);
   return cdas
     .filter(c => c.cdaId === cdaId && set.has(c.landUse))
-    .reduce((n, c) => n + (c.withinLodSf || 0), 0);
+    .reduce((n, c) => n + (c.postIn || 0), 0);
 }
 
 // Compute Sv (storage volume provided by this BMP, in CF).

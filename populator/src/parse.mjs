@@ -77,10 +77,11 @@ function parseSda(sheet) {
   return rows;
 }
 
-// CDA layout (from workbook/builders/cda.py):
-//   data rows DATA_FIRST_ROW..DATA_LAST_ROW; parser reads A, B, C, E only
-//   (col D=HSG and col F=outsideLodSf are not consumed by any current calc).
-//   A=cdaId, B=sdaId, C=landUse, E=withinLodSf
+// CDA layout (from workbook/builders/cda.py — 13 cols A..M):
+//   A=cdaId, B=sdaId, C=landUse, D=hsg,
+//   E=preIn, F=preOut, G=postIn, H=postOut,
+//   I=Rv (calc), J-M=SWRv outputs (calc).
+// Parser reads A, B, C, D, E, F, G, H only; downstream calcs recompute SWRv.
 function parseCda(sheet) {
   const rows = [];
   for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
@@ -88,9 +89,13 @@ function parseCda(sheet) {
     if (!cdaId) break;
     rows.push({
       cdaId,
-      sdaId: cell(sheet, r, 2),
+      sdaId:  cell(sheet, r, 2),
       landUse: cell(sheet, r, 3),
-      withinLodSf: cell(sheet, r, 5) || 0,
+      hsg:    cell(sheet, r, 4) || 'D',
+      preIn:  cell(sheet, r, 5) || 0,
+      preOut: cell(sheet, r, 6) || 0,
+      postIn: cell(sheet, r, 7) || 0,
+      postOut: cell(sheet, r, 8) || 0,
     });
   }
   return rows;
@@ -223,7 +228,7 @@ function parseParams(sheet) {
  * @returns {{
  *   project: {name, number, ms4, awdz, doeeReview, totalLod, rainfallIn, trigger, eisa},
  *   sdas:    Array<{sdaId, inProw, landUse, hsg, preIn, preOut, postIn, postOut}>,
- *   cdas:    Array<{cdaId, sdaId, landUse, withinLodSf}>,
+ *   cdas:    Array<{cdaId, sdaId, landUse, hsg, preIn, preOut, postIn, postOut}>,
  *   bmps:    Array<{name, sdaId, cdaId, type, subType,
  *                   pp?:    {sa, dReservoir},
  *                   bio?:   {saTop, saBot, dMedia, dGravel, dPond},
