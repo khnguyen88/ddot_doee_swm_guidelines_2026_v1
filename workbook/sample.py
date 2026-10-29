@@ -185,7 +185,7 @@ def _fill_cda(ws) -> None:
         # CDA area in LOD = BMP's share of SDA impervious. Approximate: 2x BMP SA
         # (BMPs typically treat 2-5x their footprint).
         cda_area = min(sda_imp.get(sda_num, 0), int(surface_sf * 3))
-        ws.cell(row=row, column=5).value = cda_area  # Within LOD
+        ws.cell(row=row, column=7).value = cda_area  # Post Within LOD
         row += 1
 
 
