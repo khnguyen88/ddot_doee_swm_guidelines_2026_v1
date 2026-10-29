@@ -35,9 +35,23 @@ function resolveFrom(from, parsed, row, mapping) {
 }
 
 // Collect source rows for a table.
+//
+// `table.source` may be either:
+//   • a string key that resolves to an array on the parsed object
+//       (e.g. 'bmps' → parsed.bmps), OR
+//   • a function `(parsed) => Array` for sources that aren't simple fields
+//       (e.g. a per-SDA grouping that collapses duplicate land-use rows).
 function rowsForTable(table, parsed) {
-  const arr = parsed[table.source];
-  if (!Array.isArray(arr)) throw new Error(`Mapping table source "${table.source}" is not an array`);
+  let arr;
+  if (typeof table.source === 'function') {
+    arr = table.source(parsed);
+  } else {
+    arr = parsed[table.source];
+  }
+  if (!Array.isArray(arr)) {
+    const label = typeof table.source === 'function' ? '<fn>' : table.source;
+    throw new Error(`Mapping table source "${label}" is not an array`);
+  }
   // Allow a filter function.
   if (typeof table.filter === 'function') return arr.filter(table.filter);
   return arr;
