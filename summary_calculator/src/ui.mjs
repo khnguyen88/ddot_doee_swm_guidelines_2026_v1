@@ -30,8 +30,19 @@ function buildDeck(parsed) {
 
   const agg       = siteAggregateLandCover(sdas);
   const swrvTrace = siteSwrv(sdas, project.rainfallIn, params);
-  const preRows  = sdas.map(r => ({ area: r.preIn,  landUse: r.landUse, hsg: r.hsg }));
-  const postRows = sdas.map(r => ({ area: r.postIn, landUse: r.landUse, hsg: r.hsg }));
+  // Aggregate by (land use, HSG) before passing to the EISA trace functions.
+  // Σ (area × depth / 12) is linear in area, so aggregating first produces the
+  // same totals while keeping per-row tables compact enough to fit one page.
+  const _aggregateByCover = (areaKey) => {
+    const by = {};
+    for (const r of sdas) {
+      const key = `${r.landUse}|${r.hsg || ''}`;
+      (by[key] ??= { area: 0, landUse: r.landUse, hsg: r.hsg || 'D' }).area += r[areaKey] || 0;
+    }
+    return Object.values(by).filter(r => r.area > 0);
+  };
+  const preRows  = _aggregateByCover('preIn');
+  const postRows = _aggregateByCover('postIn');
   const eisaDirectPre  = eisaDirectVolumeTraceCf(preRows,  1.7);
   const eisaDirectPost = eisaDirectVolumeTraceCf(postRows, 1.7);
   const eisaTr55Pre    = tr55VolumeTraceCf(preRows,  1.7);
@@ -101,8 +112,11 @@ function buildDeck(parsed) {
   laterLabels.push('EISA §438 — Direct');
   laterLabels.push('EISA §438 — TR-55');
   laterLabels.push('EISA §438 — Compliance');
-  laterLabels.push('Detention Summary');
+  // Site Compliance (portrait) before Detention (landscape) so the deck
+  // ends on the landscape sheet — Chromium inserts a blank "transition"
+  // page when portrait follows landscape in print output.
   laterLabels.push('Site Compliance');
+  laterLabels.push('Detention Summary');
 
   push('Cover', renderCoverSheet(project, laterLabels));
   push('Executive Summary', renderExecutiveSummarySheet(
@@ -119,8 +133,8 @@ function buildDeck(parsed) {
   push('EISA §438 — Direct',     renderEisaDirectSheet(project, eisaDirectPre, eisaDirectPost));
   push('EISA §438 — TR-55',      renderEisaTr55Sheet(project, eisaTr55Pre, eisaTr55Post));
   push('EISA §438 — Compliance', renderEisaComplianceSheet(project, direct, tr55, bmpStorage, project.eisa));
-  push('Detention Summary', renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
   push('Site Compliance',   renderCompliancePage(project, complianceRows));
+  push('Detention Summary', renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
 
   return deck;
 }

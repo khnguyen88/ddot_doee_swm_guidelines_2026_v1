@@ -84,9 +84,12 @@ export function renderCoverSheet(project, tocLabels) {
     ['Rainfall (SWRv storm)', fmtN(project.rainfallIn, 2) + '″'],
     ['EISA §438',     project.eisa || '—'],
   ]);
-  const toc = tocLabels.map((label, i) =>
-    `<div class="cs-formula-line">${String(i + 1).padStart(2, '0')} · ${label}</div>`
+  // Two-column TOC to stay within the Cover sheet's one-page budget even
+  // when the deck has 25-30+ pages (SDA/CDA chunking, 11 BMPs, EISA ×3, etc.).
+  const tocItems = tocLabels.map((label, i) =>
+    `<div style="font-family: var(--font-mono); font-size: 11px; color: #1B2740; padding: 1px 0; break-inside: avoid;">${String(i + 1).padStart(2, '0')} · ${label}</div>`
   ).join('');
+  const toc = `<div style="column-count: 2; column-gap: 24px;">${tocItems}</div>`;
   const body =
     renderBlock('PROJECT', kv) +
     renderBlock('CONTENTS', toc);
@@ -133,7 +136,7 @@ export function renderSiteSwrvSheet(project, trace) {
   });
 }
 
-const SDA_ROWS_PER_PAGE = 30;
+const SDA_ROWS_PER_PAGE = 25;
 
 function _chunkPages(rows, title, sub, headers, mapRow, pageTitle, footer) {
   if (!rows.length) return [];

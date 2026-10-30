@@ -48,19 +48,34 @@ PROJECT = {
     "EISA":            "No",
 }
 
-# (sda_num, ddot_da, imp_in_sf, comp_in_sf, nat_in_sf,
-#  imp_out_sf, comp_out_sf, nat_out_sf, hsg)
+# Each SDA carries explicit pre- and post-development land-cover inside the
+# LOD plus an offsite (outside-LOD) component that stays unchanged.
+#
+# Rationale: a project triggers DOEE SWRv via disturbance ≥ 5,000 sf (MLD),
+# not via cover change. For pedagogical clarity, this fixture models the
+# pre-development condition as a plausible mixed-cover baseline (part road,
+# part compacted shoulder, part natural strip) and the post-development
+# condition as the as-built street surface — fully impervious vehicular
+# plus a residual compacted shoulder. The total in-LOD area per SDA is
+# preserved pre→post, so no new land is added; only the composition shifts.
+#
+# Tuple shape:
+#   (sda_num, ddot_da,
+#    (imp_in_pre,  comp_in_pre,  nat_in_pre),      # pre-development inside LOD
+#    (imp_in_post, comp_in_post, nat_in_post),     # post-development inside LOD
+#    (imp_out,     comp_out,     nat_out),         # outside LOD (unchanged)
+#    hsg)
 SDAS = [
-    (1,  57, 6910, 170, 0, 1097, 0,    0,  "D"),
-    (2,  58, 6689, 349, 0,  745, 0,    0,  "D"),
-    (3,  61, 6860, 100, 0,  120, 2083, 0,  "D"),
-    (4,  68, 5720, 650, 0, 3000, 0,    0,  "D"),
-    (5,  82, 6820, 1440, 0,    0, 342, 0,  "D"),
-    (6,  86, 8441, 240, 0,    0, 0,   0,   "D"),
-    (7,  88, 6117, 304, 0,    0, 0,   0,   "D"),
-    (8,  89, 10685, 1225, 0,  0, 0,   0,   "D"),
-    (9,  90, 6682, 0, 0,      0, 0,   0,   "D"),
-    (10, 91, 2797, 0, 0,      0, 1469, 0,  "D"),
+    (1,  57, (2832, 1062, 3186), (6910,  170, 0), (1097,    0, 0), "D"),
+    (2,  58, (3519, 1408, 2111), (6689,  349, 0), ( 745,    0, 0), "D"),
+    (3,  61, (4176,  696, 2088), (6860,  100, 0), ( 120, 2083, 0), "D"),
+    (4,  68, (2230, 1592, 2548), (5720,  650, 0), (3000,    0, 0), "D"),
+    (5,  82, (4543, 2065, 1652), (6820, 1440, 0), (   0,  342, 0), "D"),
+    (6,  86, (6077,  868, 1736), (8441,  240, 0), (   0,    0, 0), "D"),
+    (7,  88, (2889,  963, 2569), (6117,  304, 0), (   0,    0, 0), "D"),
+    (8,  89, (5955, 1787, 4168), (10685, 1225, 0), (  0,    0, 0), "D"),
+    (9,  90, (4343, 1336, 1003), (6682,    0, 0), (   0,    0, 0), "D"),
+    (10, 91, ( 839,  559, 1399), (2797,    0, 0), (   0, 1469, 0), "D"),
 ]
 
 # BMP opportunities per SDA, derived from DDOT sample columns Y (Bio opp),
@@ -127,50 +142,41 @@ def _fill_project(ws) -> None:
 def _fill_sda(ws) -> None:
     """Write SDA data rows for each sample SDA.
 
-    One SDA data row per non-zero (land use, HSG) combination.
+    One row per (SDA, land-use) combination where any pre_in, post_in, or
+    out area is non-zero. Pre and post values go into separate columns so
+    the fixture carries a real pre→post delta.
     """
     row = 4   # SDA data table starts at row 4
-    for sda_num, _ddot, imp_in, comp_in, nat_in, imp_out, comp_out, nat_out, hsg in SDAS:
+    for sda_num, _ddot, pre_in, post_in, out, hsg in SDAS:
         sda_id = f"SDA-{sda_num}"
-        # Impervious Vehicular (ROW project — all impervious is vehicular)
-        if imp_in or imp_out:
-            ws.cell(row=row, column=1).value = sda_id
-            ws.cell(row=row, column=2).value = "Yes"               # In PROW?
-            ws.cell(row=row, column=3).value = "Impervious Vehicular"
-            # HSG not applicable for impervious — leave blank
-            ws.cell(row=row, column=5).value = imp_in               # Pre within LOD
-            ws.cell(row=row, column=6).value = imp_out              # Pre outside
-            ws.cell(row=row, column=7).value = imp_in               # Post within (ROW ~unchanged)
-            ws.cell(row=row, column=8).value = imp_out              # Post outside
-            row += 1
-        if comp_in or comp_out:
+        # (land_use, HSG-or-None, pre_in, post_in, out)
+        covers = [
+            ("Impervious Vehicular",   None, pre_in[0], post_in[0], out[0]),
+            ("Compacted (Open Space)", hsg,  pre_in[1], post_in[1], out[1]),
+            ("Natural (Woods)",        hsg,  pre_in[2], post_in[2], out[2]),
+        ]
+        for land_use, use_hsg, pin, pout, outside in covers:
+            if not (pin or pout or outside):
+                continue
             ws.cell(row=row, column=1).value = sda_id
             ws.cell(row=row, column=2).value = "Yes"
-            ws.cell(row=row, column=3).value = "Compacted (Open Space)"
-            ws.cell(row=row, column=4).value = hsg
-            ws.cell(row=row, column=5).value = comp_in
-            ws.cell(row=row, column=6).value = comp_out
-            ws.cell(row=row, column=7).value = comp_in
-            ws.cell(row=row, column=8).value = comp_out
-            row += 1
-        if nat_in or nat_out:
-            ws.cell(row=row, column=1).value = sda_id
-            ws.cell(row=row, column=2).value = "Yes"
-            ws.cell(row=row, column=3).value = "Natural (Woods)"
-            ws.cell(row=row, column=4).value = hsg
-            ws.cell(row=row, column=5).value = nat_in
-            ws.cell(row=row, column=6).value = nat_out
-            ws.cell(row=row, column=7).value = nat_in
-            ws.cell(row=row, column=8).value = nat_out
+            ws.cell(row=row, column=3).value = land_use
+            if use_hsg:
+                ws.cell(row=row, column=4).value = use_hsg
+            ws.cell(row=row, column=5).value = pin        # Pre within LOD
+            ws.cell(row=row, column=6).value = outside    # Pre outside LOD (unchanged)
+            ws.cell(row=row, column=7).value = pout       # Post within LOD
+            ws.cell(row=row, column=8).value = outside    # Post outside LOD (unchanged)
             row += 1
 
 
 def _fill_cda(ws) -> None:
     """One CDA row per structural BMP (CDA matches BMP's SDA land cover)."""
     row = 4
-    # Map sda_num → total imp SF in LOD (from SDAS)
+    # Map sda_num → post-development impervious SF inside LOD (from SDAS).
+    # Tuple shape is (sda_num, ddot, pre_in, post_in, out, hsg); post_in[0] = post imp.
     sda_imp = {
-        s[0]: s[2] for s in SDAS   # s[2] = imp_in_sf
+        s[0]: s[3][0] for s in SDAS
     }
     cda_idx = 0
     for sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees in BMPS:

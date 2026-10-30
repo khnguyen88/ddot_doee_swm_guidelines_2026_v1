@@ -73,9 +73,11 @@ test('swdb-prow: SDA-1 Post Impervious (Non-Vehicular) is null / not written in 
   assert.equal(readCell(populated, 'Drainage Areas', 'E4'), null);
 });
 
-test('swdb-prow: SDA-1 Pre Vehicular Access = 6910 SF in L4', () => {
-  // SDA-1: Impervious Vehicular preIn = 6910. Maps to column L (Vehicular Access Area, pre).
-  assert.equal(readCell(populated, 'Drainage Areas', 'L4'), 6910);
+test('swdb-prow: SDA-1 Pre Vehicular Access = 2832 SF in L4', () => {
+  // SDA-1: Impervious Vehicular preIn = 2832 (mixed-cover baseline — see
+  // workbook/sample.py SDAS). Pre impervious < post impervious because the
+  // fixture models a greenfield-to-paved transition on the same total area.
+  assert.equal(readCell(populated, 'Drainage Areas', 'L4'), 2832);
 });
 
 test('swdb-prow: SDA-2 Post Compacted = 349 SF in D5', () => {
@@ -126,9 +128,10 @@ test('swdb-prow: BMP-02-B Sv ≈ 60 CF in V5', () => {
   assert.ok(Math.abs(sv - 60) < 1, `expected ~60, got ${sv}`);
 });
 
-test('swdb-prow: SDA-2 Pre Vehicular = 6689 SF in L5', () => {
-  // SDA-2: Impervious Vehicular preIn = 6689. Maps to column L (Pre Vehicular, pre).
-  assert.equal(readCell(populated, 'Drainage Areas', 'L5'), 6689);
+test('swdb-prow: SDA-2 Pre Vehicular = 3519 SF in L5', () => {
+  // SDA-2: Impervious Vehicular preIn = 3519 (mixed-cover baseline — see
+  // workbook/sample.py SDAS).
+  assert.equal(readCell(populated, 'Drainage Areas', 'L5'), 3519);
 });
 
 // BMP-04-T is a Planted Trees BMP; it lands at row 7 (BMP-02-A, BMP-02-B, BMP-03-A, BMP-04-A = rows 4..7, 04-T = row 8)

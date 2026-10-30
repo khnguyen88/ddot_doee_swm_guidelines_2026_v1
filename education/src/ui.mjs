@@ -164,9 +164,19 @@ function buildAndRender() {
     rvProvidedCf: rvBySda[sdaId] || 0,
   }));
 
-  // EISA all 3 methods (pre/post).
-  const preRows  = sdas.map(r => ({ area: r.preIn,  landUse: r.landUse, hsg: r.hsg }));
-  const postRows = sdas.map(r => ({ area: r.postIn, landUse: r.landUse, hsg: r.hsg }));
+  // EISA all 3 methods (pre/post). Aggregate by (land use, HSG) first so the
+  // per-row tables on each EISA page stay compact (~5 rows instead of ~28).
+  // Totals are identical because Σ (area × depth / 12) is linear in area.
+  const _aggregateByCover = (areaKey) => {
+    const by = {};
+    for (const r of sdas) {
+      const key = `${r.landUse}|${r.hsg || ''}`;
+      (by[key] ??= { area: 0, landUse: r.landUse, hsg: r.hsg || 'D' }).area += r[areaKey] || 0;
+    }
+    return Object.values(by).filter(r => r.area > 0);
+  };
+  const preRows  = _aggregateByCover('preIn');
+  const postRows = _aggregateByCover('postIn');
   const direct = {
     pre:  eisaDirectVolumeTraceCf(preRows,  1.7),
     post: eisaDirectVolumeTraceCf(postRows, 1.7),
@@ -202,7 +212,10 @@ function buildAndRender() {
     'BMP Catalog', 'Permeable Pavement Sizing', 'Bioretention Sizing', 'Tree Credit', 'Rv Provided',
     'DDOT MEP (PROW)',
     'EISA 438 Intro', 'EISA Direct Determination', 'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
-    'Detention 2-yr/15-yr', 'Site Compliance',
+    // Site Compliance (portrait) before Detention (landscape) so the deck
+    // ends on a landscape sheet — Chromium inserts a blank transition page
+    // when portrait follows landscape in print output.
+    'Site Compliance', 'Detention 2-yr/15-yr',
     'Appendix A — TR-16 Exhibit', 'Appendix B — Glossary',
   ];
 
@@ -228,8 +241,8 @@ function buildAndRender() {
   push('EISA TR-55',                     renderEisaTr55EduPage(project, tr55.pre, tr55.post));
   push('EISA TR-16 Lookup',              renderEisaTr16EduPage(project, state.parsed, params));
   push('EISA Three-Method Comparison',   renderEisaComparisonEduPage(project, directSummary, tr55Summary, tr16, bmpStorage, project.eisa));
-  push('Detention 2-yr/15-yr',           renderDetentionEduPage(project, detention, params.detention.p2In, params.detention.p15In));
   push('Site Compliance',                renderSiteComplianceEduPage(project, complianceRows));
+  push('Detention 2-yr/15-yr',           renderDetentionEduPage(project, detention, params.detention.p2In, params.detention.p15In));
   renderTr16AppendixPages().forEach((html, i) => push(`Appendix A — TR-16 (${i+1})`, html));
   push('Appendix B — Glossary',          renderGlossaryPage());
 

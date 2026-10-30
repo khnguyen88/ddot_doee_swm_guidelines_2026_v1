@@ -969,9 +969,12 @@ function renderCoverSheet(project, tocLabels) {
     ['Rainfall (SWRv storm)', fmtN(project.rainfallIn, 2) + '″'],
     ['EISA §438',     project.eisa || '—'],
   ]);
-  const toc = tocLabels.map((label, i) =>
-    `<div class="cs-formula-line">${String(i + 1).padStart(2, '0')} · ${label}</div>`
+  // Two-column TOC to stay within the Cover sheet's one-page budget even
+  // when the deck has 25-30+ pages (SDA/CDA chunking, 11 BMPs, EISA ×3, etc.).
+  const tocItems = tocLabels.map((label, i) =>
+    `<div style="font-family: var(--font-mono); font-size: 11px; color: #1B2740; padding: 1px 0; break-inside: avoid;">${String(i + 1).padStart(2, '0')} · ${label}</div>`
   ).join('');
+  const toc = `<div style="column-count: 2; column-gap: 24px;">${tocItems}</div>`;
   const body =
     renderBlock('PROJECT', kv) +
     renderBlock('CONTENTS', toc);
@@ -1016,7 +1019,7 @@ function renderSiteSwrvSheet(project, trace) {
   });
 }
 
-const SDA_ROWS_PER_PAGE = 30;
+const SDA_ROWS_PER_PAGE = 25;
 
 function _chunkPages(rows, title, sub, headers, mapRow, pageTitle, footer) {
   if (!rows.length) return [];
@@ -1512,8 +1515,19 @@ function buildDeck(parsed) {
 
   const agg       = siteAggregateLandCover(sdas);
   const swrvTrace = siteSwrv(sdas, project.rainfallIn, params);
-  const preRows  = sdas.map(r => ({ area: r.preIn,  landUse: r.landUse, hsg: r.hsg }));
-  const postRows = sdas.map(r => ({ area: r.postIn, landUse: r.landUse, hsg: r.hsg }));
+  // Aggregate by (land use, HSG) before passing to the EISA trace functions.
+  // Σ (area × depth / 12) is linear in area, so aggregating first produces the
+  // same totals while keeping per-row tables compact enough to fit one page.
+  const _aggregateByCover = (areaKey) => {
+    const by = {};
+    for (const r of sdas) {
+      const key = `${r.landUse}|${r.hsg || ''}`;
+      (by[key] ??= { area: 0, landUse: r.landUse, hsg: r.hsg || 'D' }).area += r[areaKey] || 0;
+    }
+    return Object.values(by).filter(r => r.area > 0);
+  };
+  const preRows  = _aggregateByCover('preIn');
+  const postRows = _aggregateByCover('postIn');
   const eisaDirectPre  = eisaDirectVolumeTraceCf(preRows,  1.7);
   const eisaDirectPost = eisaDirectVolumeTraceCf(postRows, 1.7);
   const eisaTr55Pre    = tr55VolumeTraceCf(preRows,  1.7);
@@ -1583,8 +1597,11 @@ function buildDeck(parsed) {
   laterLabels.push('EISA §438 — Direct');
   laterLabels.push('EISA §438 — TR-55');
   laterLabels.push('EISA §438 — Compliance');
-  laterLabels.push('Detention Summary');
+  // Site Compliance (portrait) before Detention (landscape) so the deck
+  // ends on the landscape sheet — Chromium inserts a blank "transition"
+  // page when portrait follows landscape in print output.
   laterLabels.push('Site Compliance');
+  laterLabels.push('Detention Summary');
 
   push('Cover', renderCoverSheet(project, laterLabels));
   push('Executive Summary', renderExecutiveSummarySheet(
@@ -1601,8 +1618,8 @@ function buildDeck(parsed) {
   push('EISA §438 — Direct',     renderEisaDirectSheet(project, eisaDirectPre, eisaDirectPost));
   push('EISA §438 — TR-55',      renderEisaTr55Sheet(project, eisaTr55Pre, eisaTr55Post));
   push('EISA §438 — Compliance', renderEisaComplianceSheet(project, direct, tr55, bmpStorage, project.eisa));
-  push('Detention Summary', renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
   push('Site Compliance',   renderCompliancePage(project, complianceRows));
+  push('Detention Summary', renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
 
   return deck;
 }

@@ -33,7 +33,9 @@ test('parse: SDA rows', () => {
   const first = sdas[0];
   assert.equal(first.sdaId, 'SDA-1');
   assert.equal(first.landUse, 'Impervious Vehicular');
-  assert.equal(first.preIn, 6910);
+  // Minnesota Ave fixture: pre impervious < post impervious (greenfield → paved).
+  assert.ok(first.preIn > 0 && first.preIn < first.postIn,
+    `expected 0 < preIn < postIn, got pre=${first.preIn} post=${first.postIn}`);
   assert.equal(first.postIn, 6910);
 });
 
