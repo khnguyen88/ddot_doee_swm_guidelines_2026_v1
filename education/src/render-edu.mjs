@@ -506,3 +506,111 @@ export function renderRvProvidedPage(project, bmps, cdas, params) {
     footer: 'DOEE Guidebook §2 · Compliance Calculator Sheet 2',
   });
 }
+
+// ── Task 8: MEP + EISA 438 Intro pages ────────────────────────────────────────
+
+const MEP_STEPS_EDU = [
+  ['Step 1', 'Treat impervious area to the Maximum Extent Practicable (SWRv-equivalent)'],
+  ['Step 2', 'Evaluate alternative BMP locations where Step 1 is infeasible'],
+  ['Step 3', 'Manage remaining runoff via conveyance and detention'],
+  ['Step 4', 'Discharge to MS4 only if Steps 1–3 are infeasible'],
+];
+const MEP_IMPERVIOUS = new Set(['Impervious Vehicular', 'Impervious Non-Vehicular', 'BMP']);
+
+function _impByProwSda(sdas) {
+  const out = {};
+  for (const r of sdas) {
+    if (r.inProw === 'Yes') out[r.sdaId] = out[r.sdaId] || 0;
+  }
+  for (const r of sdas) {
+    if (r.inProw !== 'Yes') continue;
+    if (!MEP_IMPERVIOUS.has(r.landUse)) continue;
+    out[r.sdaId] = (out[r.sdaId] || 0) + (r.postIn || 0);
+  }
+  return out;
+}
+
+export function renderMepEduPage(project, sdas, bmps, cdas, params) {
+  const overview = renderOverview(
+    'DDOT MEP (Maximum Extent Practicable) is the compliance mechanism for public right-of-way (PROW) SDAs. It replaces the strict numerical SWRv target with a documented four-step evaluation.',
+  );
+  const why = renderWhy(`
+    <p>PROW projects face site constraints (utilities, grade, pedestrian geometry) that often prevent full SWRv retention. 21 DCMR §508.9 and DDOT GI Standards 2014 recognize this: a PROW SDA with a documented four-step MEP process is compliant even when it falls short of the 1.2″ numerical target.</p>
+    <p><b>Narrative evidence</b> for Steps 2–4 lives in the DDOT MEP Worksheet file (not derivable from the master template). This page summarizes <b>derivable</b> metrics — impervious area, target, Rv provided, deficit.</p>
+  `);
+  const stepsHtml = MEP_STEPS_EDU.map(([n, desc]) =>
+    `<div class="cs-formula-line"><b>${esc(n)}</b> — ${esc(desc)}</div>`,
+  ).join('');
+  const impByProwSda = _impByProwSda(sdas);
+  const prowSdaIds = Object.keys(impByProwSda);
+  if (prowSdaIds.length === 0) {
+    return renderSheetShell({
+      title: 'DDOT MEP — Maximum Extent Practicable (PROW)',
+      sub:   project.name || '',
+      body:
+        overview + why +
+        renderBlock('DDOT MEP 4-STEP PROCESS', stepsHtml) +
+        renderBlock('PROJECT APPLICABILITY',
+          '<div class="cs-formula-line"><b>No PROW SDAs in this project — MEP does not apply.</b></div>'),
+      footer: 'DOEE Guidebook Appendix B · DDOT GI Standards 2014',
+    });
+  }
+  const rvBySda = rvProvidedPerSda(bmps, cdas, params);
+  const headers = ['SDA', 'Impervious In LOD (sf)', 'MEP Target @ 1.2″ (cf)',
+                   'Rv Provided (cf)', 'Deficit (cf)', 'Status'];
+  const rows = prowSdaIds.map(sdaId => {
+    const imp = impByProwSda[sdaId];
+    const target = imp * 1.2 / 12;
+    const provided = rvBySda[sdaId] || 0;
+    const deficit = Math.max(0, target - provided);
+    const status = deficit <= 0 ? '✓ MET' : 'DEFICIT — document in SWMP narrative';
+    return [sdaId, fmtN(imp), fmtN(target, 0), fmtN(provided, 0), fmtN(deficit, 0), status];
+  });
+  const body =
+    overview + why +
+    renderBlock('DDOT MEP 4-STEP PROCESS', stepsHtml) +
+    renderBlock('PER-PROW-SDA METRICS', renderDataTable(headers, rows));
+  return renderSheetShell({
+    title: 'DDOT MEP — Maximum Extent Practicable (PROW)',
+    sub:   project.name || '',
+    body,
+    footer: 'DOEE Guidebook Appendix B · DDOT GI Standards 2014 · 21 DCMR §508.9',
+  });
+}
+
+export function renderEisaIntroPage(project) {
+  const overview = renderOverview(
+    'EISA §438 is a federal-only requirement that applies to any federal facility with a footprint greater than 5,000 sf. It uses the 95th-percentile storm — for DC, 1.7″ — and must be met via infiltration, evapotranspiration, or harvest-and-reuse. Detention does not count.',
+  );
+  const why = renderWhy(`
+    <p>EISA chose the 95th-percentile storm as an analog for pre-development hydrology: storms of this size are usually fully absorbed by natural landscapes, so managing them on-site replicates predevelopment conditions for ~95% of all events by frequency.</p>
+    <p><b>METF (Maximum Extent Technically Feasible)</b> allows reduced retention when documented site constraints (shallow bedrock, contaminated soils, high groundwater, utility conflicts) make full retention impossible. A single constraint is rarely sufficient — DOEE expects a combination.</p>
+  `);
+  const kv = renderKvTable([
+    ['Framework',          'EISA §438 (Energy Independence and Security Act, 2007)'],
+    ['Applies to',         'Federal facilities with footprint > 5,000 sf'],
+    ['Design storm',       '95th-percentile 24-hr storm; DC = 1.7″'],
+    ['Required mechanism', 'Infiltration · evapotranspiration · harvest-and-reuse (NOT detention)'],
+    ['Fallback',           'METF with documented infeasibility'],
+    ['This project applies?', project.eisa || '—'],
+  ]);
+  const comparison = renderDataTable(
+    ['', 'DOEE SWRv (MLD)', 'EISA §438'],
+    [
+      ['Storm',    '1.2″',               '1.7″ (DC 95th %ile)'],
+      ['Scope',    'Per-SDA within LOD', 'Site-wide, federal only'],
+      ['Mechanism', 'Retention preferred, detention fallback', 'Infiltration/ET/harvest only'],
+      ['Who',      'All MLD projects',   'Federal projects only'],
+    ],
+  );
+  const body =
+    overview + why +
+    renderBlock('AT A GLANCE', kv) +
+    renderBlock('EISA vs DOEE SWRv', comparison);
+  return renderSheetShell({
+    title: 'EISA §438 — Introduction',
+    sub:   project.name || '',
+    body,
+    footer: 'EISA §438 TG (EPA, Dec 2009)',
+  });
+}

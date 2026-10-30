@@ -144,3 +144,27 @@ test('renderRvProvidedPage: rolls up Rv per SDA', () => {
   assert.ok(html.includes('SDA-1'));
   assert.ok(html.includes('Rv Provided'));
 });
+
+import { renderMepEduPage, renderEisaIntroPage } from '../src/render-edu.mjs';
+
+test('renderMepEduPage: shows 4-step process + per-PROW-SDA table', () => {
+  const html = renderMepEduPage(sampleProject, sampleSdas, sampleBmps, sampleCdas, bmpParams);
+  assert.ok(html.includes('4-Step') || html.includes('4-STEP') || html.includes('Step 1'));
+  assert.ok(html.includes('Step 1'));
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('MEP'));
+});
+
+test('renderMepEduPage: "No PROW SDAs" when none in PROW', () => {
+  const noProw = [{ sdaId: 'SDA-X', inProw: 'No', landUse: 'Impervious Vehicular', hsg: 'D',
+    preIn: 0, preOut: 0, postIn: 1000, postOut: 0 }];
+  const html = renderMepEduPage(sampleProject, noProw, [], [], bmpParams);
+  assert.ok(html.includes('No PROW SDAs'));
+});
+
+test('renderEisaIntroPage: explains 95th percentile + 1.7"', () => {
+  const html = renderEisaIntroPage(sampleProject);
+  assert.ok(html.includes('95th'));
+  assert.ok(html.includes('1.7'));
+  assert.ok(html.includes('METF'));
+});
