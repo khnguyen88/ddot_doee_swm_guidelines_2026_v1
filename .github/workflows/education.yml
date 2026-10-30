@@ -1,0 +1,33 @@
+name: Education App
+
+on:
+  push:
+    paths:
+      - 'education/**'
+      - 'summary_calculator/src/calc.mjs'
+      - 'summary_calculator/src/aggregate.mjs'
+      - 'summary_calculator/src/parse.mjs'
+      - 'scripts/sync-education-engines.sh'
+  pull_request:
+    paths:
+      - 'education/**'
+      - 'summary_calculator/src/calc.mjs'
+      - 'summary_calculator/src/aggregate.mjs'
+      - 'summary_calculator/src/parse.mjs'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: education
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node build.js
+      - run: node --test tests/*.test.mjs
+      - run: npx playwright test

@@ -22,9 +22,29 @@ paths.demoFixture = join(__dirname, 'tests', 'fixtures', 'minnesota-ave.xlsx');
 
 function stripRelativeImports(source) {
   return source
+    // Strip multi-line import { ... } from './...'; blocks first.
+    .replace(/^\s*import\s*\{[^}]*\}\s*from\s*['"]\.\/[^'"]+['"];?\s*$/gms, '')
+    // Strip single-line imports (import X from './...').
     .replace(/^\s*import[^;]*from\s*['"]\.\/[^'"]+['"];?\s*$/gm, '')
     .replace(/^\s*export\s+/gm, '')
     .replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, '');
+}
+
+// Remove duplicate `const esc = ...` declarations that arise from concatenating
+// modules that each define the same helper. Strips the entire multi-line block
+// for each second-or-later occurrence. We only target `esc` because it is the
+// only helper defined in multiple concatenated modules (narrative + render-edu + ui).
+function deduplicateEsc(source) {
+  let first = true;
+  // Match `const esc = (s) => ...` through its trailing semicolon (3–5 lines).
+  // [^\n]* matches each continued line; the block ends at the first ; on its own continuation.
+  return source.replace(
+    /^const esc\s*=\s*\([^)]*\)[^\n]*\n(?:[^\n]*\n)*?[^\n]*;$/gm,
+    (match) => {
+      if (first) { first = false; return match; }
+      return '// (esc already declared above)';
+    },
+  );
 }
 
 async function readIfExists(path) {
@@ -52,7 +72,7 @@ async function main() {
     ]);
   const demoB64 = demoBytes.toString('base64');
 
-  const combinedModule = [
+  const combinedModule = deduplicateEsc([
     `const DEMO_XLSX_B64 = ${JSON.stringify(demoB64)};`,
     '// ─ src/calc.mjs ─',          stripRelativeImports(calcJs),
     '// ─ src/parse.mjs ─',         stripRelativeImports(parseJs),
@@ -61,7 +81,7 @@ async function main() {
     '// ─ src/narrative.mjs ─',     stripRelativeImports(narrativeJs),
     '// ─ src/render-edu.mjs ─',    stripRelativeImports(renderEduJs),
     '// ─ src/ui.mjs ─',            stripRelativeImports(uiJs),
-  ].join('\n\n');
+  ].join('\n\n'));
 
   let out = devHtml;
   out = out.replace(

@@ -1,7 +1,22 @@
-// src/ui.mjs — shell: dropzone + sidebar + topbar + print.
-// Deck builder is added in Task 12 after all page renderers exist.
+// src/ui.mjs — dropzone + sidebar + topbar + print + deck builder.
 
 import { parseWorkbook } from './parse.mjs';
+import {
+  siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
+  eisaDirectVolumeTraceCf, tr55VolumeTraceCf,
+} from './calc.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp } from './aggregate.mjs';
+import { tr16LookupQ } from './tr16-exhibit.mjs';
+import {
+  renderCoverPage, renderComplianceLandscapePage, renderProjectTriggersPage,
+  renderSiteDaPage, renderSdaCdaExplainedPage, renderRvValuesPage, renderSwrvPerSdaPage,
+  renderBmpCatalogPage, renderPpSizingPage, renderBioSizingPage,
+  renderTreeCreditPage, renderRvProvidedPage,
+  renderMepEduPage, renderEisaIntroPage,
+  renderEisaDirectEduPage, renderEisaTr55EduPage, renderEisaTr16EduPage, renderEisaComparisonEduPage,
+  renderDetentionEduPage, renderSiteComplianceEduPage,
+  renderTr16AppendixPages, renderGlossaryPage,
+} from './render-edu.mjs';
 
 const esc = (s) => String(s ?? '')
   .replace(/&/g, '&amp;')
@@ -124,8 +139,101 @@ async function loadDemo() {
 }
 
 function buildAndRender() {
-  // Deck builder is populated in Task 12. For now, show a placeholder page.
-  state.pages = [{ label: 'Placeholder', html: '<section class="calc-sheet"><div class="cs-title">Deck builder not yet wired.</div></section>' }];
+  const { project, sdas, cdas, bmps, params } = state.parsed;
+
+  // Core aggregates (reused across pages).
+  const agg = siteAggregateLandCover(sdas);
+  const detention = detentionSummary(sdas, params.detention.p2In, params.detention.p15In, params.detentionCn);
+
+  // Per-SDA SWRv compliance rows.
+  const bySda = {};
+  for (const row of sdas) {
+    bySda[row.sdaId] ??= { impVeh:0, impNonVeh:0, comp:0, natural:0, bmp:0 };
+    const b = bySda[row.sdaId];
+    const a = row.postIn || 0;
+    if (row.landUse === 'Impervious Vehicular')          b.impVeh    += a;
+    else if (row.landUse === 'Impervious Non-Vehicular') b.impNonVeh += a;
+    else if (row.landUse === 'Compacted (Open Space)')   b.comp      += a;
+    else if (row.landUse === 'Natural (Woods)')          b.natural   += a;
+    else if (row.landUse === 'BMP')                      b.bmp       += a;
+  }
+  const rvBySda = rvProvidedPerSda(bmps, cdas, params);
+  const complianceRows = Object.keys(bySda).map(sdaId => ({
+    sdaId,
+    swrvReqCf:    swrvVolume(bySda[sdaId], project.rainfallIn).value,
+    rvProvidedCf: rvBySda[sdaId] || 0,
+  }));
+
+  // EISA all 3 methods (pre/post).
+  const preRows  = sdas.map(r => ({ area: r.preIn,  landUse: r.landUse, hsg: r.hsg }));
+  const postRows = sdas.map(r => ({ area: r.postIn, landUse: r.landUse, hsg: r.hsg }));
+  const direct = {
+    pre:  eisaDirectVolumeTraceCf(preRows,  1.7),
+    post: eisaDirectVolumeTraceCf(postRows, 1.7),
+  };
+  const tr55 = {
+    pre:  tr55VolumeTraceCf(preRows,  1.7),
+    post: tr55VolumeTraceCf(postRows, 1.7),
+  };
+  // TR-16 totals: look up Q per row via TR-16 table and sum area*Q/12.
+  const tr16TotalForRows = (rows) => rows.reduce((sum, r) => {
+    const cnRow = params.cn[r.landUse];
+    if (!cnRow || cnRow[r.hsg] == null) return sum;
+    const cn = cnRow[r.hsg];
+    const q = tr16LookupQ(cn, 1.7);
+    if (q == null) return sum;
+    return sum + r.area * q / 12;
+  }, 0);
+  const tr16 = {
+    preCf:  tr16TotalForRows(preRows),
+    postCf: tr16TotalForRows(postRows),
+  };
+  tr16.deltaCf = tr16.postCf - tr16.preCf;
+  const directSummary = { preCf: direct.pre.value, postCf: direct.post.value,
+                          deltaCf: direct.post.value - direct.pre.value };
+  const tr55Summary   = { preCf: tr55.pre.value,   postCf: tr55.post.value,
+                          deltaCf: tr55.post.value   - tr55.pre.value };
+  const bmpStorage = rvProvidedPerBmp(bmps, cdas, params).filter(b => b.rvCf > 0);
+
+  // Build labels (for Cover TOC).
+  const laterLabels = [
+    'Compliance Landscape', 'Project Triggers',
+    'Site DA', 'SDA & CDA Explained', 'Rv Values', 'SWRv per SDA',
+    'BMP Catalog', 'Permeable Pavement Sizing', 'Bioretention Sizing', 'Tree Credit', 'Rv Provided',
+    'DDOT MEP (PROW)',
+    'EISA 438 Intro', 'EISA Direct Determination', 'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
+    'Detention 2-yr/15-yr', 'Site Compliance',
+    'Appendix A — TR-16 Exhibit', 'Appendix B — Glossary',
+  ];
+
+  // Assemble deck.
+  const deck = [];
+  const push = (label, html) => deck.push({ label, html });
+
+  push('Cover', renderCoverPage(project, laterLabels));
+  push('Compliance Landscape',           renderComplianceLandscapePage(project));
+  push('Project Triggers',               renderProjectTriggersPage(project));
+  push('Site DA',                        renderSiteDaPage(project, agg));
+  push('SDA & CDA Explained',            renderSdaCdaExplainedPage(project));
+  push('Rv Values',                      renderRvValuesPage(params));
+  push('SWRv per SDA',                   renderSwrvPerSdaPage(project, sdas, params));
+  push('BMP Catalog',                    renderBmpCatalogPage(project, bmps));
+  push('Permeable Pavement Sizing',      renderPpSizingPage(project, bmps, cdas, params));
+  push('Bioretention Sizing',            renderBioSizingPage(project, bmps, cdas, params));
+  push('Tree Credit',                    renderTreeCreditPage(project, bmps, params));
+  push('Rv Provided',                    renderRvProvidedPage(project, bmps, cdas, params));
+  push('DDOT MEP (PROW)',                renderMepEduPage(project, sdas, bmps, cdas, params));
+  push('EISA 438 Intro',                 renderEisaIntroPage(project));
+  push('EISA Direct Determination',      renderEisaDirectEduPage(project, direct.pre, direct.post));
+  push('EISA TR-55',                     renderEisaTr55EduPage(project, tr55.pre, tr55.post));
+  push('EISA TR-16 Lookup',              renderEisaTr16EduPage(project, state.parsed, params));
+  push('EISA Three-Method Comparison',   renderEisaComparisonEduPage(project, directSummary, tr55Summary, tr16, bmpStorage, project.eisa));
+  push('Detention 2-yr/15-yr',           renderDetentionEduPage(project, detention, params.detention.p2In, params.detention.p15In));
+  push('Site Compliance',                renderSiteComplianceEduPage(project, complianceRows));
+  renderTr16AppendixPages().forEach((html, i) => push(`Appendix A — TR-16 (${i+1})`, html));
+  push('Appendix B — Glossary',          renderGlossaryPage());
+
+  state.pages = deck;
   state.activeIdx = 0;
   renderTopbar();
   renderSidebar();
