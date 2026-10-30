@@ -284,3 +284,18 @@ test('renderGlossaryPage: contains core terms', () => {
     assert.ok(html.includes(term), `glossary missing ${term}`);
   }
 });
+
+import { renderArithmeticTrace } from '../src/render-edu.mjs';
+
+test('renderArithmeticTrace: emits <pre> with four-line pattern per step', () => {
+  const html = renderArithmeticTrace([
+    { label: 'Maximum potential retention', formula: 'S = 1000 / CN − 10', substitution: '1000 / 98 − 10', result: '0.204 in' },
+    { label: 'Initial abstraction',         formula: 'Ia = 0.2 × S',         substitution: '0.2 × 0.204',    result: '0.041 in' },
+  ]);
+  assert.ok(html.includes('<pre'));
+  assert.ok(html.includes('Maximum potential retention'));
+  assert.ok(html.includes('S = 1000 / CN − 10'));
+  assert.ok(html.includes('1000 / 98 − 10'));
+  assert.ok(html.includes('0.204 in'));
+  assert.ok(html.includes('Initial abstraction'));
+});

@@ -965,3 +965,20 @@ export function renderEisaComparisonEduPage(project, direct, tr55, tr16, bmpStor
     landscape: true,
   });
 }
+
+/**
+ * Render a per-row arithmetic trace in the four-line pattern:
+ *   Label:
+ *     formula
+ *     = substitution
+ *     = result
+ */
+export function renderArithmeticTrace(steps) {
+  const body = steps.map(s => {
+    const lines = [`${s.label}:`, `  ${s.formula}`];
+    if (s.substitution) lines.push(`    = ${s.substitution}`);
+    if (s.result)       lines.push(`    = ${s.result}`);
+    return lines.join('\n');
+  }).join('\n\n');
+  return `<pre class="cs-edu-trace" style="background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 4px; padding: 10px 14px; font-family: var(--font-mono); font-size: 11.5px; color: #0F172A; margin: 8px 0; white-space: pre-wrap;">${body}</pre>`;
+}

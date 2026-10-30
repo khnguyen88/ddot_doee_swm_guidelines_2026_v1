@@ -125,13 +125,36 @@ function parseBmp(sheet) {
         sa: cell(sheet, r, 6) || 0,
         dReservoir: cell(sheet, r, 7) || 0,
       };
-    } else if (type === 'Bioretention' || type === 'Dry Swale') {
+    } else if (type === 'Bioretention') {
       row.bio = {
-        saTop: cell(sheet, r, 14) || 0,
-        saBot: cell(sheet, r, 15) || 0,
-        dMedia: cell(sheet, r, 17) || 0,
-        dGravel: cell(sheet, r, 19) || 0,
-        dPond: cell(sheet, r, 21) || 0,
+        saTop:        cell(sheet, r, 14) || 0,
+        saBot:        cell(sheet, r, 15) || 0,
+        dMedia:       cell(sheet, r, 17) || 0,
+        dGravel:      cell(sheet, r, 19) || 0,
+        dPond:        cell(sheet, r, 21) || 0,
+        // NEW optional geometry — null if blank, not 0.
+        saPondTop:    cell(sheet, r, 40),
+        topElev:      cell(sheet, r, 41),
+        overflowElev: cell(sheet, r, 42),
+        sidewalkElev: cell(sheet, r, 43),
+        curbCutElev:  cell(sheet, r, 44),
+      };
+    } else if (type === 'Dry Swale') {
+      row.swale = {
+        saTop:           cell(sheet, r, 14) || 0,
+        saBot:           cell(sheet, r, 15) || 0,
+        dMedia:          cell(sheet, r, 17) || 0,
+        dGravel:         cell(sheet, r, 19) || 0,
+        dPond:           cell(sheet, r, 21) || 0,
+        // NEW optional channel geometry — null if blank.
+        length:          cell(sheet, r, 46),
+        bottomWidth:     cell(sheet, r, 47),
+        invUs:           cell(sheet, r, 48),
+        invDs:           cell(sheet, r, 49),
+        topUs:           cell(sheet, r, 50),
+        topDs:           cell(sheet, r, 51),
+        checkDamHeight:  cell(sheet, r, 52),
+        checkDamSpacing: cell(sheet, r, 53),
       };
     } else if (type === 'Planted Trees' || type === 'Preserve Trees') {
       row.trees = {
