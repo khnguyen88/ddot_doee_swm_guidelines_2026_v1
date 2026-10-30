@@ -28,7 +28,10 @@ function stripRelativeImports(source) {
 
 async function readIfExists(path) {
   try { return await readFile(path, 'utf8'); }
-  catch { return '// (not yet created)'; }
+  catch (e) {
+    if (e.code === 'ENOENT') return '// (not yet created)';
+    throw e;
+  }
 }
 
 async function main() {
