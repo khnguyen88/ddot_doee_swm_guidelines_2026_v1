@@ -14,8 +14,8 @@ export const fmtN = (n, places = 0) => {
 };
 
 import {
-  ppSizingSv, bioSizingSv, rvFromSv, maxBmpCredit, treeRetentionCredit,
-  bioFreeboardFt,
+  ppSizingSv, bioSizingSv, drySwaleSizingSv, rvFromSv, maxBmpCredit, treeRetentionCredit,
+  bioFreeboardFt, drySwaleFreeboardFt,
 } from './calc.mjs';
 import { rvProvidedPerSda, swrvComplianceTableRows } from './aggregate.mjs';
 
@@ -202,7 +202,8 @@ export function renderCdaPostSheet(project, cdas) {
 }
 
 const PP_FOOTER  = 'DOEE Guidebook §3.5 · Permeable Pavement';
-const BIO_FOOTER = 'DOEE Guidebook §3.6 · Bioretention / Dry Swale';
+const BIO_FOOTER = 'DOEE Guidebook §3.6 · Bioretention';
+const SWALE_FOOTER = 'DOEE Guidebook §3.9 O-2 Dry Swale · DDOT §33.14.5';
 const TREE_FOOTER = 'DOEE Guidebook §3.14 · Tree Credits';
 
 function _cdaFor(bmp, cdas) {
@@ -326,6 +327,90 @@ function _renderBio(project, bmp, cda, params) {
   });
 }
 
+function _renderDrySwale(project, bmp, cda, params) {
+  const designKey = `Dry Swale / ${bmp.subType}`;
+  const design = params.bmpDesign[designKey] || { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
+
+  const svTrace = drySwaleSizingSv({
+    saBot: bmp.swale.saBot,
+    dMedia: bmp.swale.dMedia, nMedia: design.nMedia,
+    dGravel: bmp.swale.dGravel, nGravel: design.nGravel,
+    dPond: bmp.swale.dPond,
+    length: bmp.swale.length, bottomWidth: bmp.swale.bottomWidth,
+    invUs: bmp.swale.invUs, invDs: bmp.swale.invDs,
+    checkDamHeight: bmp.swale.checkDamHeight,
+    checkDamSpacing: bmp.swale.checkDamSpacing,
+  });
+  const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
+  const cdaArea = cda ? cda.postIn : 0;
+  const maxTrace = maxBmpCredit(cdaArea);
+  const rvApplied = Math.min(rvTrace.value, maxTrace.value);
+  const pass = rvApplied === rvTrace.value;
+
+  const inputsHtml = renderKvTable([
+    ['BMP', `${bmp.name} (${bmp.type})`],
+    ['SDA', bmp.sdaId],
+    ['CDA', bmp.cdaId || '—'],
+    ['SA_bot', `${fmtN(bmp.swale.saBot)} sf`],
+    ['d_media',  `${fmtN(bmp.swale.dMedia, 2)} ft`],
+    ['d_gravel', `${fmtN(bmp.swale.dGravel, 2)} ft`],
+    ['d_pond',   `${fmtN(bmp.swale.dPond, 2)} ft`],
+    ['n_media',  `${design.nMedia}`],
+    ['n_gravel', `${design.nGravel}`],
+    ['Ret. Multiplier', `${design.retMultiplier}`],
+  ]);
+
+  let geometryBlock = '';
+  if (svTrace.pondModel === 'wedge') {
+    const t = svTrace.pondTrace;
+    geometryBlock = renderBlock('CHANNEL GEOMETRY (per DDOT §33.14.5)', `
+      <div class="cs-formula-line">L_s = ${bmp.swale.length} ft    w_s = ${bmp.swale.bottomWidth} ft</div>
+      <div class="cs-formula-line">inv_US = ${bmp.swale.invUs} ft    inv_DS = ${bmp.swale.invDs} ft</div>
+      <div class="cs-formula-line">Slope S = (${bmp.swale.invUs} − ${bmp.swale.invDs}) / ${bmp.swale.length} = ${t.slope.toFixed(4)} ft/ft</div>
+      <div class="cs-formula-line">Check dam H_cd = ${bmp.swale.checkDamHeight} ft    Spacing X_cd = ${bmp.swale.checkDamSpacing} ft</div>
+      <div class="cs-formula-line">N_cd = floor(${bmp.swale.length} / ${bmp.swale.checkDamSpacing}) = ${t.nDams} dams</div>
+    `) + renderBlock('POND STORAGE PER CHECK DAM (3D WEDGE)', `
+      <div class="cs-formula-line">Full wedge upstream length = H_cd / S = ${bmp.swale.checkDamHeight} / ${t.slope.toFixed(4)} = ${t.fullWedgeBase.toFixed(1)} ft</div>
+      <div class="cs-formula-line">Effective base = min(X_cd, H_cd/S) = min(${bmp.swale.checkDamSpacing}, ${t.fullWedgeBase.toFixed(1)}) = ${t.effectiveBase.toFixed(1)} ft</div>
+      <div class="cs-formula-line">Wedge Sv per dam = ½ × ${t.effectiveBase.toFixed(1)} × ${bmp.swale.checkDamHeight} × ${bmp.swale.bottomWidth} = ${t.wedgePerDam.toFixed(0)} cf</div>
+      <div class="cs-formula-line"><b>Total pond Sv = N_cd × wedge Sv = ${t.nDams} × ${t.wedgePerDam.toFixed(0)} = ${svTrace.components.pondSv.toFixed(0)} cf  [wedge]</b></div>
+    `);
+  }
+
+  const fb = drySwaleFreeboardFt({
+    invUs: bmp.swale.invUs, invDs: bmp.swale.invDs,
+    topUs: bmp.swale.topUs, topDs: bmp.swale.topDs,
+    checkDamHeight: bmp.swale.checkDamHeight,
+  });
+  const freeboardBlock = fb == null ? '' : (() => {
+    const usFb = bmp.swale.topUs - (bmp.swale.invUs + bmp.swale.checkDamHeight);
+    const dsFb = bmp.swale.topDs - (bmp.swale.invDs + bmp.swale.checkDamHeight);
+    const passFb = fb >= 0.5;
+    return renderBlock('FREEBOARD (DDOT §33.14.5.5 min 6″)', `
+      <div class="cs-formula-line">US water surface = inv_US + H_cd = ${bmp.swale.invUs} + ${bmp.swale.checkDamHeight} = ${(bmp.swale.invUs + bmp.swale.checkDamHeight).toFixed(2)} ft</div>
+      <div class="cs-formula-line">US freeboard = top_US − US ws = ${bmp.swale.topUs} − ${(bmp.swale.invUs + bmp.swale.checkDamHeight).toFixed(2)} = ${usFb.toFixed(2)} ft</div>
+      <div class="cs-formula-line">DS freeboard = top_DS − DS ws = ${bmp.swale.topDs} − ${(bmp.swale.invDs + bmp.swale.checkDamHeight).toFixed(2)} = ${dsFb.toFixed(2)} ft</div>
+      <div class="cs-formula-line"><b>Min freeboard = ${fb.toFixed(2)} ft (${(fb*12).toFixed(1)}″) ${passFb ? '✓' : '✗'}</b></div>
+    `);
+  })();
+
+  return renderSheetShell({
+    title: `${bmp.name} — Dry Swale`,
+    sub:   `${project.name || ''} · ${bmp.sdaId}`,
+    body:
+      renderBlock('INPUTS', inputsHtml) +
+      geometryBlock +
+      renderBlock('RETENTION VOLUME', renderTrace(rvTrace)) +
+      renderBlock('COMPLIANCE', renderTrace(maxTrace) + renderResult(
+        pass ? 'Rv provided ≤ Max Credit — OK'
+             : `Rv capped at ${fmtN(maxTrace.value, 0)} cf`,
+        rvApplied, 'cf', pass,
+      )) +
+      freeboardBlock,
+    footer: SWALE_FOOTER,
+  });
+}
+
 function _renderTrees(project, bmp, params) {
   const trace = treeRetentionCredit(bmp.trees, params.treeCredits);
   const counts = renderKvTable([
@@ -354,8 +439,10 @@ export function renderBmpSheets(project, bmps, cdas, params) {
   for (const bmp of bmps) {
     if (bmp.type === 'Permeable Pavement') {
       pages.push(_renderPp(project, bmp, _cdaFor(bmp, cdas), params));
-    } else if (bmp.type === 'Bioretention' || bmp.type === 'Dry Swale') {
+    } else if (bmp.type === 'Bioretention') {
       pages.push(_renderBio(project, bmp, _cdaFor(bmp, cdas), params));
+    } else if (bmp.type === 'Dry Swale') {
+      pages.push(_renderDrySwale(project, bmp, _cdaFor(bmp, cdas), params));
     } else if (bmp.type === 'Planted Trees' || bmp.type === 'Preserve Trees') {
       pages.push(_renderTrees(project, bmp, params));
     }

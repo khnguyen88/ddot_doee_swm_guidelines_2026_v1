@@ -125,6 +125,43 @@ test('renderBmpSheets: Bio page shows [trapezoid] tag + freeboard when geometry 
   assert.ok(html.includes('126'), 'should show pond_Sv = 126 cf');
 });
 
+test('renderBmpSheets: Dry Swale page shows channel geometry + wedge + freeboard', () => {
+  const bmps = [{
+    name: 'S-1', sdaId: 'SDA-1', cdaId: null, type: 'Dry Swale', subType: '—',
+    swale: {
+      saBot: 400, saTop: 4,
+      dMedia: 2.0, dGravel: 0.5, dPond: 1.0,
+      length: 100, bottomWidth: 4,
+      invUs: 100.0, invDs: 98.0, topUs: 102.0, topDs: 100.0,
+      checkDamHeight: 1.0, checkDamSpacing: 50,
+    },
+  }];
+  const params = { bmpDesign: { 'Dry Swale / —': { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 } }, treeCredits: {} };
+  const html = renderBmpSheets(sampleProject, bmps, [], params)[0];
+  assert.ok(html.includes('CHANNEL GEOMETRY'));
+  assert.ok(html.includes('wedge'));
+  assert.ok(html.includes('FREEBOARD'));
+  assert.ok(html.includes('N_cd'));
+  assert.ok(html.includes('200'));
+});
+
+test('renderBmpSheets: Dry Swale page falls back to flat-pond when geometry absent', () => {
+  const bmps = [{
+    name: 'S-1', sdaId: 'SDA-1', cdaId: null, type: 'Dry Swale', subType: '—',
+    swale: {
+      saBot: 400, saTop: 4,
+      dMedia: 2.0, dGravel: 0.5, dPond: 1.0,
+      length: null, bottomWidth: null,
+      invUs: null, invDs: null, topUs: null, topDs: null,
+      checkDamHeight: null, checkDamSpacing: null,
+    },
+  }];
+  const params = { bmpDesign: { 'Dry Swale / —': { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 } }, treeCredits: {} };
+  const html = renderBmpSheets(sampleProject, bmps, [], params)[0];
+  assert.ok(!html.includes('CHANNEL GEOMETRY'));
+  assert.ok(!html.includes('FREEBOARD'));
+});
+
 test('renderBmpSheets: Bio page shows [vertical] tag + omits freeboard when geometry absent', () => {
   const bmps = [{
     name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Bioretention', subType: 'Enhanced',
