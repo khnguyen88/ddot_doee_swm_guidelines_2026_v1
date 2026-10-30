@@ -1,22 +1,23 @@
-"""Generate a second sample-populated workbook — "Stone Stream Multi-Use Trail".
+"""Generate a second sample-populated workbook — anonymous Multi-Use Trail.
 
-Based on the Stantec EISA Section 438 hand-worked example at
-    docs/manual_guidance/EISA 438 sample comps.pdf
-(originally "Rock Creek Park Multi-Use Trail"; renamed to "Stone Stream" here
-to keep the sample distinct from any production project).
+Dimensions and land-cover values are adapted from the Stantec EISA Section 438
+hand-worked example at docs/manual_guidance/EISA 438 sample comps.pdf. The
+sample is deliberately UNNAMED (no site, agency, or ownership label) so it can
+serve as a generic EISA 438 teaching artifact distinct from any production
+project.
 
-Why: Minnesota Ave is a DDOT PROW streetscape (10 SDAs, no EISA). Stone Stream
+Why: Minnesota Ave is a DDOT PROW streetscape (10 SDAs, no EISA). This fixture
 is a federal/park trail retrofit (1 SDA with 7 mixed-HSG land-cover rows, EISA
 applies). The two samples together exercise both DOEE MLD and EISA 438
 compliance pathways through the summary + education apps.
 
 Run with:
 
-    python -m workbook.sample_stone_stream
+    python -m workbook.sample_trail
 
 Output file:
 
-    SW_Required_Provided_DOEE_EISA438_SAMPLE_StoneStream.xlsx
+    SW_Required_Provided_DOEE_EISA438_SAMPLE_Trail.xlsx
 """
 from __future__ import annotations
 from pathlib import Path
@@ -24,12 +25,12 @@ from pathlib import Path
 from workbook.__main__ import build_workbook, PROJECT_ROOT
 
 
-OUTPUT = PROJECT_ROOT / "SW_Required_Provided_DOEE_EISA438_SAMPLE_StoneStream.xlsx"
+OUTPUT = PROJECT_ROOT / "SW_Required_Provided_DOEE_EISA438_SAMPLE_Trail.xlsx"
 
 
 PROJECT = {
-    "Name":            "Stone Stream Multi-Use Trail Test Case",
-    "Number":          "DTA-SS1",
+    "Name":            "Multi-Use Trail Test Case",
+    "Number":          "DTA-TRL1",
     "MS4":             "Non-MS4",
     "AWDZ":            "No",
     "DOEEReview":      "N/A (sample)",
