@@ -45,9 +45,9 @@ test('rvProvidedPerSda: sums multiple BMPs within one SDA', () => {
 
 test('rvProvidedPerSda: BMP without a CDA entry is NOT capped', () => {
   const bmps = [
-    // Bio sizing is driven by saBot only; saTop is not used in the calculation.
+    // saPondTop=null → vertical fallback; saTop unused in vertical path
     { name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-X', type: 'Bioretention', subType: 'Enhanced',
-      bio: { saBot: 100, dMedia: 2, dGravel: 0.5, dPond: 0.5 } },
+      bio: { saBot: 100, saTop: 100, saPondTop: null, dMedia: 2, dGravel: 0.5, dPond: 0.5 } },
   ];
   const result = rvProvidedPerSda(bmps, [], params);
   // Sv = 100 * (2*0.4 + 0.5*0.4 + 0.5) = 100*1.5 = 150
@@ -64,7 +64,7 @@ test('rvProvidedPerBmp: correct shape, uncapped Bio, capped PP, zero for unsuppo
   const bmps = [
     // Bio with no matching CDA → Sv = 100*(2*0.4 + 0.5*0.4 + 0.5) = 150, Rv = 150*1.0 = 150
     { name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-X', type: 'Bioretention', subType: 'Enhanced',
-      bio: { saBot: 100, dMedia: 2, dGravel: 0.5, dPond: 0.5 } },
+      bio: { saBot: 100, saTop: 100, saPondTop: null, dMedia: 2, dGravel: 0.5, dPond: 0.5 } },
     // PP with matching CDA → Sv = 10000*5*0.4 = 20000, capped at 100*1.7/12 ≈ 14.17
     { name: 'PP-1', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Permeable Pavement', subType: 'Enhanced',
       pp: { sa: 10000, dReservoir: 5 } },
@@ -118,4 +118,62 @@ test('swrvComplianceTableRows: shortStatus=true returns bare ✓/✗ per row', (
   const rows = [{ sdaId: 'SDA-1', swrvReqCf: 100, rvProvidedCf: 150 }];
   const { perRow } = swrvComplianceTableRows(rows, true);
   assert.equal(perRow[0].status, '✓');
+});
+
+test('rvProvidedPerSda: Bio with saPondTop uses trapezoid pond (higher Rv than vertical fallback)', () => {
+  const bmps = [
+    { name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Bioretention', subType: 'Enhanced',
+      bio: { saBot: 210, saTop: 210, saPondTop: 294,
+             dMedia: 2.0, dGravel: 0.5, dPond: 0.5 } },
+  ];
+  const cdas = []; // no cap
+  const result = rvProvidedPerSda(bmps, cdas, params);
+  // media_gravel = 210 × 1.0 = 210; pond trap = 0.5 × (210 + 294) × 0.5 = 126
+  // Sv = 336, Rv = 336 × 1.0 = 336
+  assert.equal(result['SDA-1'], 336);
+});
+
+test('rvProvidedPerSda: Bio without saPondTop uses vertical fallback (backward-compat)', () => {
+  const bmps = [
+    { name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Bioretention', subType: 'Enhanced',
+      bio: { saBot: 210, saTop: 210, saPondTop: null,
+             dMedia: 2.0, dGravel: 0.5, dPond: 0.5 } },
+  ];
+  const result = rvProvidedPerSda(bmps, [], params);
+  // media_gravel = 210; pond vertical = 210 × 0.5 = 105; Sv = 315
+  assert.equal(result['SDA-1'], 315);
+});
+
+test('rvProvidedPerSda: Dry Swale with full geometry uses wedge pond', () => {
+  const bmps = [
+    { name: 'S-1', sdaId: 'SDA-1', cdaId: null, type: 'Dry Swale', subType: '—',
+      swale: {
+        saBot: 400, dMedia: 2.0, dGravel: 0.5, dPond: 1.0,
+        length: 100, bottomWidth: 4, invUs: 100.0, invDs: 98.0,
+        checkDamHeight: 1.0, checkDamSpacing: 50,
+      } },
+  ];
+  const result = rvProvidedPerSda(bmps, [], {
+    bmpDesign: { 'Dry Swale / —': { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 } },
+    treeCredits: {},
+  });
+  // media_gravel = 400 × 1.0 = 400; wedge pond = 2 × 100 = 200; Sv = 600; Rv = 600
+  assert.equal(result['SDA-1'], 600);
+});
+
+test('rvProvidedPerSda: Dry Swale without geometry falls back to flat-pond formula', () => {
+  const bmps = [
+    { name: 'S-1', sdaId: 'SDA-1', cdaId: null, type: 'Dry Swale', subType: '—',
+      swale: {
+        saBot: 400, dMedia: 2.0, dGravel: 0.5, dPond: 1.0,
+        length: null, bottomWidth: null, invUs: null, invDs: null,
+        checkDamHeight: null, checkDamSpacing: null,
+      } },
+  ];
+  const result = rvProvidedPerSda(bmps, [], {
+    bmpDesign: { 'Dry Swale / —': { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 } },
+    treeCredits: {},
+  });
+  // media_gravel = 400; flat pond = 400 × 1.0 = 400; Sv = 800
+  assert.equal(result['SDA-1'], 800);
 });

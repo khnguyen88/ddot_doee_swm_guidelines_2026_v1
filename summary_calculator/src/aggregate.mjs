@@ -3,7 +3,8 @@
 // so Rv-applied is computed in exactly one place.
 
 import {
-  ppSizingSv, bioSizingSv, rvFromSv, maxBmpCredit, treeRetentionCredit,
+  ppSizingSv, bioSizingSv, drySwaleSizingSv, rvFromSv,
+  maxBmpCredit, treeRetentionCredit,
 } from './calc.mjs';
 
 const DEFAULT_PP_DESIGN  = { nReservoir: 0.40, retMultiplier: 1.0 };
@@ -17,12 +18,29 @@ function _rvForBmp(bmp, cdas, params) {
     const cda = cdas.find(c => c.cdaId === bmp.cdaId);
     return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
   }
-  if ((bmp.type === 'Bioretention' || bmp.type === 'Dry Swale') && bmp.bio) {
-    const design = params.bmpDesign[`${bmp.type} / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
+  if (bmp.type === 'Bioretention' && bmp.bio) {
+    const design = params.bmpDesign[`Bioretention / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
     const sv = bioSizingSv(
-      bmp.bio.saBot, bmp.bio.dMedia, design.nMedia,
+      bmp.bio.saBot, bmp.bio.saTop, bmp.bio.saPondTop,
+      bmp.bio.dMedia, design.nMedia,
       bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
     ).value;
+    const rv = rvFromSv(sv, design.retMultiplier).value;
+    const cda = cdas.find(c => c.cdaId === bmp.cdaId);
+    return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
+  }
+  if (bmp.type === 'Dry Swale' && bmp.swale) {
+    const design = params.bmpDesign[`Dry Swale / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
+    const sv = drySwaleSizingSv({
+      saBot: bmp.swale.saBot,
+      dMedia: bmp.swale.dMedia, nMedia: design.nMedia,
+      dGravel: bmp.swale.dGravel, nGravel: design.nGravel,
+      dPond: bmp.swale.dPond,
+      length: bmp.swale.length, bottomWidth: bmp.swale.bottomWidth,
+      invUs: bmp.swale.invUs, invDs: bmp.swale.invDs,
+      checkDamHeight: bmp.swale.checkDamHeight,
+      checkDamSpacing: bmp.swale.checkDamSpacing,
+    }).value;
     const rv = rvFromSv(sv, design.retMultiplier).value;
     const cda = cdas.find(c => c.cdaId === bmp.cdaId);
     return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
