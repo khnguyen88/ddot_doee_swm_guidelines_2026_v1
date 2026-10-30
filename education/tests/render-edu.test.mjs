@@ -262,3 +262,25 @@ test('renderSiteComplianceEduPage: per-SDA SWRv required vs provided with status
   assert.ok(html.includes('✓') || html.includes('PASS'));
   assert.ok(html.includes('✗') || html.includes('FAIL'));
 });
+
+import { renderTr16AppendixPages, renderGlossaryPage } from '../src/render-edu.mjs';
+
+test('renderTr16AppendixPages: returns array; every CN present somewhere', () => {
+  const pages = renderTr16AppendixPages();
+  assert.ok(Array.isArray(pages));
+  assert.ok(pages.length >= 4);
+  const joined = pages.join('');
+  for (const cn of [60, 61, 68, 69, 70, 74, 75, 76, 80, 81, 82, 98]) {
+    assert.ok(joined.includes(`CN = ${cn}`), `missing CN=${cn} in appendix`);
+  }
+  // Should be landscape
+  for (const p of pages) assert.ok(p.includes('class="calc-sheet landscape"'));
+});
+
+test('renderGlossaryPage: contains core terms', () => {
+  const html = renderGlossaryPage();
+  for (const term of ['SWRv', 'SDA', 'CDA', 'HSG', 'LOD', 'MEP', 'METF', 'PROW',
+                      'Ia', 'CN', 'Rv', 'Sv', '95th percentile']) {
+    assert.ok(html.includes(term), `glossary missing ${term}`);
+  }
+});

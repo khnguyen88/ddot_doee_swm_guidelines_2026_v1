@@ -838,6 +838,85 @@ export function renderSiteComplianceEduPage(project, complianceRows) {
   });
 }
 
+// ── Task 11: Appendix A (TR-16 full exhibit) + Appendix B (glossary) ──────────
+
+function _tr16AppendixTableHtml(cn) {
+  const header = `<tr><th>P \\ 0.X</th>${Array.from({length:10}, (_,i)=>`<th>0.${i}</th>`).join('')}</tr>`;
+  const rows = Array.from({length: 12}, (_, i) => {
+    const whole = i + 1;
+    const cells = Array.from({length: 10}, (_, j) => {
+      const q = tr16LookupQ(cn, whole + j/10);
+      return `<td>${q == null ? '—' : q.toFixed(2)}</td>`;
+    }).join('');
+    return `<tr><th>${whole}</th>${cells}</tr>`;
+  }).join('');
+  return `
+    <div class="tr16-caption">CN = ${cn}</div>
+    <table class="tr16-table">${header}${rows}</table>
+  `;
+}
+
+export function renderTr16AppendixPages() {
+  const pages = [];
+  const perPage = 3;
+  for (let i = 0; i < TR16_CN_LIST.length; i += perPage) {
+    const chunk = TR16_CN_LIST.slice(i, i + perPage);
+    const partIdx = Math.floor(i / perPage) + 1;
+    const totalParts = Math.ceil(TR16_CN_LIST.length / perPage);
+    const body = chunk.map(cn => _tr16AppendixTableHtml(cn)).join('');
+    pages.push(renderSheetShell({
+      title: `Appendix A — TR-16 Exhibit 2-7A (part ${partIdx}/${totalParts})`,
+      sub:   'RAINFALL-RUNOFF DEPTHS FOR SELECTED RUNOFF CURVE NUMBERS',
+      body:
+        `<div class="cs-note" style="font-size:11px; margin-bottom:8px;">
+           Formula: Q = (P − 0.2S)² / (P + 0.8S)   where S = 1000/CN − 10
+         </div>` + body,
+      footer: 'U.S. DEPARTMENT OF AGRICULTURE · SOIL CONSERVATION SERVICE · Exhibit 2-7A · Upper Darby, PA',
+      landscape: true,
+    }));
+  }
+  return pages;
+}
+
+export function renderGlossaryPage() {
+  const terms = [
+    ['95th percentile storm', 'The 24-hour rainfall depth greater than or equal to 95% of all storm events in a long-term record (excluding events < 0.1″). For DC, 1.7″ (EISA §438 Technical Guidance Table 1).'],
+    ['BMP',  'Best Management Practice. A physical device or practice that reduces stormwater runoff volume, pollutant load, or peak flow (e.g., bioretention, permeable pavement, tree planting).'],
+    ['CDA',  'Contributing Drainage Area — the catchment that drains to a specific BMP. Caps the BMP\'s maximum retention credit at 1.7″ × CDA area / 12.'],
+    ['CN',   'Curve Number — SCS/TR-55 empirical parameter representing soil wetness + cover; integer 1–100.'],
+    ['DOEE', 'DC Department of Energy & Environment — administers 21 DCMR Chapter 5 (local stormwater regulations).'],
+    ['DDOT', 'DC Department of Transportation — administers Green Infrastructure Standards 2014 for the public right-of-way.'],
+    ['HSG',  'Hydrologic Soil Group — SCS classification A/B/C/D by infiltration rate (A = fastest, D = slowest).'],
+    ['Ia',   'Initial Abstraction — in SCS/TR-55, the depth of rainfall absorbed before runoff begins; Ia = 0.2·S.'],
+    ['LOD',  'Limit of Disturbance — the project construction boundary. Scopes which land-cover rows contribute to compliance accounting.'],
+    ['MEP',  'Maximum Extent Practicable — DDOT\'s PROW compliance mechanism per 21 DCMR §508.9: a documented 4-step process instead of a strict numerical SWRv target.'],
+    ['METF', 'Maximum Extent Technically Feasible — EISA §438\'s equivalent of MEP: reduced retention is permitted when documented site constraints make full retention impossible.'],
+    ['MLD',  'Major Land-Disturbing project — any disturbance ≥ 5,000 sf; triggers DOEE SWRv at the 1.2″ storm.'],
+    ['MSI',  'Major Substantial Improvement — improvement ≥ 50% of pre-improvement value or ≥ 5,000 sf footprint change; triggers DOEE SWRv at the 0.8″ storm.'],
+    ['P',    'Rainfall depth (inches) for the design storm.'],
+    ['PROW', 'Public Right-of-Way — streets, sidewalks, and adjacent landscaped strips maintained by DDOT.'],
+    ['Q',    'Runoff depth (inches) — the fraction of P that becomes runoff after abstractions.'],
+    ['Rv',   'Runoff coefficient — fraction of rainfall that becomes runoff for a given land cover (DOEE SWRv context); also used as Rv-provided (retention volume provided by a BMP, cf).'],
+    ['S',    'Potential maximum retention after runoff begins (inches); S = 1000/CN − 10.'],
+    ['SDA',  'Site Drainage Area — a sub-division of the project site. Compliance is calculated per SDA, not site-wide.'],
+    ['Sv',   'Storage volume of a BMP (cf), from its physical geometry (surface area × depth × porosity).'],
+    ['SWRv', 'Stormwater Retention Volume — the DOEE compliance target volume per SDA; SWRv = P × Σ(A·Rv) / 12.'],
+    ['TR-55', 'USDA Soil Conservation Service Technical Release 55 (1986) — the SCS CN runoff estimation method.'],
+    ['TR-16', 'USDA SCS Technical Release 16 — the companion exhibit containing the rainfall-runoff lookup tables.'],
+  ];
+  const overview = renderOverview(
+    'Alphabetical reference for the regulatory and hydrology terms used throughout this walkthrough.',
+  );
+  const rows = terms.map(([term, def]) => [term, def]);
+  const body = overview + renderBlock('GLOSSARY', renderDataTable(['Term', 'Definition'], rows));
+  return renderSheetShell({
+    title: 'Appendix B — Glossary',
+    sub:   '',
+    body,
+    footer: '21 DCMR Ch. 5 · DOEE Guidebook Jan 2020 · DDOT GI Standards 2014 · EISA §438 TG',
+  });
+}
+
 export function renderEisaComparisonEduPage(project, direct, tr55, tr16, bmpStorage, electedMethod) {
   const overview = renderOverview(
     'All three EISA §438 methods compute runoff; this page compares their totals side-by-side and shows how BMP storage credit closes any deficit.',
