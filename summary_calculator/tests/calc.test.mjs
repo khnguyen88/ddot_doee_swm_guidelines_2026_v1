@@ -99,8 +99,8 @@ test('ppSizingSv: SA × d_reservoir × n_reservoir', () => {
   assert.equal(r.units, 'cf');
 });
 
-test('bioSizingSv: SA_bot (d_media·n_media + d_gravel·n_gravel + d_pond)', () => {
-  const r = bioSizingSv(210, 2.0, 0.40, 0.5, 0.40, 0.5);
+test('bioSizingSv: vertical-wall (saPondTop=null) SA_bot × (d_media·n_media + d_gravel·n_gravel + d_pond)', () => {
+  const r = bioSizingSv(210, 210, null, 2.0, 0.40, 0.5, 0.40, 0.5);
   // 210 × (2.0·0.40 + 0.5·0.40 + 0.5) = 210 × 1.5 = 315 CF
   approx(r.value, 315);
 });
@@ -248,4 +248,144 @@ test('tr55VolumeTraceCf: emits a formatted top-level steps[0] with TR-55 formula
   ], 1.7);
   assert.ok(Array.isArray(result.steps));
   assert.ok(result.steps[0].expr.includes('TR-55'));
+});
+
+import {
+  bioSizingSv as bioSizingSvNew, drySwaleSizingSv, bioFreeboardFt, drySwaleFreeboardFt,
+} from '../src/calc.mjs';
+
+// ─── bioSizingSv — new signature ─────────────────────────────────────────────
+
+test('bioSizingSv: vertical-wall fallback when saPondTop is null', () => {
+  const r = bioSizingSvNew(210, 210, null, 2.0, 0.40, 0.5, 0.40, 0.5);
+  // media_gravel = 210 × (2.0 × 0.40 + 0.5 × 0.40) = 210 × 1.0 = 210
+  // pond (fallback) = 210 × 0.5 = 105
+  // total = 315
+  assert.equal(r.value, 315);
+  assert.equal(r.pondModel, 'vertical');
+  assert.equal(r.components.mediaGravelSv, 210);
+  assert.equal(r.components.pondSv, 105);
+});
+
+test('bioSizingSv: trapezoid pond when saPondTop provided', () => {
+  const r = bioSizingSvNew(210, 210, 294, 2.0, 0.40, 0.5, 0.40, 0.5);
+  // media_gravel = 210 (as above)
+  // pond (trapezoid) = 0.5 × (210 + 294) × 0.5 = 126
+  // total = 336
+  assert.equal(r.value, 336);
+  assert.equal(r.pondModel, 'trapezoid');
+  assert.equal(r.components.pondSv, 126);
+});
+
+test('bioSizingSv: trapezoid collapses to vertical when saPondTop === saTop', () => {
+  const r = bioSizingSvNew(210, 210, 210, 2.0, 0.40, 0.5, 0.40, 0.5);
+  // pond (trapezoid) = 0.5 × (210 + 210) × 0.5 = 105 — same as vertical
+  assert.equal(r.components.pondSv, 105);
+});
+
+// ─── drySwaleSizingSv — new ───────────────────────────────────────────────────
+
+test('drySwaleSizingSv: full geometry → wedge pond', () => {
+  const r = drySwaleSizingSv({
+    saBot: 400, dMedia: 2.0, nMedia: 0.40, dGravel: 0.5, nGravel: 0.40, dPond: 1.0,
+    length: 100, bottomWidth: 4, invUs: 100.0, invDs: 98.0,
+    checkDamHeight: 1.0, checkDamSpacing: 50,
+  });
+  // slope = (100 - 98)/100 = 0.02
+  // fullWedgeBase = 1.0 / 0.02 = 50
+  // effectiveBase = min(50, 50) = 50
+  // wedgePerDam = 0.5 × 50 × 1.0 × 4 = 100
+  // nDams = floor(100 / 50) = 2
+  // pond = 2 × 100 = 200
+  // media_gravel = 400 × (2.0×0.40 + 0.5×0.40) = 400 × 1.0 = 400
+  // total = 600
+  assert.equal(r.value, 600);
+  assert.equal(r.pondModel, 'wedge');
+  assert.equal(r.components.pondSv, 200);
+  assert.equal(r.pondTrace.nDams, 2);
+  assert.equal(r.pondTrace.wedgePerDam, 100);
+});
+
+test('drySwaleSizingSv: wedge capped at H/S when spacing exceeds it', () => {
+  const r = drySwaleSizingSv({
+    saBot: 400, dMedia: 2.0, nMedia: 0.40, dGravel: 0.5, nGravel: 0.40, dPond: 1.0,
+    length: 200, bottomWidth: 4, invUs: 100.0, invDs: 98.0,
+    checkDamHeight: 0.5, checkDamSpacing: 100,  // H/S = 0.5/0.01 = 50 < 100 spacing
+  });
+  // slope = 0.01, fullWedgeBase = 50, effectiveBase = min(100, 50) = 50
+  // wedgePerDam = 0.5 × 50 × 0.5 × 4 = 50
+  // nDams = 2
+  // pond = 100
+  assert.equal(r.components.pondSv, 100);
+  assert.equal(r.pondTrace.effectiveBase, 50);
+});
+
+test('drySwaleSizingSv: spacing < H/S truncates wedge', () => {
+  const r = drySwaleSizingSv({
+    saBot: 400, dMedia: 2.0, nMedia: 0.40, dGravel: 0.5, nGravel: 0.40, dPond: 1.0,
+    length: 100, bottomWidth: 4, invUs: 100.0, invDs: 98.0,
+    checkDamHeight: 2.0, checkDamSpacing: 25,  // H/S = 2/0.02 = 100 > 25 spacing
+  });
+  // slope = 0.02, fullWedgeBase = 100, effectiveBase = min(25, 100) = 25
+  // wedgePerDam = 0.5 × 25 × 2.0 × 4 = 100
+  // nDams = floor(100/25) = 4
+  // pond = 400
+  assert.equal(r.components.pondSv, 400);
+  assert.equal(r.pondTrace.effectiveBase, 25);
+});
+
+test('drySwaleSizingSv: missing geometry → flat-pond fallback', () => {
+  const r = drySwaleSizingSv({
+    saBot: 400, dMedia: 2.0, nMedia: 0.40, dGravel: 0.5, nGravel: 0.40, dPond: 1.0,
+    length: null, bottomWidth: null, invUs: null, invDs: null,
+    checkDamHeight: null, checkDamSpacing: null,
+  });
+  // pond fallback = 400 × 1.0 = 400
+  assert.equal(r.components.pondSv, 400);
+  assert.equal(r.pondModel, 'flat-fallback');
+});
+
+test('drySwaleSizingSv: zero slope does not divide-by-zero', () => {
+  const r = drySwaleSizingSv({
+    saBot: 400, dMedia: 2.0, nMedia: 0.40, dGravel: 0.5, nGravel: 0.40, dPond: 1.0,
+    length: 100, bottomWidth: 4, invUs: 100.0, invDs: 100.0,  // flat → slope 0
+    checkDamHeight: 1.0, checkDamSpacing: 50,
+  });
+  // slope guarded at 1e-6, fullWedgeBase = 1e6 → effectiveBase = min(50, 1e6) = 50
+  // wedge = 0.5 × 50 × 1.0 × 4 = 100, nDams = 2, pond = 200
+  assert.equal(r.components.pondSv, 200);
+});
+
+// ─── Freeboard helpers ───────────────────────────────────────────────────────
+
+test('bioFreeboardFt: computes min(containment) − design water surface', () => {
+  const fb = bioFreeboardFt({
+    topElev: 100.0, dPond: 0.5,
+    overflowElev: 100.75, sidewalkElev: 100.80, curbCutElev: null,
+  });
+  // design WS = 100.5; min containment = min(100.75, 100.80) = 100.75; fb = 0.25
+  assert.equal(fb, 0.25);
+});
+
+test('bioFreeboardFt: returns null when any critical input missing', () => {
+  assert.equal(bioFreeboardFt({ topElev: null, dPond: 0.5,
+    overflowElev: 100.75, sidewalkElev: null, curbCutElev: null }), null);
+  assert.equal(bioFreeboardFt({ topElev: 100.0, dPond: null,
+    overflowElev: 100.75, sidewalkElev: null, curbCutElev: null }), null);
+  assert.equal(bioFreeboardFt({ topElev: 100.0, dPond: 0.5,
+    overflowElev: null, sidewalkElev: null, curbCutElev: null }), null);
+});
+
+test('drySwaleFreeboardFt: min of US/DS freeboard', () => {
+  const fb = drySwaleFreeboardFt({
+    invUs: 100.0, invDs: 98.0, topUs: 102.0, topDs: 100.0, checkDamHeight: 1.0,
+  });
+  // US ws = 101.0, DS ws = 99.0; US fb = 1.0, DS fb = 1.0; min = 1.0
+  assert.equal(fb, 1.0);
+});
+
+test('drySwaleFreeboardFt: returns null when any input missing', () => {
+  assert.equal(drySwaleFreeboardFt({
+    invUs: 100.0, invDs: null, topUs: 102.0, topDs: 100.0, checkDamHeight: 1.0,
+  }), null);
 });

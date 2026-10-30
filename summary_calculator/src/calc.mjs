@@ -132,19 +132,86 @@ export function ppSizingSv(sa, dReservoir, nReservoir) {
   };
 }
 
-export function bioSizingSv(saBot, dMedia, nMedia, dGravel, nGravel, dPond) {
-  const inner = dMedia * nMedia + dGravel * nGravel + dPond;
-  const value = saBot * inner;
+export function bioSizingSv(saBot, saTop, saPondTop, dMedia, nMedia, dGravel, nGravel, dPond) {
+  const mediaGravelSv = saBot * (dMedia * nMedia + dGravel * nGravel);
+  const useTrapezoid = saPondTop != null && saPondTop > 0;
+  const pondSv = useTrapezoid
+    ? 0.5 * (saTop + saPondTop) * dPond
+    : saBot * dPond;
+  const value = mediaGravelSv + pondSv;
+  const subs = useTrapezoid
+    ? `${saBot}·(${dMedia}·${nMedia} + ${dGravel}·${nGravel}) + ½·(${saTop} + ${saPondTop})·${dPond}`
+    : `${saBot}·(${dMedia}·${nMedia} + ${dGravel}·${nGravel} + ${dPond})`;
   return {
     value,
     units: 'cf',
-    steps: [
-      { expr:   'Sv = SA_bot (d_media·n_media + d_gravel·n_gravel + d_pond)',
-        sub:    `${saBot} (${dMedia}·${nMedia} + ${dGravel}·${nGravel} + ${dPond})`,
-        eval:   `${saBot} (${(dMedia*nMedia).toFixed(2)} + ${(dGravel*nGravel).toFixed(2)} + ${dPond})`,
-        result: value },
-    ],
+    components: { mediaGravelSv, pondSv },
+    pondModel: useTrapezoid ? 'trapezoid' : 'vertical',
+    steps: [{
+      expr: useTrapezoid
+        ? 'Sv = SA_bot·(d_media·n_media + d_gravel·n_gravel) + ½·(SA_top + SA_pond_top)·d_pond'
+        : 'Sv = SA_bot·(d_media·n_media + d_gravel·n_gravel + d_pond)',
+      sub: subs,
+      eval: `${mediaGravelSv.toFixed(2)} + ${pondSv.toFixed(2)}`,
+      result: value,
+    }],
   };
+}
+
+export function drySwaleSizingSv({
+  saBot, dMedia, nMedia, dGravel, nGravel, dPond,
+  length, bottomWidth, invUs, invDs,
+  checkDamHeight, checkDamSpacing,
+}) {
+  const mediaGravelSv = saBot * (dMedia * nMedia + dGravel * nGravel);
+  const haveGeom = length > 0 && bottomWidth > 0
+                && invUs != null && invDs != null
+                && checkDamHeight > 0 && checkDamSpacing > 0;
+  let pondSv, pondModel, pondTrace;
+  if (haveGeom) {
+    const slope = Math.max(1e-6, (invUs - invDs) / length);
+    const nDams = Math.max(0, Math.floor(length / checkDamSpacing));
+    const fullWedgeBase = checkDamHeight / slope;
+    const effectiveBase = Math.min(checkDamSpacing, fullWedgeBase);
+    const wedgePerDam = 0.5 * effectiveBase * checkDamHeight * bottomWidth;
+    pondSv = nDams * wedgePerDam;
+    pondModel = 'wedge';
+    pondTrace = { slope, nDams, fullWedgeBase, effectiveBase, wedgePerDam };
+  } else {
+    pondSv = saBot * (dPond || 0);
+    pondModel = 'flat-fallback';
+    pondTrace = null;
+  }
+  const value = mediaGravelSv + pondSv;
+  return {
+    value,
+    units: 'cf',
+    components: { mediaGravelSv, pondSv },
+    pondModel,
+    pondTrace,
+    steps: [{
+      expr: haveGeom
+        ? 'Sv = SA_bot·(d_media·n_media + d_gravel·n_gravel) + N_cd · ½·min(X_cd, H_cd/S)·H_cd·w_s'
+        : 'Sv = SA_bot·(d_media·n_media + d_gravel·n_gravel + d_pond)',
+      sub: haveGeom
+        ? `${saBot}·(${dMedia}·${nMedia} + ${dGravel}·${nGravel}) + ${pondTrace.nDams}·½·${pondTrace.effectiveBase}·${checkDamHeight}·${bottomWidth}`
+        : `${saBot}·(${dMedia}·${nMedia} + ${dGravel}·${nGravel} + ${dPond})`,
+      eval: `${mediaGravelSv.toFixed(2)} + ${pondSv.toFixed(2)}`,
+      result: value,
+    }],
+  };
+}
+
+export function bioFreeboardFt({ topElev, dPond, overflowElev, sidewalkElev, curbCutElev }) {
+  if (topElev == null || dPond == null) return null;
+  const containments = [overflowElev, sidewalkElev, curbCutElev].filter(e => e != null);
+  if (!containments.length) return null;
+  return Math.min(...containments) - (topElev + dPond);
+}
+
+export function drySwaleFreeboardFt({ invUs, invDs, topUs, topDs, checkDamHeight }) {
+  if (invUs == null || invDs == null || topUs == null || topDs == null || !checkDamHeight) return null;
+  return Math.min(topUs - (invUs + checkDamHeight), topDs - (invDs + checkDamHeight));
 }
 
 export function rvFromSv(sv, retMultiplier) {
