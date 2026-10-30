@@ -124,3 +124,65 @@ body.print-mode #printArea .calc-sheet:last-child { page-break-after: auto; }
 .banner { padding: 10px 14px; margin: 10px 20px; border-radius: 6px; font-size: 13px; }
 .banner.error { background: rgba(229, 72, 77, 0.1); border: 1px solid var(--fail); color: #FCA5A5; }
 .banner.warn  { background: rgba(229, 185, 77, 0.1); border: 1px solid var(--warn); color: #FDE68A; }
+
+/* ── Education-specific additions ──────────────────────────────────────────── */
+.cs-edu-overview {
+  background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 4px solid #3B82F6;
+  padding: 10px 14px; margin-bottom: 14px; border-radius: 4px;
+  font-size: 12.5px; color: #1E3A8A;
+}
+.cs-edu-overview .cs-edu-overview-label {
+  display: block; font-weight: 700; font-size: 10.5px; letter-spacing: 0.6px;
+  text-transform: uppercase; margin-bottom: 4px; color: #1D4ED8;
+}
+.cs-edu-why {
+  background: #FFFBEB; border: 1px solid #FDE68A; padding: 10px 14px;
+  margin-bottom: 14px; border-radius: 4px; font-size: 12px; color: #713F12;
+}
+.cs-edu-why .cs-edu-why-label {
+  display: block; font-weight: 700; font-size: 10.5px; letter-spacing: 0.6px;
+  text-transform: uppercase; margin-bottom: 4px; color: #92400E;
+}
+.cs-edu-formula {
+  background: #F8FAFC; border: 1px solid #CBD5E1; padding: 10px 14px;
+  margin-bottom: 14px; border-radius: 4px; font-size: 12.5px; color: #0F172A;
+}
+.cs-edu-formula .cs-edu-formula-label {
+  display: block; font-weight: 700; font-size: 10.5px; letter-spacing: 0.6px;
+  text-transform: uppercase; margin-bottom: 6px; color: #334155;
+}
+.cs-edu-worked {
+  background: #F0FDF4; border: 1px solid #BBF7D0; border-left: 4px solid #16A34A;
+  padding: 10px 14px; margin-bottom: 14px; border-radius: 4px;
+  font-size: 12.5px; color: #14532D;
+}
+.cs-edu-worked .cs-edu-worked-label {
+  display: block; font-weight: 700; font-size: 10.5px; letter-spacing: 0.6px;
+  text-transform: uppercase; margin-bottom: 6px; color: #15803D;
+}
+.cs-edu-sidebar {
+  float: right; width: 36%; margin: 0 0 10px 14px; padding: 8px 10px;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 4px;
+  font-size: 11px; color: #7F1D1D;
+}
+
+/* TR-16 lookup table styles */
+.tr16-table {
+  border-collapse: collapse; width: 100%; font-size: 10.5px;
+  font-family: var(--font-mono); margin: 10px 0;
+}
+.tr16-table th, .tr16-table td {
+  border: 1px solid #94A3B8; padding: 3px 5px; text-align: center;
+}
+.tr16-table th { background: #E2E8F0; color: #0F172A; font-weight: 700; }
+.tr16-table .tr16-highlight { background: #FEF08A; font-weight: 700; }
+.tr16-caption {
+  font-size: 11.5px; font-weight: 700; margin: 10px 0 4px;
+  color: #0B1220;
+}
+
+.btn-primary {
+  all: unset; cursor: pointer; padding: 8px 14px; border-radius: 6px;
+  background: var(--accent); color: var(--bg); font-weight: 600; font-size: 13px;
+}
+.btn-primary:hover { background: #2BAE9D; }
