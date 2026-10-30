@@ -7,8 +7,9 @@ from workbook import styles
 
 # Columns that mark the right edge of each BMP zone (1-based column numbers).
 # Zones: ID (A-E=5), PP (F-M=13), Bio/Dry Swale (N-X=24), Wet Swale (Y-AA=27),
-#        Trees (AB-AH=34), Outputs (AI-AM=39).
-_ZONE_DIVIDER_COLS = (5, 13, 24, 27, 34, 39)
+#        Trees (AB-AH=34), Outputs (AI-AM=39),
+#        Bio geometry (AN-AS=45), Dry Swale geometry (AT-BE=57).
+_ZONE_DIVIDER_COLS = (5, 13, 24, 27, 34, 39, 45, 57)
 
 _MEDIUM_RIGHT = Side(style="medium", color="000000")
 
@@ -81,6 +82,17 @@ HEADERS = [
     # Output zone (cols 35-39 / AI-AM)
     "Sv Total (CF)", "Ret. Multiplier", "Rv Uncapped (CF)",
     "Max BMP Credit (CF)", "Rv Applied (CF)",
+    # ── Bio geometry extension (cols 40-45 / AN-AS) ──
+    "Bio SA_pond_top (SF)", "Bio top_elev (ft)",
+    "Bio overflow_elev (ft)", "Bio sidewalk_elev (ft)",
+    "Bio curb_cut_elev (ft)", "Bio Freeboard (ft)",
+    # ── Dry Swale geometry extension (cols 46-57 / AT-BE) ──
+    "Swale L_s (ft)", "Swale w_s (ft)",
+    "Swale inv_US (ft)", "Swale inv_DS (ft)",
+    "Swale top_US (ft)", "Swale top_DS (ft)",
+    "Swale H_cd (ft)", "Swale X_cd (ft)",
+    "Swale Slope S (ft/ft)", "Swale N_cd",
+    "Swale Wedge Sv/dam (CF)", "Swale Total Pond Sv (CF)",
 ]
 
 
@@ -131,8 +143,8 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
     ws = wb.create_sheet("BMP")
     ws.sheet_view.showGridLines = False
 
-    # Column widths — all 39 columns default to 12; key output cols slightly wider.
-    for i in range(1, 40):
+    # Column widths — all 57 columns default to 12; key output cols slightly wider.
+    for i in range(1, 58):
         styles.cw(ws, i, 12)
     styles.cw(ws, 1,  18)   # BMP Name
     styles.cw(ws, 4,  20)   # BMP Type
@@ -141,7 +153,7 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
     # Title banner.
     styles.hdr(ws, 1, 1,
                "BMP — Best Management Practices (sizing + retention credits)",
-               styles.BH, span=39)
+               styles.BH, span=57)
     ws.row_dimensions[1].height = 24
 
     # Row 2: Ksat note bar.
@@ -150,7 +162,7 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         "Standard/lined BMPs show 0 (no native-soil infiltration). "
         "Override with a site-measured value if testing is available."
     )
-    styles.lbl(ws, 2, 1, _ksat_note, styles.WARN, span=39)
+    styles.lbl(ws, 2, 1, _ksat_note, styles.WARN, span=57)
     ws.row_dimensions[2].height = 24
 
     # Column headers at row 3.
@@ -299,6 +311,42 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         styles.calc_c(ws, r, 39,
                       f"=IFERROR(IF(AL{r}=0,AK{r},MIN(AK{r},AL{r})),0)")
 
+        # ── Bio geometry extension ──
+        # AN-AR (40-44): input cells (optional)
+        for c in range(40, 45):
+            styles.inp(ws, r, c)
+        # AS (45): Bio Freeboard = min(overflow, sidewalk, curb_cut) − (top + d_pond)
+        # Only computed when D = Bioretention AND top_elev + d_pond + any containment present.
+        _bio_freeboard = (
+            f'=IFERROR('
+            f'IF(D{r}<>"Bioretention","",'
+            f'IF(OR(AO{r}="",U{r}=""),"",'
+            f'MIN(IF(AP{r}="",9E9,AP{r}),IF(AQ{r}="",9E9,AQ{r}),IF(AR{r}="",9E9,AR{r}))'
+            f'- (AO{r} + U{r})'
+            f')),"")'
+        )
+        styles.calc_c(ws, r, 45, _bio_freeboard)
+
+        # ── Dry Swale geometry extension ──
+        # AT-BA (46-53): input cells (optional)
+        for c in range(46, 54):
+            styles.inp(ws, r, c)
+        # BB (54): Slope S = (inv_US − inv_DS) / L_s
+        styles.calc_c(ws, r, 54,
+                      f'=IFERROR(IF(OR(D{r}<>"Dry Swale",AT{r}="",AV{r}="",AW{r}=""),"",'
+                      f'(AV{r}-AW{r})/AT{r}),"")')
+        # BC (55): N_cd = FLOOR(L_s / X_cd)
+        styles.calc_c(ws, r, 55,
+                      f'=IFERROR(IF(OR(D{r}<>"Dry Swale",AT{r}="",BA{r}="",BA{r}=0),"",'
+                      f'FLOOR(AT{r}/BA{r},1)),"")')
+        # BD (56): Wedge Sv per dam = 0.5 × MIN(X_cd, H_cd/S) × H_cd × w_s
+        styles.calc_c(ws, r, 56,
+                      f'=IFERROR(IF(OR(D{r}<>"Dry Swale",BB{r}="",BB{r}=0,AZ{r}="",BA{r}="",AU{r}=""),"",'
+                      f'0.5*MIN(BA{r},AZ{r}/BB{r})*AZ{r}*AU{r}),"")')
+        # BE (57): Total Pond Sv = N_cd × BD
+        styles.calc_c(ws, r, 57,
+                      f'=IFERROR(IF(OR(BC{r}="",BD{r}=""),"",BC{r}*BD{r}),"")')
+
     # ── Data Validations ──
     # SDA_ID column B — named range SDA_IDs
     dv_sda = DataValidation(type="list", formula1="=SDA_IDs",
@@ -365,5 +413,5 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
     _apply_zone_dividers(ws, sum_header_row, sda_sum_last)
 
     # Thick top separator above compliance summary + bottom under its data.
-    styles.apply_top_divider(ws, sum_header_row, 1, 39)
+    styles.apply_top_divider(ws, sum_header_row, 1, 57)
     styles.apply_bottom_divider(ws, sda_sum_last, 1, 5)

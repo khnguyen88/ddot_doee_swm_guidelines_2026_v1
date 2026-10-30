@@ -182,3 +182,45 @@ def test_cda_dominant_hsg_sumifs_reads_post_within_column():
     formula = _cda_dominant_hsg_formula("C4")
     assert "'CDA'!$G$4:$G$53" in formula
     assert "'CDA'!$E$4:$E$53" not in formula
+
+
+def test_bmp_sheet_has_bio_geometry_columns():
+    """BMP sheet gains Bio geometry columns AN–AS."""
+    from openpyxl import load_workbook
+    from workbook.sample import OUTPUT, build_sample
+    build_sample()
+    wb = load_workbook(OUTPUT, data_only=False)
+    ws = wb["BMP"]
+    # Row 3 is the header row. AN=40, AO=41, AP=42, AQ=43, AR=44, AS=45.
+    assert ws.cell(3, 40).value == "Bio SA_pond_top (SF)"
+    assert ws.cell(3, 41).value == "Bio top_elev (ft)"
+    assert ws.cell(3, 42).value == "Bio overflow_elev (ft)"
+    assert ws.cell(3, 43).value == "Bio sidewalk_elev (ft)"
+    assert ws.cell(3, 44).value == "Bio curb_cut_elev (ft)"
+    assert ws.cell(3, 45).value == "Bio Freeboard (ft)"
+
+
+def test_bmp_sheet_has_dry_swale_geometry_columns():
+    """BMP sheet gains Dry Swale geometry columns AT–BE."""
+    from openpyxl import load_workbook
+    from workbook.sample import OUTPUT, build_sample
+    build_sample()
+    wb = load_workbook(OUTPUT, data_only=False)
+    ws = wb["BMP"]
+    # AT=46 .. BE=57
+    expected = [
+        (46, "Swale L_s (ft)"),
+        (47, "Swale w_s (ft)"),
+        (48, "Swale inv_US (ft)"),
+        (49, "Swale inv_DS (ft)"),
+        (50, "Swale top_US (ft)"),
+        (51, "Swale top_DS (ft)"),
+        (52, "Swale H_cd (ft)"),
+        (53, "Swale X_cd (ft)"),
+        (54, "Swale Slope S (ft/ft)"),
+        (55, "Swale N_cd"),
+        (56, "Swale Wedge Sv/dam (CF)"),
+        (57, "Swale Total Pond Sv (CF)"),
+    ]
+    for col, label in expected:
+        assert ws.cell(3, col).value == label, f"col {col}: expected {label}, got {ws.cell(3, col).value}"

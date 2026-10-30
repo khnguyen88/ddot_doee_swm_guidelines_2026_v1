@@ -82,34 +82,47 @@ SDAS = [
 # AA (PP opp), AG (Max Bio Sv), AH (Max PP Sv). Trees from AJ/AK (planted)
 # and Q/S/U (preserved).
 #
-# (sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees_dict)
+# (sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees_dict, geom_dict)
 #
 # trees_dict keys: plt_sm, plt_lg, pres_sm, pres_lg, pres_sp, pres_hr
+# geom_dict keys for Bioretention: sa_pond_top, top_elev, overflow_elev, sidewalk_elev, curb_cut_elev
+# geom_dict keys for Dry Swale:   length, width, inv_us, inv_ds, top_us, top_ds, h_cd, x_cd
 BMPS = [
-    # SDA-2 DDOT 58 — Bio opp 210, PP opp 150
-    (2, "BMP-02-A", "Bioretention", "Enhanced",         210, {}),
-    (2, "BMP-02-B", "Permeable Pavement", "Enhanced",   150, {}),
-    # SDA-3 DDOT 61 — PP opp 1290
-    (3, "BMP-03-A", "Permeable Pavement", "Enhanced",  1290, {}),
-    # SDA-4 DDOT 68 — PP opp 930, 2 planted large trees
-    (4, "BMP-04-A", "Permeable Pavement", "Enhanced",   930, {}),
-    (4, "BMP-04-T", "Planted Trees",       "—",            0, {"plt_lg": 2}),
-    # SDA-5 DDOT 82 — PP opp 1870, 2 preserved large + 8 planted large
-    (5, "BMP-05-A", "Permeable Pavement", "Enhanced",  1870, {}),
-    (5, "BMP-05-T", "Planted Trees",       "—",            0, {"plt_lg": 8, "pres_lg": 2}),
-    # SDA-6 DDOT 86 — Bio opp 225, 2 planted large
-    (6, "BMP-06-A", "Bioretention", "Enhanced",         225, {}),
-    (6, "BMP-06-T", "Planted Trees",       "—",            0, {"plt_lg": 2}),
-    # SDA-7 DDOT 88 — Bio opp 220, 1 planted large
-    (7, "BMP-07-A", "Bioretention", "Enhanced",         220, {}),
-    (7, "BMP-07-T", "Planted Trees",       "—",            0, {"plt_lg": 1}),
-    # SDA-8 DDOT 89 — Bio opp 1000, 3 planted large
-    (8, "BMP-08-A", "Bioretention", "Enhanced",        1000, {}),
-    (8, "BMP-08-T", "Planted Trees",       "—",            0, {"plt_lg": 3}),
-    # SDA-9 DDOT 90 — 3 planted large (trees only)
-    (9, "BMP-09-T", "Planted Trees",       "—",            0, {"plt_lg": 3}),
-    # SDA-10 DDOT 91 — 2 planted large (trees only)
-    (10, "BMP-10-T", "Planted Trees",      "—",            0, {"plt_lg": 2}),
+    # SDA-2 — Bio opp 210, PP opp 150
+    (2, "BMP-02-A", "Bioretention", "Enhanced", 210, {},
+     {"sa_pond_top": 294, "top_elev": 100.0, "overflow_elev": 100.5,
+      "sidewalk_elev": 100.75, "curb_cut_elev": 100.3}),
+    (2, "BMP-02-B", "Permeable Pavement", "Enhanced", 150, {}, {}),
+    # SDA-3 — PP opp 1290
+    (3, "BMP-03-A", "Permeable Pavement", "Enhanced", 1290, {}, {}),
+    # SDA-4 — PP opp 930, 2 planted large trees
+    (4, "BMP-04-A", "Permeable Pavement", "Enhanced", 930, {}, {}),
+    (4, "BMP-04-T", "Planted Trees", "—", 0, {"plt_lg": 2}, {}),
+    # SDA-5 — PP opp 1870, trees, NEW Dry Swale
+    (5, "BMP-05-A", "Permeable Pavement", "Enhanced", 1870, {}, {}),
+    (5, "BMP-05-S", "Dry Swale", "—", 400, {},
+     {"length": 100, "width": 4, "inv_us": 100.0, "inv_ds": 98.0,
+      "top_us": 102.0, "top_ds": 100.0, "h_cd": 1.0, "x_cd": 50}),
+    (5, "BMP-05-T", "Planted Trees", "—", 0, {"plt_lg": 8, "pres_lg": 2}, {}),
+    # SDA-6 — Bio opp 225, 2 planted large
+    (6, "BMP-06-A", "Bioretention", "Enhanced", 225, {},
+     {"sa_pond_top": 315, "top_elev": 100.0, "overflow_elev": 100.5,
+      "sidewalk_elev": 100.75, "curb_cut_elev": 100.3}),
+    (6, "BMP-06-T", "Planted Trees", "—", 0, {"plt_lg": 2}, {}),
+    # SDA-7 — Bio opp 220, 1 planted large
+    (7, "BMP-07-A", "Bioretention", "Enhanced", 220, {},
+     {"sa_pond_top": 308, "top_elev": 100.0, "overflow_elev": 100.5,
+      "sidewalk_elev": 100.75, "curb_cut_elev": 100.3}),
+    (7, "BMP-07-T", "Planted Trees", "—", 0, {"plt_lg": 1}, {}),
+    # SDA-8 — Bio opp 1000, 3 planted large
+    (8, "BMP-08-A", "Bioretention", "Enhanced", 1000, {},
+     {"sa_pond_top": 1400, "top_elev": 100.0, "overflow_elev": 100.5,
+      "sidewalk_elev": 100.75, "curb_cut_elev": 100.3}),
+    (8, "BMP-08-T", "Planted Trees", "—", 0, {"plt_lg": 3}, {}),
+    # SDA-9 — 3 planted large (trees only)
+    (9, "BMP-09-T", "Planted Trees", "—", 0, {"plt_lg": 3}, {}),
+    # SDA-10 — 2 planted large (trees only)
+    (10, "BMP-10-T", "Planted Trees", "—", 0, {"plt_lg": 2}, {}),
 ]
 
 # BMP sizing defaults (used for every structural BMP)
@@ -179,7 +192,7 @@ def _fill_cda(ws) -> None:
         s[0]: s[3][0] for s in SDAS
     }
     cda_idx = 0
-    for sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees in BMPS:
+    for sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees, geom in BMPS:
         # Only structural BMPs need a CDA; tree BMPs don't
         if bmp_type in ("Planted Trees", "Preserve Trees"):
             continue
@@ -222,7 +235,7 @@ def _fill_bmp(ws) -> None:
     """
     row = 4
     structural_count = {}  # sda_num → running count of structural BMPs
-    for sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees in BMPS:
+    for sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees, geom in BMPS:
         ws.cell(row=row, column=1).value = bmp_name
         ws.cell(row=row, column=2).value = f"SDA-{sda_num}"
 
@@ -257,13 +270,40 @@ def _fill_bmp(ws) -> None:
             ws.cell(row=row, column=6).value = surface_sf      # Aₚ
             ws.cell(row=row, column=7).value = PP_D_RESERVOIR  # dₚ
             # Col I (Ksat) is an auto-formula per Task 32 — do NOT overwrite
-        elif bmp_type in ("Bioretention", "Dry Swale"):
+        elif bmp_type == "Bioretention":
             ws.cell(row=row, column=14).value = surface_sf     # SA_top (N)
             ws.cell(row=row, column=15).value = surface_sf     # SA_bot (O) — simple default
             ws.cell(row=row, column=17).value = BIO_D_MEDIA    # d_media (Q)
             ws.cell(row=row, column=19).value = BIO_D_GRAVEL   # d_gravel (S)
             ws.cell(row=row, column=21).value = BIO_D_POND     # d_pond (U)
             # Col V (Ksat) is an auto-formula per Task 32 — do NOT overwrite
+        elif bmp_type == "Dry Swale":
+            ws.cell(row=row, column=14).value = geom.get("width", 4) * 1  # SA_top approx = w × 1 ft (per cross-section)
+            ws.cell(row=row, column=15).value = geom.get("length", 100) * geom.get("width", 4)  # SA_bot = L × w
+            ws.cell(row=row, column=17).value = BIO_D_MEDIA    # d_media (Q)
+            ws.cell(row=row, column=19).value = BIO_D_GRAVEL   # d_gravel (S)
+            ws.cell(row=row, column=21).value = geom.get("h_cd", 1.0)  # d_pond fallback
+            ws.cell(row=row, column=46).value = geom["length"]
+            ws.cell(row=row, column=47).value = geom["width"]
+            ws.cell(row=row, column=48).value = geom["inv_us"]
+            ws.cell(row=row, column=49).value = geom["inv_ds"]
+            ws.cell(row=row, column=50).value = geom["top_us"]
+            ws.cell(row=row, column=51).value = geom["top_ds"]
+            ws.cell(row=row, column=52).value = geom["h_cd"]
+            ws.cell(row=row, column=53).value = geom["x_cd"]
+
+        # ── Bio geometry (AN-AR, columns 40-44) ──
+        if bmp_type == "Bioretention" and geom:
+            if "sa_pond_top" in geom:
+                ws.cell(row=row, column=40).value = geom["sa_pond_top"]
+            if "top_elev" in geom:
+                ws.cell(row=row, column=41).value = geom["top_elev"]
+            if "overflow_elev" in geom:
+                ws.cell(row=row, column=42).value = geom["overflow_elev"]
+            if "sidewalk_elev" in geom:
+                ws.cell(row=row, column=43).value = geom["sidewalk_elev"]
+            if "curb_cut_elev" in geom:
+                ws.cell(row=row, column=44).value = geom["curb_cut_elev"]
 
         row += 1
 
