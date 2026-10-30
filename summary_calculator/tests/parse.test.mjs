@@ -109,3 +109,32 @@ test('parse: throws on missing sheet', () => {
   const bogus = { SheetNames: ['PROJECT'], Sheets: { PROJECT: {} } };
   assert.throws(() => parseWorkbook(bogus), /Missing sheet: SDA/);
 });
+
+test('parse: Bio BMPs populate bmp.bio with new optional geometry fields', () => {
+  const { bmps } = parseWorkbook(wb);
+  const bio = bmps.find(b => b.type === 'Bioretention');
+  assert.ok(bio, 'at least one Bioretention BMP expected');
+  assert.ok(bio.bio, 'bmp.bio sub-object present');
+  // New optional fields: null when blank, number when provided.
+  assert.equal(typeof bio.bio.saPondTop,    'number', 'saPondTop populated for Minnesota Ave Bio BMPs');
+  assert.equal(typeof bio.bio.topElev,      'number');
+  assert.equal(typeof bio.bio.overflowElev, 'number');
+  assert.equal(typeof bio.bio.sidewalkElev, 'number');
+  assert.equal(typeof bio.bio.curbCutElev,  'number');
+});
+
+test('parse: Dry Swale BMPs populate bmp.swale (NOT bmp.bio)', () => {
+  const { bmps } = parseWorkbook(wb);
+  const swale = bmps.find(b => b.type === 'Dry Swale');
+  assert.ok(swale, 'at least one Dry Swale BMP expected (Minnesota Ave has BMP-05-S)');
+  assert.ok(swale.swale, 'bmp.swale sub-object present');
+  assert.ok(!swale.bio,  'bmp.bio must NOT be set for Dry Swale (regression guard)');
+  assert.equal(swale.swale.length,          100);
+  assert.equal(swale.swale.bottomWidth,     4);
+  assert.equal(swale.swale.invUs,           100);
+  assert.equal(swale.swale.invDs,           98);
+  assert.equal(swale.swale.topUs,           102);
+  assert.equal(swale.swale.topDs,           100);
+  assert.equal(swale.swale.checkDamHeight,  1);
+  assert.equal(swale.swale.checkDamSpacing, 50);
+});
