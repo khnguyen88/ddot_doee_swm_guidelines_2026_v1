@@ -176,6 +176,8 @@ import {
 import {
   eisaDirectVolumeTraceCf, tr55VolumeTraceCf, HORTON_INFIL_LOSS_B, HORTON_INFIL_LOSS_C,
 } from '../src/calc.mjs';
+import { renderDetentionEduPage, renderSiteComplianceEduPage } from '../src/render-edu.mjs';
+import { detentionSummary, swrvVolume } from '../src/calc.mjs';
 
 const eisaRows = [
   { area: 10000, landUse: 'Impervious Vehicular', hsg: 'D' },
@@ -233,4 +235,30 @@ test('renderEisaComparisonEduPage: shows all three method totals + BMP storage',
   assert.ok(html.includes('TR-16'));
   assert.ok(html.includes('BMP'));
   assert.ok(html.includes('B-1'));
+});
+
+test('renderDetentionEduPage: shows SCS CN formula + per-SDA table', () => {
+  const params = {
+    detention: { p2In: 3.14, p15In: 5.23 },
+    detentionCn: { Natural: 70, Compacted: 74, Impervious: 98, BMP: 98 },
+  };
+  const summary = detentionSummary(sampleSdas, params.detention.p2In, params.detention.p15In, params.detentionCn);
+  const html = renderDetentionEduPage(sampleProject, summary, params.detention.p2In, params.detention.p15In);
+  assert.ok(html.includes('Detention'));
+  assert.ok(html.includes('CN'));
+  assert.ok(html.includes('2-yr'));
+  assert.ok(html.includes('15-yr'));
+});
+
+test('renderSiteComplianceEduPage: per-SDA SWRv required vs provided with status', () => {
+  const complianceRows = [
+    { sdaId: 'SDA-1', swrvReqCf: 500, rvProvidedCf: 600 },
+    { sdaId: 'SDA-2', swrvReqCf: 300, rvProvidedCf: 100 },
+  ];
+  const html = renderSiteComplianceEduPage(sampleProject, complianceRows);
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('SDA-2'));
+  assert.ok(html.includes('SITE TOTAL'));
+  assert.ok(html.includes('✓') || html.includes('PASS'));
+  assert.ok(html.includes('✗') || html.includes('FAIL'));
 });

@@ -9,7 +9,7 @@ import {
   eisaDirectRunoffDepth, HORTON_INFIL_LOSS_B, HORTON_INFIL_LOSS_C,
   tr55RunoffDepth, CN as CN_TABLE,
 } from './calc.mjs';
-import { rvProvidedPerSda, rvProvidedPerBmp } from './aggregate.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp, swrvComplianceTableRows } from './aggregate.mjs';
 import { tr16LookupQ, TR16_CN_LIST } from './tr16-exhibit.mjs';
 
 const esc = (s) => String(s)
@@ -762,6 +762,79 @@ export function renderEisaTr16EduPage(project, parsed, params) {
     sub:   `${project.name || ''} · P = 1.7″ highlighted`,
     body,
     footer: 'SCS TR-16 Exhibit 2-7A · USDA Soil Conservation Service · Upper Darby, PA',
+  });
+}
+
+// ── Task 10: Detention + Site Compliance pages ─────────────────────────────────
+
+export function renderDetentionEduPage(project, summary, p2In, p15In) {
+  const overview = renderOverview(
+    'Detention controls peak discharge rates for the 2-yr and 15-yr storms. It is a parallel requirement to SWRv retention — a project satisfies both independently. Detention is required when post-development peak Q exceeds pre-development.',
+  );
+  const why = renderWhy(`
+    <p>Detention uses the SCS Curve Number method (TR-55 lineage) with <b>detention-specific CN defaults</b> that treat all cover types more conservatively than SWRv: Natural = 70, Compacted = 74, Impervious = 98, BMP = 98. The composite CN per SDA is area-weighted. Pre and post Q are computed at the 2-yr and 15-yr design storms. If Post Q &gt; Pre Q, detention is required to bring the peak rate back down.</p>
+    <p>Detention does NOT satisfy EISA §438 — EISA is retention-only. Detention is a DOEE requirement for all MLD / MSI projects.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">Composite CN = Σ(A_i · CN_i) / Σ A_i   <i>— per SDA, area-weighted</i></div>
+    <div class="cs-formula-line">S  = 1000 / CN − 10</div>
+    <div class="cs-formula-line">Q  = (P − 0.2S)² / (P + 0.8S)   <i>if P > 0.2S, else 0</i></div>
+    <div class="cs-formula-line" style="margin-top:6px;">P (2-yr) = ${fmtN(p2In, 2)}″ · P (15-yr) = ${fmtN(p15In, 2)}″</div>
+  `);
+  let worked;
+  if (!summary.anyRequired) {
+    worked = renderWorked(
+      `<p>No detention required — Post Q ≤ Pre Q for all SDAs at both the ${fmtN(p2In, 2)}″ (2-yr) and ${fmtN(p15In, 2)}″ (15-yr) storms.</p>`,
+    );
+  } else {
+    const triggered = summary.perSda.filter(s => s.p2Required || s.p15Required);
+    const headers = [
+      'SDA', 'Pre CN', 'Post CN',
+      '2-yr Pre Q', '2-yr Post Q', '2-yr Req?',
+      '15-yr Pre Q', '15-yr Post Q', '15-yr Req?',
+    ];
+    const rows = triggered.map(s => [
+      s.sdaId, fmtN(s.preCn, 1), fmtN(s.postCn, 1),
+      fmtN(s.p2PreQ, 3) + '″', fmtN(s.p2PostQ, 3) + '″', s.p2Required ? 'YES' : 'no',
+      fmtN(s.p15PreQ, 3) + '″', fmtN(s.p15PostQ, 3) + '″', s.p15Required ? 'YES' : 'no',
+    ]);
+    worked = renderWorked(renderDataTable(headers, rows));
+  }
+  const body = overview + why + formula + worked;
+  return renderSheetShell({
+    title: 'Detention — 2-yr & 15-yr Peak Control',
+    sub:   project.name || '',
+    body,
+    footer: 'DOEE Guidebook §2.4 · SCS CN runoff method',
+    landscape: true,
+  });
+}
+
+export function renderSiteComplianceEduPage(project, complianceRows) {
+  const overview = renderOverview(
+    'Site Compliance is the final per-SDA pass/fail check: for each SDA, is Rv Provided ≥ SWRv Required? If every SDA passes, the project is compliant. The site total is informational only — compliance is per SDA.',
+  );
+  const why = renderWhy(`
+    <p>21 DCMR §599 requires the SWRv target be met <b>within each SDA independently</b>. The site-total row is shown for reference — it illustrates aggregate retention — but a project can fail compliance even when the site total exceeds the site requirement, if any single SDA has a deficit.</p>
+  `);
+  const { perRow, siteTotal } = swrvComplianceTableRows(complianceRows, false);
+  const headers = ['SDA', 'SWRv Required (cf)', 'Rv Provided (cf)', '% Met', 'Status'];
+  const rows = perRow.map(r => [
+    r.sdaId, fmtN(r.swrvReqCf, 0), fmtN(r.rvProvidedCf, 0),
+    fmtN(r.pct, 0) + '%', r.status,
+  ]);
+  rows.push([
+    siteTotal.sdaId, fmtN(siteTotal.swrvReqCf, 0), fmtN(siteTotal.rvProvidedCf, 0),
+    fmtN(siteTotal.pct, 0) + '%', siteTotal.status,
+  ]);
+  const body =
+    overview + why +
+    renderBlock('PER-SDA COMPLIANCE', renderDataTable(headers, rows));
+  return renderSheetShell({
+    title: 'Site Compliance Roll-Up',
+    sub:   project.name || '',
+    body,
+    footer: '21 DCMR §599 · DOEE Compliance Calculator Sheet 4',
   });
 }
 
