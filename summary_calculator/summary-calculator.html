@@ -292,19 +292,83 @@ function ppSizingSv(sa, dReservoir, nReservoir) {
     ],
   };
 }
-function bioSizingSv(saBot, dMedia, nMedia, dGravel, nGravel, dPond) {
-  const inner = dMedia * nMedia + dGravel * nGravel + dPond;
-  const value = saBot * inner;
+function bioSizingSv(saBot, saTop, saPondTop, dMedia, nMedia, dGravel, nGravel, dPond) {
+  const mediaGravelSv = saBot * (dMedia * nMedia + dGravel * nGravel);
+  const useTrapezoid = saPondTop != null && saPondTop > 0;
+  const pondSv = useTrapezoid
+    ? 0.5 * (saTop + saPondTop) * dPond
+    : saBot * dPond;
+  const value = mediaGravelSv + pondSv;
+  const subs = useTrapezoid
+    ? `${saBot}·(${dMedia}·${nMedia} + ${dGravel}·${nGravel}) + ½·(${saTop} + ${saPondTop})·${dPond}`
+    : `${saBot}·(${dMedia}·${nMedia} + ${dGravel}·${nGravel} + ${dPond})`;
   return {
     value,
     units: 'cf',
-    steps: [
-      { expr:   'Sv = SA_bot (d_media·n_media + d_gravel·n_gravel + d_pond)',
-        sub:    `${saBot} (${dMedia}·${nMedia} + ${dGravel}·${nGravel} + ${dPond})`,
-        eval:   `${saBot} (${(dMedia*nMedia).toFixed(2)} + ${(dGravel*nGravel).toFixed(2)} + ${dPond})`,
-        result: value },
-    ],
+    components: { mediaGravelSv, pondSv },
+    pondModel: useTrapezoid ? 'trapezoid' : 'vertical',
+    steps: [{
+      expr: useTrapezoid
+        ? 'Sv = SA_bot·(d_media·n_media + d_gravel·n_gravel) + ½·(SA_top + SA_pond_top)·d_pond'
+        : 'Sv = SA_bot·(d_media·n_media + d_gravel·n_gravel + d_pond)',
+      sub: subs,
+      eval: `${mediaGravelSv.toFixed(2)} + ${pondSv.toFixed(2)}`,
+      result: value,
+    }],
   };
+}
+function drySwaleSizingSv({
+  saBot, dMedia, nMedia, dGravel, nGravel, dPond,
+  length, bottomWidth, invUs, invDs,
+  checkDamHeight, checkDamSpacing,
+}) {
+  const mediaGravelSv = saBot * (dMedia * nMedia + dGravel * nGravel);
+  const haveGeom = length > 0 && bottomWidth > 0
+                && invUs != null && invDs != null
+                && checkDamHeight > 0 && checkDamSpacing > 0;
+  let pondSv, pondModel, pondTrace;
+  if (haveGeom) {
+    const slope = Math.max(1e-6, (invUs - invDs) / length);
+    const nDams = Math.max(0, Math.floor(length / checkDamSpacing));
+    const fullWedgeBase = checkDamHeight / slope;
+    const effectiveBase = Math.min(checkDamSpacing, fullWedgeBase);
+    const wedgePerDam = 0.5 * effectiveBase * checkDamHeight * bottomWidth;
+    pondSv = nDams * wedgePerDam;
+    pondModel = 'wedge';
+    pondTrace = { slope, nDams, fullWedgeBase, effectiveBase, wedgePerDam };
+  } else {
+    pondSv = saBot * (dPond || 0);
+    pondModel = 'flat-fallback';
+    pondTrace = null;
+  }
+  const value = mediaGravelSv + pondSv;
+  return {
+    value,
+    units: 'cf',
+    components: { mediaGravelSv, pondSv },
+    pondModel,
+    pondTrace,
+    steps: [{
+      expr: haveGeom
+        ? 'Sv = SA_bot·(d_media·n_media + d_gravel·n_gravel) + N_cd · ½·min(X_cd, H_cd/S)·H_cd·w_s'
+        : 'Sv = SA_bot·(d_media·n_media + d_gravel·n_gravel + d_pond)',
+      sub: haveGeom
+        ? `${saBot}·(${dMedia}·${nMedia} + ${dGravel}·${nGravel}) + ${pondTrace.nDams}·½·${pondTrace.effectiveBase}·${checkDamHeight}·${bottomWidth}`
+        : `${saBot}·(${dMedia}·${nMedia} + ${dGravel}·${nGravel} + ${dPond})`,
+      eval: `${mediaGravelSv.toFixed(2)} + ${pondSv.toFixed(2)}`,
+      result: value,
+    }],
+  };
+}
+function bioFreeboardFt({ topElev, dPond, overflowElev, sidewalkElev, curbCutElev }) {
+  if (topElev == null || dPond == null) return null;
+  const containments = [overflowElev, sidewalkElev, curbCutElev].filter(e => e != null);
+  if (!containments.length) return null;
+  return Math.min(...containments) - (topElev + dPond);
+}
+function drySwaleFreeboardFt({ invUs, invDs, topUs, topDs, checkDamHeight }) {
+  if (invUs == null || invDs == null || topUs == null || topDs == null || !checkDamHeight) return null;
+  return Math.min(topUs - (invUs + checkDamHeight), topDs - (invDs + checkDamHeight));
 }
 function rvFromSv(sv, retMultiplier) {
   const value = sv * retMultiplier;
@@ -689,13 +753,36 @@ function parseBmp(sheet) {
         sa: cell(sheet, r, 6) || 0,
         dReservoir: cell(sheet, r, 7) || 0,
       };
-    } else if (type === 'Bioretention' || type === 'Dry Swale') {
+    } else if (type === 'Bioretention') {
       row.bio = {
-        saTop: cell(sheet, r, 14) || 0,
-        saBot: cell(sheet, r, 15) || 0,
-        dMedia: cell(sheet, r, 17) || 0,
-        dGravel: cell(sheet, r, 19) || 0,
-        dPond: cell(sheet, r, 21) || 0,
+        saTop:        cell(sheet, r, 14) || 0,
+        saBot:        cell(sheet, r, 15) || 0,
+        dMedia:       cell(sheet, r, 17) || 0,
+        dGravel:      cell(sheet, r, 19) || 0,
+        dPond:        cell(sheet, r, 21) || 0,
+        // NEW optional geometry — null if blank, not 0.
+        saPondTop:    cell(sheet, r, 40),
+        topElev:      cell(sheet, r, 41),
+        overflowElev: cell(sheet, r, 42),
+        sidewalkElev: cell(sheet, r, 43),
+        curbCutElev:  cell(sheet, r, 44),
+      };
+    } else if (type === 'Dry Swale') {
+      row.swale = {
+        saTop:           cell(sheet, r, 14) || 0,
+        saBot:           cell(sheet, r, 15) || 0,
+        dMedia:          cell(sheet, r, 17) || 0,
+        dGravel:         cell(sheet, r, 19) || 0,
+        dPond:           cell(sheet, r, 21) || 0,
+        // NEW optional channel geometry — null if blank.
+        length:          cell(sheet, r, 46),
+        bottomWidth:     cell(sheet, r, 47),
+        invUs:           cell(sheet, r, 48),
+        invDs:           cell(sheet, r, 49),
+        topUs:           cell(sheet, r, 50),
+        topDs:           cell(sheet, r, 51),
+        checkDamHeight:  cell(sheet, r, 52),
+        checkDamSpacing: cell(sheet, r, 53),
       };
     } else if (type === 'Planted Trees' || type === 'Preserve Trees') {
       row.trees = {
@@ -832,12 +919,29 @@ function _rvForBmp(bmp, cdas, params) {
     const cda = cdas.find(c => c.cdaId === bmp.cdaId);
     return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
   }
-  if ((bmp.type === 'Bioretention' || bmp.type === 'Dry Swale') && bmp.bio) {
-    const design = params.bmpDesign[`${bmp.type} / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
+  if (bmp.type === 'Bioretention' && bmp.bio) {
+    const design = params.bmpDesign[`Bioretention / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
     const sv = bioSizingSv(
-      bmp.bio.saBot, bmp.bio.dMedia, design.nMedia,
+      bmp.bio.saBot, bmp.bio.saTop, bmp.bio.saPondTop,
+      bmp.bio.dMedia, design.nMedia,
       bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
     ).value;
+    const rv = rvFromSv(sv, design.retMultiplier).value;
+    const cda = cdas.find(c => c.cdaId === bmp.cdaId);
+    return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
+  }
+  if (bmp.type === 'Dry Swale' && bmp.swale) {
+    const design = params.bmpDesign[`Dry Swale / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
+    const sv = drySwaleSizingSv({
+      saBot: bmp.swale.saBot,
+      dMedia: bmp.swale.dMedia, nMedia: design.nMedia,
+      dGravel: bmp.swale.dGravel, nGravel: design.nGravel,
+      dPond: bmp.swale.dPond,
+      length: bmp.swale.length, bottomWidth: bmp.swale.bottomWidth,
+      invUs: bmp.swale.invUs, invDs: bmp.swale.invDs,
+      checkDamHeight: bmp.swale.checkDamHeight,
+      checkDamSpacing: bmp.swale.checkDamSpacing,
+    }).value;
     const rv = rvFromSv(sv, design.retMultiplier).value;
     const cda = cdas.find(c => c.cdaId === bmp.cdaId);
     return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
@@ -1126,21 +1230,10 @@ function _renderPp(project, bmp, cda, params) {
 function _renderBio(project, bmp, cda, params) {
   const designKey = `${bmp.type} / ${bmp.subType}`;
   const design = params.bmpDesign[designKey] || { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
-  const inputsHtml = renderKvTable([
-    ['BMP',       `${bmp.name} (${bmp.type} / ${bmp.subType})`],
-    ['SDA',       bmp.sdaId],
-    ['CDA',       bmp.cdaId || '—'],
-    ['SA_top',    `${fmtN(bmp.bio.saTop)} sf`],
-    ['SA_bot',    `${fmtN(bmp.bio.saBot)} sf`],
-    ['d_media',   `${fmtN(bmp.bio.dMedia, 2)} ft`],
-    ['d_gravel',  `${fmtN(bmp.bio.dGravel, 2)} ft`],
-    ['d_pond',    `${fmtN(bmp.bio.dPond, 2)} ft`],
-    ['n_media',   `${design.nMedia}`],
-    ['n_gravel',  `${design.nGravel}`],
-    ['Ret. Multiplier', `${design.retMultiplier}`],
-  ]);
+
   const svTrace = bioSizingSv(
-    bmp.bio.saBot, bmp.bio.dMedia, design.nMedia,
+    bmp.bio.saBot, bmp.bio.saTop, bmp.bio.saPondTop,
+    bmp.bio.dMedia, design.nMedia,
     bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
   );
   const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
@@ -1148,12 +1241,60 @@ function _renderBio(project, bmp, cda, params) {
   const maxTrace = maxBmpCredit(cdaArea);
   const rvApplied = Math.min(rvTrace.value, maxTrace.value);
   const pass = rvApplied === rvTrace.value;
+
+  const inputsHtml = renderKvTable([
+    ['BMP',       `${bmp.name} (${bmp.type} / ${bmp.subType})`],
+    ['SDA',       bmp.sdaId],
+    ['CDA',       bmp.cdaId || '—'],
+    ['SA_top',    `${fmtN(bmp.bio.saTop)} sf`],
+    ['SA_bot',    `${fmtN(bmp.bio.saBot)} sf`],
+    ['SA_pond_top', bmp.bio.saPondTop != null ? `${fmtN(bmp.bio.saPondTop)} sf` : '—'],
+    ['d_media',   `${fmtN(bmp.bio.dMedia, 2)} ft`],
+    ['d_gravel',  `${fmtN(bmp.bio.dGravel, 2)} ft`],
+    ['d_pond',    `${fmtN(bmp.bio.dPond, 2)} ft`],
+    ['n_media',   `${design.nMedia}`],
+    ['n_gravel',  `${design.nGravel}`],
+    ['Ret. Multiplier', `${design.retMultiplier}`],
+  ]);
+
+  const mediaSv  = bmp.bio.saBot * bmp.bio.dMedia  * design.nMedia;
+  const gravelSv = bmp.bio.saBot * bmp.bio.dGravel * design.nGravel;
+  const svBreakdown = `
+    <div class="cs-formula-line">media_Sv  = SA_bot × d_media × n_media    = ${fmtN(bmp.bio.saBot)} × ${bmp.bio.dMedia} × ${design.nMedia} = ${fmtN(mediaSv, 0)} cf</div>
+    <div class="cs-formula-line">gravel_Sv = SA_bot × d_gravel × n_gravel = ${fmtN(bmp.bio.saBot)} × ${bmp.bio.dGravel} × ${design.nGravel} = ${fmtN(gravelSv, 0)} cf</div>
+    <div class="cs-formula-line">pond_Sv   = ${svTrace.pondModel === 'trapezoid'
+      ? `½ × (SA_top + SA_pond_top) × d_pond = ½ × (${bmp.bio.saTop} + ${bmp.bio.saPondTop}) × ${bmp.bio.dPond}`
+      : `SA_bot × d_pond = ${bmp.bio.saBot} × ${bmp.bio.dPond}`
+    } = ${fmtN(svTrace.components.pondSv, 0)} cf   [${svTrace.pondModel}]</div>
+    <div class="cs-formula-line"><b>Sv_total = ${fmtN(svTrace.value, 0)} cf</b></div>
+  `;
+
+  const fb = bioFreeboardFt({
+    topElev: bmp.bio.topElev, dPond: bmp.bio.dPond,
+    overflowElev: bmp.bio.overflowElev,
+    sidewalkElev: bmp.bio.sidewalkElev,
+    curbCutElev: bmp.bio.curbCutElev,
+  });
+  const freeboardBlock = fb == null ? '' : (() => {
+    const containments = [bmp.bio.overflowElev, bmp.bio.sidewalkElev, bmp.bio.curbCutElev]
+      .filter(e => e != null);
+    const minC = Math.min(...containments);
+    const dws = bmp.bio.topElev + bmp.bio.dPond;
+    const fbIn = fb * 12;
+    const passFb = fb >= 0.25;
+    return renderBlock('FREEBOARD (DDOT §33.14.5.5 min 3″)', `
+      <div class="cs-formula-line">top_elev + d_pond (design water surface) = ${bmp.bio.topElev} + ${bmp.bio.dPond} = ${dws.toFixed(2)} ft</div>
+      <div class="cs-formula-line">Min containment = ${minC.toFixed(2)} ft</div>
+      <div class="cs-formula-line"><b>Freeboard = ${minC.toFixed(2)} − ${dws.toFixed(2)} = ${fb.toFixed(2)} ft (${fbIn.toFixed(1)}″) ${passFb ? '✓' : '✗'}</b></div>
+    `);
+  })();
+
   return renderSheetShell({
     title: `${bmp.name} — ${bmp.type} (${bmp.subType})`,
     sub:   `${project.name || ''} · ${bmp.sdaId} · ${bmp.cdaId || ''}`,
     body:
       renderBlock('INPUTS', inputsHtml) +
-      renderBlock('STEP 1 — Storage Volume (Sv)', renderTrace(svTrace)) +
+      renderBlock('STORAGE VOLUME BREAKDOWN', svBreakdown) +
       renderBlock('STEP 2 — Retention Volume (Rv)', renderTrace(rvTrace)) +
       renderBlock('STEP 3 — Compliance (Max BMP Credit cap)',
         renderTrace(maxTrace) +
@@ -1161,7 +1302,8 @@ function _renderBio(project, bmp, cda, params) {
           pass ? 'Rv provided ≤ Max Credit — OK'
                : `Rv capped at ${fmtN(maxTrace.value, 0)} cf (Max Credit)`,
           rvApplied, 'cf', pass,
-        )),
+        )) +
+      freeboardBlock,
     footer: BIO_FOOTER,
   });
 }

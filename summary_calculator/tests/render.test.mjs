@@ -103,9 +103,40 @@ test('renderBmpSheets: one page per BMP with 3-step math', () => {
   assert.equal(pages.length, 1);
   assert.ok(pages[0].includes('BMP-02-A'));
   assert.ok(pages[0].includes('Bioretention'));
-  assert.ok(pages[0].includes('STEP 1'));
+  // STEP 1 renamed to STORAGE VOLUME BREAKDOWN with media/gravel/pond lines (geometry schema update)
+  assert.ok(pages[0].includes('STORAGE VOLUME BREAKDOWN') || pages[0].includes('STEP 1'));
   assert.ok(pages[0].includes('STEP 2'));
   assert.ok(pages[0].includes('STEP 3'));
+});
+
+test('renderBmpSheets: Bio page shows [trapezoid] tag + freeboard when geometry provided', () => {
+  const bmps = [{
+    name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Bioretention', subType: 'Enhanced',
+    bio: { saBot: 210, saTop: 210, saPondTop: 294,
+           dMedia: 2.0, dGravel: 0.5, dPond: 0.5,
+           topElev: 100.0, overflowElev: 100.75,
+           sidewalkElev: 100.80, curbCutElev: 100.3 },
+  }];
+  const cdas = [{ cdaId: 'CDA-1', postIn: 2000 }];
+  const params = { bmpDesign: { 'Bioretention / Enhanced': { nMedia: 0.4, nGravel: 0.4, retMultiplier: 1.0 } }, treeCredits: {} };
+  const html = renderBmpSheets(sampleProject, bmps, cdas, params)[0];
+  assert.ok(html.includes('trapezoid'), 'should show trapezoid tag');
+  assert.ok(html.includes('FREEBOARD'), 'should show freeboard block');
+  assert.ok(html.includes('126'), 'should show pond_Sv = 126 cf');
+});
+
+test('renderBmpSheets: Bio page shows [vertical] tag + omits freeboard when geometry absent', () => {
+  const bmps = [{
+    name: 'B-1', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Bioretention', subType: 'Enhanced',
+    bio: { saBot: 210, saTop: 210, saPondTop: null,
+           dMedia: 2.0, dGravel: 0.5, dPond: 0.5,
+           topElev: null, overflowElev: null, sidewalkElev: null, curbCutElev: null },
+  }];
+  const cdas = [{ cdaId: 'CDA-1', postIn: 2000 }];
+  const params = { bmpDesign: { 'Bioretention / Enhanced': { nMedia: 0.4, nGravel: 0.4, retMultiplier: 1.0 } }, treeCredits: {} };
+  const html = renderBmpSheets(sampleProject, bmps, cdas, params)[0];
+  assert.ok(!html.includes('FREEBOARD'), 'no freeboard block without elevations');
+  assert.ok(html.includes('vertical'), 'should show vertical tag');
 });
 
 import { renderMepSheet } from '../src/render.mjs';
