@@ -1704,10 +1704,22 @@ function renderMepEduPage(project, sdas, bmps, cdas, params) {
     const status = deficit <= 0 ? '✓ MET' : 'DEFICIT — document in SWMP narrative';
     return [sdaId, fmtN(imp), fmtN(target, 0), fmtN(provided, 0), fmtN(deficit, 0), status];
   });
+  const mepTraces = prowSdaIds.map(sdaId => {
+    const imp = impByProwSda[sdaId];
+    const target = imp * 1.2 / 12;
+    const provided = rvBySda[sdaId] || 0;
+    const deficit = Math.max(0, target - provided);
+    return renderArithmeticTrace([
+      { label: `${sdaId} — MEP target retention @ 1.2″ storm`, formula: 'target = Imp_In_LOD × 1.2 / 12', substitution: `${fmtN(imp, 0)} × 1.2 / 12`, result: `${fmtN(target, 0)} cf` },
+      { label: `${sdaId} — Rv provided (Σ BMPs in this SDA)`, formula: 'Rv_provided = Σ Rv_applied where bmp.sdaId == this_sdaId', substitution: 'Σ over BMPs', result: `${fmtN(provided, 0)} cf` },
+      { label: `${sdaId} — Deficit`, formula: 'deficit = max(0, target − Rv_provided)', substitution: `max(0, ${fmtN(target, 0)} − ${fmtN(provided, 0)})`, result: `${fmtN(deficit, 0)} cf` },
+    ]);
+  }).join('');
   const body =
     overview + why +
     renderBlock('DDOT MEP 4-STEP PROCESS', stepsHtml) +
-    renderBlock('PER-PROW-SDA METRICS', renderDataTable(headers, rows));
+    renderBlock('PER-PROW-SDA METRICS', renderDataTable(headers, rows)) +
+    renderBlock('PER-PROW-SDA ARITHMETIC', mepTraces);
   return renderSheetShell({
     title: 'DDOT MEP — Maximum Extent Practicable (PROW)',
     sub:   project.name || '',
@@ -2179,10 +2191,26 @@ function renderEisaComparisonEduPage(project, direct, tr55, tr16, bmpStorage, el
       : (directNet <= 0 || tr55Net <= 0 || tr16Net <= 0)
         ? 'At least one method passes with BMP storage credited — compliant under the passing method; engineer selects which to submit.'
         : 'No method passes with BMP storage credited — additional retention required to meet EISA §438.';
+  const whyDiverge = renderBlock('WHY DIRECT, TR-55, AND TR-16 PRODUCE DIFFERENT TOTALS', `
+    <p>All three methods approximate the same physical quantity (24-hr runoff from the design storm) but use different physical models.</p>
+    <p><b>Direct Determination</b> (EPA EISA §438 TG, Dec 2009) is a linear deduction model: subtract a fixed depression storage, subtract the 24-hr Horton infiltration integral (pervious only), and whatever remains becomes runoff. <b>No continuing abstraction</b> after the fixed losses are satisfied.</p>
+    <p><b>TR-55</b> uses an initial abstraction Ia = 0.2·S and a <b>continuing abstraction</b> encoded in the (P − Ia + S) denominator of Q = (P − Ia)² / (P − Ia + S). The soil keeps absorbing water even after Ia is satisfied, so TR-55 Q is always strictly less than P − Ia.</p>
+    <p><b>TR-16</b> is a tabulation of the TR-55 equation at 0.1″ P increments; it matches TR-55 to within 0.01″ rounding.</p>
+    <table class="data" style="margin-top: 6px;">
+      <thead><tr><th>Surface</th><th>Direct vs TR-55</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Impervious (CN=98)</td><td>Direct &gt; TR-55</td><td>Direct subtracts only 0.1″ depression; TR-55 continues to absorb via S ≈ 0.20″</td></tr>
+        <tr><td>Pervious HSG A/B/C</td><td>Direct &lt; TR-55</td><td>Direct's 24-hr Horton loss (~3–7″) exceeds rainfall; TR-55 CN captures only partial infiltration</td></tr>
+        <tr><td>Pervious HSG D</td><td>Direct &gt; TR-55</td><td>Direct uses no Horton on D (just 0.2″ depression); TR-55 still has large S for high-CN D soils</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top: 6px;">EPA's EISA §438 TG offers both methods and lets the designer pick. Neither is "wrong"; they encode different physical assumptions.</p>
+  `);
   const body =
     overview + why +
     renderBlock('BMP STORAGE (RETENTION CREDIT)', renderDataTable(bmpHeaders, bmpRows)) +
     renderBlock('METHOD COMPARISON', renderDataTable(cmpHeaders, comparison)) +
+    whyDiverge +
     renderWorked(`<p>${esc(summary)}</p><p><b>EISA §438 applies:</b> ${esc(electedMethod || '(not specified)')}</p>`);
   return renderSheetShell({
     title: 'EISA §438 — Three-Method Comparison',
