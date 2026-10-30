@@ -4,6 +4,10 @@
 // a separate render.mjs copy.
 
 import { renderOverview, renderWhy, renderFormula, renderWorked } from './narrative.mjs';
+import {
+  ppSizingSv, bioSizingSv, rvFromSv, maxBmpCredit, treeRetentionCredit,
+} from './calc.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp } from './aggregate.mjs';
 
 const esc = (s) => String(s)
   .replace(/&/g, '&amp;')
@@ -279,5 +283,226 @@ export function renderSwrvPerSdaPage(project, sdas, params) {
     sub:   `${project.name || ''} · Rainfall ${fmtN(project.rainfallIn, 2)}″`,
     body,
     footer: '21 DCMR §599 · DOEE Guidebook §2',
+  });
+}
+
+// ── Task 7: BMP Catalog + PP + Bio + Trees + Rv Provided ──────────────────────
+
+const TYPE_SECTION = {
+  'Permeable Pavement':             '§3.5',
+  'Bioretention':                   '§3.6',
+  'Dry Swale':                      '§3.9 O-2',
+  'Planted Trees':                  '§3.14',
+  'Preserve Trees':                 '§3.14',
+  'Green Roof':                     '§3.2',
+  'Rainwater Harvesting':           '§3.3',
+  'Impervious Surface Disconnection': '§3.4',
+};
+
+const TYPE_SUMMARY = {
+  'Permeable Pavement':   'Porous surface over stone reservoir; retains in void space (n ≈ 0.40).',
+  'Bioretention':         'Vegetated depression over engineered media + gravel; retains in void space of all three layers plus ponded surface.',
+  'Dry Swale':            'Linear bioretention variant; same Sv math as Bioretention.',
+  'Planted Trees':        'New trees earn T-1 Small / T-1 Large credit (cf per tree).',
+  'Preserve Trees':       'Preserved trees earn T-2 Small / Large / Special / Heritage credit.',
+  'Green Roof':           'Vegetated roof system; retention in media void space.',
+  'Rainwater Harvesting': 'Cistern storing roof runoff for reuse; sized by demand-return period.',
+  'Impervious Surface Disconnection': 'Routes impervious runoff onto pervious ground.',
+};
+
+export function renderBmpCatalogPage(project, bmps) {
+  const overview = renderOverview(
+    'Every BMP in the project is sized against its own physical model and capped by its CDA\'s maximum credit. This page lists what\'s in the project and where to find the sizing method.',
+  );
+  const why = renderWhy(`
+    <p>Each BMP earns a retention volume Rv (cf) that counts toward the SWRv target of its SDA. The DOEE Guidebook chapters §3.1–§3.14 define the sizing math for each type. The Rv credit is capped at the CDA area × 1.7″ / 12 — a BMP cannot earn more credit than its catchment could physically deliver.</p>
+  `);
+  const seen = new Map();
+  for (const b of bmps) {
+    const list = seen.get(b.type) ?? [];
+    list.push(b.name);
+    seen.set(b.type, list);
+  }
+  const rows = Array.from(seen.entries()).map(([type, names]) => [
+    type,
+    TYPE_SECTION[type] || '—',
+    String(names.length),
+    names.join(', '),
+    TYPE_SUMMARY[type] || '',
+  ]);
+  const body =
+    overview + why +
+    renderBlock('BMPs IN THIS PROJECT',
+      renderDataTable(['BMP Type', 'Guidebook §', 'Count', 'Names', 'What it does'], rows));
+  return renderSheetShell({
+    title: 'BMP Catalog',
+    sub:   project.name || '',
+    body,
+    footer: 'DOEE Guidebook Chapter 3 (BMP Specifications)',
+  });
+}
+
+function _cdaFor(bmp, cdas) {
+  return cdas.find(c => c.cdaId === bmp.cdaId);
+}
+
+export function renderPpSizingPage(project, bmps, cdas, params) {
+  const ppBmps = bmps.filter(b => b.type === 'Permeable Pavement' && b.pp);
+  const overview = renderOverview(
+    'Permeable Pavement retains runoff in the void space of the stone reservoir beneath the porous surface. Sv is the storage volume at that layer; Rv is Sv times a retention multiplier (usually 1.0).',
+  );
+  const why = renderWhy(`
+    <p>Reservoir porosity n ≈ 0.40 means roughly 40% of the reservoir layer's bulk volume is pore space available to hold water. The design calc multiplies surface area × reservoir depth × n to get Sv in cubic feet, then applies the retention multiplier (varies by sub-type) to get Rv credit. Rv is capped by the CDA max credit (CDA area × 1.7″ / 12).</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">Sv = SA × d_reservoir × n_reservoir</div>
+    <div class="cs-formula-line">Rv = Sv × retention_multiplier</div>
+    <div class="cs-formula-line">Rv_applied = min(Rv, CDA_area × 1.7″ / 12)</div>
+  `);
+  const traces = ppBmps.map(bmp => {
+    const design = params.bmpDesign[`Permeable Pavement / ${bmp.subType}`]
+      || { nReservoir: 0.40, retMultiplier: 1.0 };
+    const svTrace = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir);
+    const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
+    const cda = _cdaFor(bmp, cdas);
+    const cap = cda ? maxBmpCredit(cda.postIn).value : Infinity;
+    const applied = Math.min(rvTrace.value, cap);
+    return renderBlock(`${bmp.name} (${bmp.subType})`, renderKvTable([
+      ['SA (sf)',             fmtN(bmp.pp.sa)],
+      ['d_reservoir (ft)',    fmtN(bmp.pp.dReservoir, 2)],
+      ['n_reservoir',         fmtN(design.nReservoir, 2)],
+      ['Sv (cf)',             fmtN(svTrace.value, 0)],
+      ['retention multiplier', fmtN(design.retMultiplier, 2)],
+      ['Rv (cf)',             fmtN(rvTrace.value, 0)],
+      ['CDA Max Credit (cf)', cda ? fmtN(cap, 0) : '—'],
+      ['Rv applied (cf)',     fmtN(applied, 0)],
+    ]));
+  }).join('');
+  const body = overview + why + formula + renderWorked(traces || '<p>No Permeable Pavement BMPs in this project.</p>');
+  return renderSheetShell({
+    title: 'Permeable Pavement Sizing',
+    sub:   project.name || '',
+    body,
+    footer: 'DOEE Guidebook §3.5 · Permeable Pavement',
+  });
+}
+
+export function renderBioSizingPage(project, bmps, cdas, params) {
+  const bioBmps = bmps.filter(b => (b.type === 'Bioretention' || b.type === 'Dry Swale') && b.bio);
+  const overview = renderOverview(
+    'Bioretention retains in three layers: engineered media (void space), gravel underdrain layer (void space), and ponded surface (full volume above). Sv sums all three contributions over the bottom surface area.',
+  );
+  const why = renderWhy(`
+    <p>The sizing uses SA_bot (not SA_top) because the storage below the surface is bounded by the bottom footprint — a sloped side-wall doesn't add storage volume at depth. Media and gravel porosities (n ≈ 0.40 each) convert bulk layer volume to pore water storage. Ponding depth contributes its full volume because surface water is 100% storage.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">Sv = SA_bot × (d_media × n_media + d_gravel × n_gravel + d_pond)</div>
+    <div class="cs-formula-line">Rv = Sv × retention_multiplier</div>
+    <div class="cs-formula-line">Rv_applied = min(Rv, CDA_area × 1.7″ / 12)</div>
+  `);
+  const traces = bioBmps.map(bmp => {
+    const design = params.bmpDesign[`${bmp.type} / ${bmp.subType}`]
+      || { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
+    const svTrace = bioSizingSv(
+      bmp.bio.saBot, bmp.bio.dMedia, design.nMedia,
+      bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
+    );
+    const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
+    const cda = _cdaFor(bmp, cdas);
+    const cap = cda ? maxBmpCredit(cda.postIn).value : Infinity;
+    const applied = Math.min(rvTrace.value, cap);
+    return renderBlock(`${bmp.name} (${bmp.type} / ${bmp.subType})`, renderKvTable([
+      ['SA_top (sf)',   fmtN(bmp.bio.saTop)],
+      ['SA_bot (sf)',   fmtN(bmp.bio.saBot)],
+      ['d_media (ft)',  fmtN(bmp.bio.dMedia, 2)],
+      ['n_media',       fmtN(design.nMedia, 2)],
+      ['d_gravel (ft)', fmtN(bmp.bio.dGravel, 2)],
+      ['n_gravel',      fmtN(design.nGravel, 2)],
+      ['d_pond (ft)',   fmtN(bmp.bio.dPond, 2)],
+      ['Sv (cf)',       fmtN(svTrace.value, 0)],
+      ['Rv (cf)',       fmtN(rvTrace.value, 0)],
+      ['CDA Max Credit', cda ? fmtN(cap, 0) : '—'],
+      ['Rv applied',    fmtN(applied, 0)],
+    ]));
+  }).join('');
+  const body = overview + why + formula + renderWorked(traces || '<p>No Bioretention or Dry Swale BMPs in this project.</p>');
+  return renderSheetShell({
+    title: 'Bioretention & Dry Swale Sizing',
+    sub:   project.name || '',
+    body,
+    footer: 'DOEE Guidebook §3.6 Bioretention · §3.9 O-2 Dry Swale',
+  });
+}
+
+export function renderTreeCreditPage(project, bmps, params) {
+  const treeBmps = bmps.filter(b => (b.type === 'Planted Trees' || b.type === 'Preserve Trees') && b.trees);
+  const overview = renderOverview(
+    'Trees earn fixed retention credit per tree, categorized by whether they are newly planted (T-1) or preserved (T-2) and by size. The credit represents canopy interception, transpiration, and root-zone retention over the design storm.',
+  );
+  const why = renderWhy(`
+    <p>DOEE assigns conservative per-tree credits — the Guidebook provides values at adoption time; the project PARAMS sheet may override. Preserved mature trees earn more than newly planted ones because their canopy and root systems are already established.</p>
+  `);
+  const creditTable = renderDataTable(
+    ['Code', 'Description', 'Credit (cf)'],
+    [
+      ['T-1 Small',      'Planted small tree (deciduous < 2.5″ DBH or evergreen < 6′)',  fmtN(params.treeCredits['T-1 Small'] ?? 0, 0)],
+      ['T-1 Large',      'Planted large tree (≥ above thresholds)',                      fmtN(params.treeCredits['T-1 Large'] ?? 0, 0)],
+      ['T-2 Small',      'Preserved small tree',                                         fmtN(params.treeCredits['T-2 Small'] ?? 0, 0)],
+      ['T-2 Large',      'Preserved large tree',                                         fmtN(params.treeCredits['T-2 Large'] ?? 0, 0)],
+      ['T-2 Special',    'Preserved Special tree (per DC Urban Forestry)',               fmtN(params.treeCredits['T-2 Special'] ?? 0, 0)],
+      ['T-2 Heritage',   'Preserved Heritage tree',                                      fmtN(params.treeCredits['T-2 Heritage'] ?? 0, 0)],
+    ],
+  );
+  const traces = treeBmps.map(bmp => {
+    const trace = treeRetentionCredit(bmp.trees, params.treeCredits);
+    const t = bmp.trees;
+    return renderBlock(`${bmp.name} (${bmp.type})`, renderKvTable([
+      ['T-1 Small (planted)',    fmtN(t.plantedSmall)],
+      ['T-1 Large (planted)',    fmtN(t.plantedLarge)],
+      ['T-2 Small (preserved)',  fmtN(t.preservedSmall)],
+      ['T-2 Large (preserved)',  fmtN(t.preservedLarge)],
+      ['T-2 Special (preserved)', fmtN(t.preservedSpecial)],
+      ['T-2 Heritage (preserved)', fmtN(t.preservedHeritage)],
+      ['Rv credit (cf)',         fmtN(trace.value, 0)],
+    ]));
+  }).join('');
+  const body =
+    overview + why +
+    renderBlock('TREE CREDIT TABLE', creditTable) +
+    renderWorked(traces || '<p>No Tree BMPs in this project.</p>');
+  return renderSheetShell({
+    title: 'Tree Credit — Planted & Preserved',
+    sub:   project.name || '',
+    body,
+    footer: 'DOEE Guidebook §3.14 · DC Tree Preservation Act',
+  });
+}
+
+export function renderRvProvidedPage(project, bmps, cdas, params) {
+  const overview = renderOverview(
+    'Rv provided per SDA sums every BMP\'s applied Rv (after CDA cap) grouped by the SDA the BMP serves. This is the number compared against SWRv required for per-SDA compliance.',
+  );
+  const why = renderWhy(`
+    <p>Each BMP's Rv_applied is already capped at its CDA's maximum credit (1.7″ equivalent). The sum per SDA is then compared directly against the SWRv target for that SDA. If Σ Rv_applied ≥ SWRv_required, the SDA passes.</p>
+  `);
+  const rvPerSda = rvProvidedPerSda(bmps, cdas, params);
+  const perBmp = rvProvidedPerBmp(bmps, cdas, params).filter(b => b.rvCf > 0);
+  const perBmpTable = renderDataTable(
+    ['BMP', 'Type', 'SDA', 'CDA', 'Rv applied (cf)'],
+    perBmp.map(b => [b.name, b.type, b.sdaId, b.cdaId ?? '—', fmtN(b.rvCf, 0)]),
+  );
+  const perSdaTable = renderDataTable(
+    ['SDA', 'Rv Provided (cf)'],
+    Object.entries(rvPerSda).map(([sdaId, cf]) => [sdaId, fmtN(cf, 0)]),
+  );
+  const body =
+    overview + why +
+    renderBlock('PER-BMP Rv APPLIED', perBmpTable) +
+    renderBlock('ROLL-UP PER SDA', perSdaTable);
+  return renderSheetShell({
+    title: 'Rv Provided — Per BMP and Per SDA',
+    sub:   project.name || '',
+    body,
+    footer: 'DOEE Guidebook §2 · Compliance Calculator Sheet 2',
   });
 }

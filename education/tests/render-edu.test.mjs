@@ -85,3 +85,62 @@ test('renderSwrvPerSdaPage: walks through SWRv formula per SDA', () => {
   assert.ok(html.includes('P × ΣA·Rv') || html.includes('P/12'));
   assert.ok(html.includes('SDA-1'));
 });
+
+import {
+  renderBmpCatalogPage, renderPpSizingPage, renderBioSizingPage,
+  renderTreeCreditPage, renderRvProvidedPage,
+} from '../src/render-edu.mjs';
+
+export const sampleBmps = [
+  { name: 'BMP-02-B', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Permeable Pavement',
+    subType: 'Enhanced', pp: { sa: 150, dReservoir: 1 } },
+  { name: 'BMP-02-A', sdaId: 'SDA-1', cdaId: 'CDA-1', type: 'Bioretention',
+    subType: 'Enhanced', bio: { saTop: 210, saBot: 210, dMedia: 2, dGravel: 0.5, dPond: 0.5 } },
+  { name: 'BMP-04-T', sdaId: 'SDA-1', type: 'Planted Trees',
+    trees: { plantedSmall: 0, plantedLarge: 2, preservedSmall: 0, preservedLarge: 0,
+             preservedSpecial: 0, preservedHeritage: 0 } },
+];
+export const bmpParams = {
+  bmpDesign: {
+    'Permeable Pavement / Enhanced': { nReservoir: 0.4, retMultiplier: 1.0 },
+    'Bioretention / Enhanced':       { nMedia: 0.4, nGravel: 0.4, retMultiplier: 1.0 },
+  },
+  treeCredits: { 'T-1 Large': 30 },
+};
+
+test('renderBmpCatalogPage: lists the BMP types present in project', () => {
+  const html = renderBmpCatalogPage(sampleProject, sampleBmps);
+  assert.ok(html.includes('Permeable Pavement'));
+  assert.ok(html.includes('Bioretention'));
+  assert.ok(html.includes('Planted Trees'));
+  assert.ok(html.includes('BMP-02-A'));
+});
+
+test('renderPpSizingPage: shows Sv formula + per-BMP numeric trace', () => {
+  const html = renderPpSizingPage(sampleProject, sampleBmps, sampleCdas, bmpParams);
+  assert.ok(html.includes('Sv = SA × d'));
+  assert.ok(html.includes('BMP-02-B'));
+  assert.ok(html.includes('150'));
+  assert.ok(html.includes('60'));  // Sv = 150*1*0.4 = 60
+});
+
+test('renderBioSizingPage: shows the three-layer Sv formula + trace', () => {
+  const html = renderBioSizingPage(sampleProject, sampleBmps, sampleCdas, bmpParams);
+  assert.ok(html.includes('d_media'));
+  assert.ok(html.includes('d_gravel'));
+  assert.ok(html.includes('d_pond'));
+  assert.ok(html.includes('BMP-02-A'));
+});
+
+test('renderTreeCreditPage: shows the credit per tree-type table', () => {
+  const html = renderTreeCreditPage(sampleProject, sampleBmps, bmpParams);
+  assert.ok(html.includes('T-1 Large'));
+  assert.ok(html.includes('BMP-04-T'));
+  assert.ok(html.includes('30'));  // credit = 30 cf
+});
+
+test('renderRvProvidedPage: rolls up Rv per SDA', () => {
+  const html = renderRvProvidedPage(sampleProject, sampleBmps, sampleCdas, bmpParams);
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('Rv Provided'));
+});
