@@ -10,7 +10,7 @@ import { tr16LookupQ } from './tr16-exhibit.mjs';
 import {
   renderCoverPage, renderComplianceLandscapePage, renderProjectTriggersPage,
   renderSiteDaPage, renderSdaCdaExplainedPage, renderRvValuesPage, renderSwrvPerSdaPage,
-  renderBmpCatalogPage, renderPpSizingPage, renderBioSizingPage,
+  renderBmpCatalogPage, renderPpSizingPage, renderBioSizingPage, renderDrySwaleSizingPage,
   renderTreeCreditPage, renderRvProvidedPage,
   renderMepEduPage, renderEisaIntroPage,
   renderEisaDirectEduPage, renderEisaTr55EduPage, renderEisaTr16EduPage, renderEisaComparisonEduPage,
@@ -209,7 +209,7 @@ function buildAndRender() {
   const laterLabels = [
     'Compliance Landscape', 'Project Triggers',
     'Site DA', 'SDA & CDA Explained', 'Rv Values', 'SWRv per SDA',
-    'BMP Catalog', 'Permeable Pavement Sizing', 'Bioretention Sizing', 'Tree Credit', 'Rv Provided',
+    'BMP Catalog', 'Permeable Pavement Sizing', 'Bioretention Sizing', 'Dry Swale Sizing', 'Tree Credit', 'Rv Provided',
     'DDOT MEP (PROW)',
     'EISA 438 Intro', 'EISA Direct Determination', 'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
     // Site Compliance (portrait) before Detention (landscape) so the deck
@@ -233,6 +233,7 @@ function buildAndRender() {
   push('BMP Catalog',                    renderBmpCatalogPage(project, bmps));
   push('Permeable Pavement Sizing',      renderPpSizingPage(project, bmps, cdas, params));
   push('Bioretention Sizing',            renderBioSizingPage(project, bmps, cdas, params));
+  push('Dry Swale Sizing',               renderDrySwaleSizingPage(project, bmps, cdas, params));
   push('Tree Credit',                    renderTreeCreditPage(project, bmps, params));
   push('Rv Provided',                    renderRvProvidedPage(project, bmps, cdas, params));
   push('DDOT MEP (PROW)',                renderMepEduPage(project, sdas, bmps, cdas, params));

@@ -1529,49 +1529,129 @@ function renderPpSizingPage(project, bmps, cdas, params) {
   });
 }
 function renderBioSizingPage(project, bmps, cdas, params) {
-  const bioBmps = bmps.filter(b => (b.type === 'Bioretention' || b.type === 'Dry Swale') && b.bio);
+  const bioBmps = bmps.filter(b => b.type === 'Bioretention' && b.bio);
   const overview = renderOverview(
-    'Bioretention retains in three layers: engineered media (void space), gravel underdrain layer (void space), and ponded surface (full volume above). Sv sums all three contributions over the bottom surface area.',
+    'Bioretention retains in three components: engineered media (void space), gravel underdrain layer (void space), and ponded surface above grade. The subsurface uses SA_bot; the pond uses a trapezoid frustum between SA_top and SA_pond_top when the basin has sloped sides.',
   );
   const why = renderWhy(`
-    <p>The sizing uses SA_bot (not SA_top) because the storage below the surface is bounded by the bottom footprint — a sloped side-wall doesn't add storage volume at depth. Media and gravel porosities (n ≈ 0.40 each) convert bulk layer volume to pore water storage. Ponding depth contributes its full volume because surface water is 100% storage.</p>
+    <p>Media and gravel sit in a rectangular trench — SA_bot governs those layers. The pond above grade flares with the side slopes of the surrounding landscape — if SA_pond_top is provided, the pond is modeled as a trapezoidal frustum between SA_top and SA_pond_top. For structural planters with vertical walls, leave SA_pond_top blank — the pond collapses to a vertical column.</p>
   `);
   const formula = renderFormula(`
-    <div class="cs-formula-line">Sv = SA_bot × (d_media × n_media + d_gravel × n_gravel + d_pond)</div>
-    <div class="cs-formula-line">Rv = Sv × retention_multiplier</div>
+    <div class="cs-formula-line">media_Sv  = SA_bot × d_media × n_media</div>
+    <div class="cs-formula-line">gravel_Sv = SA_bot × d_gravel × n_gravel</div>
+    <div class="cs-formula-line">pond_Sv   = ½ × (SA_top + SA_pond_top) × d_pond   <i>[trapezoid when SA_pond_top provided]</i></div>
+    <div class="cs-formula-line">pond_Sv   = SA_bot × d_pond                       <i>[vertical-wall fallback]</i></div>
+    <div class="cs-formula-line">Sv_total  = media_Sv + gravel_Sv + pond_Sv</div>
     <div class="cs-formula-line">Rv_applied = min(Rv, CDA_area × 1.7″ / 12)</div>
   `);
   const traces = bioBmps.map(bmp => {
     const design = params.bmpDesign[`${bmp.type} / ${bmp.subType}`]
       || { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
     const svTrace = bioSizingSv(
-      bmp.bio.saBot, bmp.bio.dMedia, design.nMedia,
+      bmp.bio.saBot, bmp.bio.saTop, bmp.bio.saPondTop,
+      bmp.bio.dMedia, design.nMedia,
       bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
     );
     const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
     const cda = _cdaFor(bmp, cdas);
     const cap = cda ? maxBmpCredit(cda.postIn).value : Infinity;
     const applied = Math.min(rvTrace.value, cap);
-    return renderBlock(`${bmp.name} (${bmp.type} / ${bmp.subType})`, renderKvTable([
-      ['SA_top (sf)',   fmtN(bmp.bio.saTop)],
-      ['SA_bot (sf)',   fmtN(bmp.bio.saBot)],
-      ['d_media (ft)',  fmtN(bmp.bio.dMedia, 2)],
-      ['n_media',       fmtN(design.nMedia, 2)],
-      ['d_gravel (ft)', fmtN(bmp.bio.dGravel, 2)],
-      ['n_gravel',      fmtN(design.nGravel, 2)],
-      ['d_pond (ft)',   fmtN(bmp.bio.dPond, 2)],
-      ['Sv (cf)',       fmtN(svTrace.value, 0)],
-      ['Rv (cf)',       fmtN(rvTrace.value, 0)],
-      ['CDA Max Credit', cda ? fmtN(cap, 0) : '—'],
-      ['Rv applied',    fmtN(applied, 0)],
-    ]));
+    const mediaSv  = bmp.bio.saBot * bmp.bio.dMedia  * design.nMedia;
+    const gravelSv = bmp.bio.saBot * bmp.bio.dGravel * design.nGravel;
+    const arith = renderArithmeticTrace([
+      { label: `${bmp.name} — media_Sv`,  formula: 'SA_bot × d_media × n_media',  substitution: `${bmp.bio.saBot} × ${bmp.bio.dMedia} × ${design.nMedia}`, result: `${fmtN(mediaSv, 0)} cf` },
+      { label: `${bmp.name} — gravel_Sv`, formula: 'SA_bot × d_gravel × n_gravel', substitution: `${bmp.bio.saBot} × ${bmp.bio.dGravel} × ${design.nGravel}`, result: `${fmtN(gravelSv, 0)} cf` },
+      { label: `${bmp.name} — pond_Sv [${svTrace.pondModel}]`, formula: svTrace.pondModel === 'trapezoid' ? '½ × (SA_top + SA_pond_top) × d_pond' : 'SA_bot × d_pond', substitution: svTrace.pondModel === 'trapezoid' ? `½ × (${bmp.bio.saTop} + ${bmp.bio.saPondTop}) × ${bmp.bio.dPond}` : `${bmp.bio.saBot} × ${bmp.bio.dPond}`, result: `${fmtN(svTrace.components.pondSv, 0)} cf` },
+      { label: `${bmp.name} — Sv_total`, formula: 'media_Sv + gravel_Sv + pond_Sv', substitution: `${fmtN(mediaSv, 0)} + ${fmtN(gravelSv, 0)} + ${fmtN(svTrace.components.pondSv, 0)}`, result: `${fmtN(svTrace.value, 0)} cf` },
+      { label: `${bmp.name} — Rv_applied`, formula: 'min(Rv, CDA_area × 1.7 / 12)', substitution: cda ? `min(${fmtN(rvTrace.value, 0)}, ${fmtN(cap, 0)})` : `${fmtN(rvTrace.value, 0)} (no CDA cap)`, result: `${fmtN(applied, 0)} cf` },
+    ]);
+    const fb = bioFreeboardFt({
+      topElev: bmp.bio.topElev, dPond: bmp.bio.dPond,
+      overflowElev: bmp.bio.overflowElev,
+      sidewalkElev: bmp.bio.sidewalkElev,
+      curbCutElev: bmp.bio.curbCutElev,
+    });
+    const freeboardLine = fb == null ? '' :
+      `<div class="cs-formula-line" style="margin-top:4px;"><b>Freeboard (DDOT §33.14.5.5 min 3″): ${fb.toFixed(2)} ft (${(fb*12).toFixed(1)}″) ${fb >= 0.25 ? '✓' : '✗'}</b></div>`;
+    return renderBlock(`${bmp.name} (${bmp.type} / ${bmp.subType})`, arith + freeboardLine);
   }).join('');
-  const body = overview + why + formula + renderWorked(traces || '<p>No Bioretention or Dry Swale BMPs in this project.</p>');
+  const body = overview + why + formula + renderWorked(traces || '<p>No Bioretention BMPs in this project.</p>');
   return renderSheetShell({
-    title: 'Bioretention & Dry Swale Sizing',
+    title: 'Bioretention Sizing',
     sub:   project.name || '',
     body,
-    footer: 'DOEE Guidebook §3.6 Bioretention · §3.9 O-2 Dry Swale',
+    footer: 'DOEE Guidebook §3.6 Bioretention · DDOT §33.14.5.5',
+  });
+}
+function renderDrySwaleSizingPage(project, bmps, cdas, params) {
+  const swaleBmps = bmps.filter(b => b.type === 'Dry Swale' && b.swale);
+  const overview = renderOverview(
+    'A Dry Swale is a linear channel with check dams. Each dam ponds a 3D wedge upstream — triangular in longitudinal profile, rectangular in cross-section. Total pond storage = N dams × wedge volume per dam.',
+  );
+  const why = renderWhy(`
+    <p>Unlike a bioretention basin (flat pond across the whole bottom), a swale ponds behind each check dam. The slope of the channel bed means water surface at each dam rises from the invert to the dam crest; the wedge upstream is bounded by where the water surface hits the invert again. For design per DDOT Table 3-32, the engineer picks spacing that achieves ≤ 2% effective longitudinal slope.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">Slope S = (inv_US − inv_DS) / L_s</div>
+    <div class="cs-formula-line">N_cd = floor(L_s / X_cd)</div>
+    <div class="cs-formula-line">full wedge upstream length = H_cd / S</div>
+    <div class="cs-formula-line">effective base per dam = min(X_cd, H_cd / S)</div>
+    <div class="cs-formula-line">wedge Sv per dam = ½ × effective_base × H_cd × w_s</div>
+    <div class="cs-formula-line"><b>Total pond Sv = N_cd × wedge Sv per dam</b></div>
+    <div class="cs-formula-line" style="margin-top: 4px;">Sv_total = SA_bot × (d_media·n_media + d_gravel·n_gravel) + pond_Sv</div>
+  `);
+  const traces = swaleBmps.map(bmp => {
+    const design = params.bmpDesign[`Dry Swale / ${bmp.subType}`]
+      || { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
+    const svTrace = drySwaleSizingSv({
+      saBot: bmp.swale.saBot,
+      dMedia: bmp.swale.dMedia, nMedia: design.nMedia,
+      dGravel: bmp.swale.dGravel, nGravel: design.nGravel,
+      dPond: bmp.swale.dPond,
+      length: bmp.swale.length, bottomWidth: bmp.swale.bottomWidth,
+      invUs: bmp.swale.invUs, invDs: bmp.swale.invDs,
+      checkDamHeight: bmp.swale.checkDamHeight,
+      checkDamSpacing: bmp.swale.checkDamSpacing,
+    });
+    const rvTrace = rvFromSv(svTrace.value, design.retMultiplier);
+    const cda = _cdaFor(bmp, cdas);
+    const cap = cda ? maxBmpCredit(cda.postIn).value : Infinity;
+    const applied = Math.min(rvTrace.value, cap);
+    const steps = [];
+    if (svTrace.pondModel === 'wedge') {
+      const t = svTrace.pondTrace;
+      steps.push(
+        { label: `${bmp.name} — Longitudinal slope`, formula: 'S = (inv_US − inv_DS) / L_s', substitution: `(${bmp.swale.invUs} − ${bmp.swale.invDs}) / ${bmp.swale.length}`, result: `${t.slope.toFixed(4)} ft/ft` },
+        { label: `${bmp.name} — Dam count`, formula: 'N_cd = floor(L_s / X_cd)', substitution: `floor(${bmp.swale.length} / ${bmp.swale.checkDamSpacing})`, result: `${t.nDams} dams` },
+        { label: `${bmp.name} — Full wedge upstream length`, formula: 'H_cd / S', substitution: `${bmp.swale.checkDamHeight} / ${t.slope.toFixed(4)}`, result: `${t.fullWedgeBase.toFixed(1)} ft` },
+        { label: `${bmp.name} — Effective base per dam`, formula: 'min(X_cd, H_cd/S)', substitution: `min(${bmp.swale.checkDamSpacing}, ${t.fullWedgeBase.toFixed(1)})`, result: `${t.effectiveBase.toFixed(1)} ft` },
+        { label: `${bmp.name} — Wedge Sv per dam`, formula: '½ × base × H_cd × w_s', substitution: `½ × ${t.effectiveBase.toFixed(1)} × ${bmp.swale.checkDamHeight} × ${bmp.swale.bottomWidth}`, result: `${t.wedgePerDam.toFixed(0)} cf` },
+        { label: `${bmp.name} — Total pond Sv`, formula: 'N_cd × wedge Sv per dam', substitution: `${t.nDams} × ${t.wedgePerDam.toFixed(0)}`, result: `${fmtN(svTrace.components.pondSv, 0)} cf` },
+      );
+    } else {
+      steps.push({ label: `${bmp.name} — Pond Sv (flat fallback)`, formula: 'SA_bot × d_pond', substitution: `${bmp.swale.saBot} × ${bmp.swale.dPond}`, result: `${fmtN(svTrace.components.pondSv, 0)} cf` });
+    }
+    steps.push(
+      { label: `${bmp.name} — Media + Gravel subsurface Sv`, formula: 'SA_bot × (d_media·n_media + d_gravel·n_gravel)', substitution: `${bmp.swale.saBot} × (${bmp.swale.dMedia}·${design.nMedia} + ${bmp.swale.dGravel}·${design.nGravel})`, result: `${fmtN(svTrace.components.mediaGravelSv, 0)} cf` },
+      { label: `${bmp.name} — Sv total`, formula: 'media_gravel_Sv + pond_Sv', substitution: `${fmtN(svTrace.components.mediaGravelSv, 0)} + ${fmtN(svTrace.components.pondSv, 0)}`, result: `${fmtN(svTrace.value, 0)} cf` },
+      { label: `${bmp.name} — Rv_applied`, formula: 'min(Rv, CDA_area × 1.7 / 12)', substitution: cda ? `min(${fmtN(rvTrace.value, 0)}, ${fmtN(cap, 0)})` : `${fmtN(rvTrace.value, 0)} (no CDA cap)`, result: `${fmtN(applied, 0)} cf` },
+    );
+    const arith = renderArithmeticTrace(steps);
+    const fb = drySwaleFreeboardFt({
+      invUs: bmp.swale.invUs, invDs: bmp.swale.invDs,
+      topUs: bmp.swale.topUs, topDs: bmp.swale.topDs,
+      checkDamHeight: bmp.swale.checkDamHeight,
+    });
+    const freeboardLine = fb == null ? '' :
+      `<div class="cs-formula-line" style="margin-top:4px;"><b>Freeboard (DDOT §33.14.5.5 min 6″): ${fb.toFixed(2)} ft (${(fb*12).toFixed(1)}″) ${fb >= 0.5 ? '✓' : '✗'}</b></div>`;
+    return renderBlock(`${bmp.name} — Dry Swale`, arith + freeboardLine);
+  }).join('');
+  const body = overview + why + formula + renderWorked(traces || '<p>No Dry Swale BMPs in this project.</p>');
+  return renderSheetShell({
+    title: 'Dry Swale Sizing',
+    sub:   project.name || '',
+    body,
+    footer: 'DOEE Guidebook §3.9 O-2 Dry Swale · DDOT §33.14.5',
   });
 }
 function renderTreeCreditPage(project, bmps, params) {
@@ -2434,7 +2514,7 @@ function buildAndRender() {
   const laterLabels = [
     'Compliance Landscape', 'Project Triggers',
     'Site DA', 'SDA & CDA Explained', 'Rv Values', 'SWRv per SDA',
-    'BMP Catalog', 'Permeable Pavement Sizing', 'Bioretention Sizing', 'Tree Credit', 'Rv Provided',
+    'BMP Catalog', 'Permeable Pavement Sizing', 'Bioretention Sizing', 'Dry Swale Sizing', 'Tree Credit', 'Rv Provided',
     'DDOT MEP (PROW)',
     'EISA 438 Intro', 'EISA Direct Determination', 'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
     // Site Compliance (portrait) before Detention (landscape) so the deck
@@ -2458,6 +2538,7 @@ function buildAndRender() {
   push('BMP Catalog',                    renderBmpCatalogPage(project, bmps));
   push('Permeable Pavement Sizing',      renderPpSizingPage(project, bmps, cdas, params));
   push('Bioretention Sizing',            renderBioSizingPage(project, bmps, cdas, params));
+  push('Dry Swale Sizing',               renderDrySwaleSizingPage(project, bmps, cdas, params));
   push('Tree Credit',                    renderTreeCreditPage(project, bmps, params));
   push('Rv Provided',                    renderRvProvidedPage(project, bmps, cdas, params));
   push('DDOT MEP (PROW)',                renderMepEduPage(project, sdas, bmps, cdas, params));
