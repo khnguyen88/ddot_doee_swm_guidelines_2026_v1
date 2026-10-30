@@ -1063,6 +1063,7 @@ function renderEduSidebar(text) {
 
 
 
+
 const esc = (s) => String(s)
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -1647,6 +1648,198 @@ function renderEisaIntroPage(project) {
     sub:   project.name || '',
     body,
     footer: 'EISA §438 TG (EPA, Dec 2009)',
+  });
+}
+
+// ── Task 9: EISA 438 four pages ────────────────────────────────────────────────
+function renderEisaDirectEduPage(project, pre, post) {
+  const overview = renderOverview(
+    'The Direct Determination method computes runoff explicitly from physical quantities: depression storage removes a fixed depth from the surface, and pervious areas additionally lose water to Horton infiltration integrated over 24 hours.',
+  );
+  const why = renderWhy(`
+    <p>Direct Determination is the method EPA documents in its EISA §438 Technical Guidance (Dec 2009). It is physically transparent — every term maps to a measurable landscape property. For HSG B and C soils, the 24-hour Horton infiltration loss far exceeds the available rainfall after depression (<i>Horton_B = ${HORTON_INFIL_LOSS_B.toFixed(2)}″</i>, <i>Horton_C = ${HORTON_INFIL_LOSS_C.toFixed(2)}″</i> &gt; 1.5″), so pervious B and C surfaces produce zero runoff for the 1.7″ storm.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">Impervious depth = max(0, P − 0.1″)                              <i>depression storage</i></div>
+    <div class="cs-formula-line">Pervious HSG A   = 0                                              <i>free-draining</i></div>
+    <div class="cs-formula-line">Pervious HSG B   = max(0, P − 0.2″ − ${HORTON_INFIL_LOSS_B.toFixed(2)}″ Horton_B) ≈ 0</div>
+    <div class="cs-formula-line">Pervious HSG C   = max(0, P − 0.2″ − ${HORTON_INFIL_LOSS_C.toFixed(2)}″ Horton_C) ≈ 0</div>
+    <div class="cs-formula-line">Pervious HSG D   = max(0, P − 0.2″)                               <i>no Horton loss, D</i></div>
+    <div class="cs-formula-line" style="margin-top: 6px;">Horton equation: F_t = f_min + (f_max − f_min) · e^(−k·t); integrated over T=24 hr</div>
+  `);
+  const hortonTable = renderDataTable(
+    ['Parameter', 'HSG B', 'HSG C'],
+    [
+      ['f_max (in/hr)',  '5.0', '3.0'],
+      ['f_min (in/hr)',  '0.3', '0.1'],
+      ['k (1/hr)',       '2.0', '3.5'],
+      ['24-hr loss (in)', HORTON_INFIL_LOSS_B.toFixed(2), HORTON_INFIL_LOSS_C.toFixed(2)],
+    ],
+  );
+  const buildTable = (trace) => renderDataTable(
+    ['Land Use', 'HSG', 'Area (sf)', 'Depth @ 1.7″ (in)', 'Volume (cf)'],
+    trace.perRow.map(r => [
+      r.landUse, r.hsg, fmtN(r.area), r.depthIn.toFixed(3), fmtN(r.volumeCf, 0),
+    ]),
+  );
+  const delta = post.value - pre.value;
+  const worked = renderWorked(
+    renderBlock('HORTON PARAMETERS', hortonTable) +
+    renderBlock('PRE-DEVELOPMENT',  buildTable(pre))  +
+    `<div class="cs-formula-line"><b>Pre total: ${fmtN(pre.value, 0)} cf</b></div>` +
+    renderBlock('POST-DEVELOPMENT', buildTable(post)) +
+    `<div class="cs-formula-line"><b>Post total: ${fmtN(post.value, 0)} cf</b></div>` +
+    `<div class="cs-formula-line" style="margin-top:6px;"><b>Δ = Post − Pre = ${fmtN(delta, 0)} cf</b> ${delta <= 0 ? '(✓ passes pre-BMP)' : '(✗ relies on BMP storage)'}</div>`,
+  );
+  const body = overview + why + formula + worked;
+  return renderSheetShell({
+    title: 'EISA §438 — Direct Determination',
+    sub:   `${project.name || ''} · 95th percentile = 1.7″`,
+    body,
+    footer: 'EISA §438 TG (EPA, Dec 2009)',
+  });
+}
+function renderEisaTr55EduPage(project, pre, post) {
+  const overview = renderOverview(
+    'TR-55 is the Soil Conservation Service runoff curve-number method. It uses a single empirical parameter CN (Curve Number) to represent soil wetness and cover; given CN and rainfall P, it computes runoff Q with a closed-form equation.',
+  );
+  const why = renderWhy(`
+    <p>CN is calibrated from gauged watersheds; it encodes soil hydrologic group, land cover, and antecedent moisture. The SCS equation computes a potential maximum retention <i>S</i> (dimensioned in inches of depth), splits it into an initial abstraction Ia = 0.2·S (losses before runoff begins) and residual storage, then produces Q once P exceeds Ia. The method is widely used because it needs only one input (CN) per surface.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">S  = 1000 / CN − 10                   <i>— potential maximum retention (in)</i></div>
+    <div class="cs-formula-line">Ia = 0.2 · S                           <i>— initial abstraction (SCS calibration)</i></div>
+    <div class="cs-formula-line">Q  = (P − Ia)² / (P − Ia + S)         <i>if P > Ia, else 0</i></div>
+    <div class="cs-formula-line" style="margin-top:6px;"><i>CN table (used by this project)</i>:</div>
+  `);
+  const buildTable = (trace) => renderDataTable(
+    ['Land Use', 'HSG', 'Area (sf)', 'CN', 'Depth @ 1.7″ (in)', 'Volume (cf)'],
+    trace.perRow.map(r => [
+      r.landUse, r.hsg, fmtN(r.area), r.cn, r.depthIn.toFixed(3), fmtN(r.volumeCf, 0),
+    ]),
+  );
+  const delta = post.value - pre.value;
+  const worked = renderWorked(
+    renderBlock('PRE-DEVELOPMENT',  buildTable(pre)) +
+    `<div class="cs-formula-line"><b>Pre total: ${fmtN(pre.value, 0)} cf</b></div>` +
+    renderBlock('POST-DEVELOPMENT', buildTable(post)) +
+    `<div class="cs-formula-line"><b>Post total: ${fmtN(post.value, 0)} cf</b></div>` +
+    `<div class="cs-formula-line" style="margin-top:6px;"><b>Δ = Post − Pre = ${fmtN(delta, 0)} cf</b> ${delta <= 0 ? '(✓ passes pre-BMP)' : '(✗ relies on BMP storage)'}</div>`,
+  );
+  const body = overview + why + formula + worked;
+  return renderSheetShell({
+    title: 'EISA §438 — TR-55 (SCS CN method)',
+    sub:   `${project.name || ''} · 95th percentile = 1.7″`,
+    body,
+    footer: 'EISA §438 TG (EPA, Dec 2009) · SCS TR-55 1986',
+  });
+}
+
+function _distinctProjectCns(parsed, params) {
+  const seen = new Set();
+  for (const r of (parsed.sdas || [])) {
+    const row = params.cn[r.landUse];
+    if (row && row[r.hsg] != null) seen.add(row[r.hsg]);
+  }
+  return Array.from(seen).sort((a, b) => a - b);
+}
+
+function _tr16TableHtml(cn, highlightP = 1.7) {
+  // Row heads 1..12 inches, col heads 0.0..0.9 tenths.
+  const highlightRow = Math.floor(highlightP);
+  const highlightCol = Math.round((highlightP - highlightRow) * 10);
+  const header = `<tr><th>P \\ 0.X</th>${Array.from({length:10}, (_,i)=>`<th>0.${i}</th>`).join('')}</tr>`;
+  const rows = Array.from({length: 12}, (_, i) => {
+    const whole = i + 1;
+    const cells = Array.from({length: 10}, (_, j) => {
+      const q = tr16LookupQ(cn, whole + j/10);
+      const cls = (whole === highlightRow && j === highlightCol) ? ' class="tr16-highlight"' : '';
+      return `<td${cls}>${q == null ? '—' : q.toFixed(2)}</td>`;
+    }).join('');
+    return `<tr><th>${whole}</th>${cells}</tr>`;
+  }).join('');
+  const q = tr16LookupQ(cn, highlightP);
+  return `
+    <div class="tr16-caption">CN = ${cn} — at P = ${highlightP.toFixed(1)}″ → Q = ${q == null ? '—' : q.toFixed(2)}″</div>
+    <table class="tr16-table">${header}${rows}</table>
+  `;
+}
+function renderEisaTr16EduPage(project, parsed, params) {
+  const overview = renderOverview(
+    'TR-16 Exhibit 2-7A is the printed lookup form of the TR-55 equation. For each curve number, it tabulates runoff Q at rainfall increments of 0.1″ up to 12.9″. This page shows one table per CN that appears in the project.',
+  );
+  const why = renderWhy(`
+    <p>TR-16 is <b>mathematically identical</b> to TR-55; the table just rounds P to the nearest 0.1″. The lookup is a bookkeeping aid that pre-dates calculators. Each table here highlights the <b>P = 1.7″ cell</b> — the 95th-percentile storm for DC — so a reviewer can trace the EISA §438 Q by eye.</p>
+    <p>For the full exhibit covering all 12 SCS CN curves (60, 61, 68–82, 98), see Appendix A.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">Q = (P − 0.2·S)² / (P + 0.8·S)       <i>— identical to TR-55 formula, rearranged</i></div>
+    <div class="cs-formula-line">S = 1000 / CN − 10</div>
+  `);
+  const projectCns = _distinctProjectCns(parsed, params);
+  const relevantCns = projectCns.filter(cn => TR16_CN_LIST.includes(cn));
+  const missingCns  = projectCns.filter(cn => !TR16_CN_LIST.includes(cn));
+  const tables = relevantCns.map(cn => _tr16TableHtml(cn, 1.7)).join('');
+  const notice = missingCns.length
+    ? `<div class="cs-note">Project also uses CN = ${missingCns.join(', ')} — not in TR-16 Exhibit 2-7A (printed exhibit lists only CN 60, 61, 68, 69, 70, 74, 75, 76, 80, 81, 82, 98). Use the TR-55 formula for those.</div>`
+    : '';
+  const worked = renderWorked(
+    (tables || '<div class="cs-note">No TR-16-tabulated CNs in this project.</div>') + notice,
+  );
+  const body = overview + why + formula + worked;
+  return renderSheetShell({
+    title: 'EISA §438 — TR-16 Exhibit 2-7A Lookup',
+    sub:   `${project.name || ''} · P = 1.7″ highlighted`,
+    body,
+    footer: 'SCS TR-16 Exhibit 2-7A · USDA Soil Conservation Service · Upper Darby, PA',
+  });
+}
+function renderEisaComparisonEduPage(project, direct, tr55, tr16, bmpStorage, electedMethod) {
+  const overview = renderOverview(
+    'All three EISA §438 methods compute runoff; this page compares their totals side-by-side and shows how BMP storage credit closes any deficit.',
+  );
+  const why = renderWhy(`
+    <p>TR-55 and TR-16 should agree to within rounding (TR-16 bins P to 0.1″). Direct Determination uses a <b>different physical model</b> (24-hr Horton infiltration), so it typically diverges from the SCS methods on HSG B and C soils — Horton losses dominate those cases and drive pervious runoff to zero.</p>
+    <p>For every method, the <b>net result</b> after BMP storage credit is <i>Δ − Σ Rv_BMP</i>. A method passes when net ≤ 0.</p>
+  `);
+  const bmpHeaders = ['BMP', 'Type', 'SDA', 'Rv Provided (cf)'];
+  const bmpRows = bmpStorage.map(b => [b.name, b.type, b.sdaId, fmtN(b.rvCf, 0)]);
+  const bmpTotal = bmpStorage.reduce((s, b) => s + (b.rvCf || 0), 0);
+  bmpRows.push(['', '', 'TOTAL', fmtN(bmpTotal, 0)]);
+  const directNet = direct.deltaCf - bmpTotal;
+  const tr55Net   = tr55.deltaCf   - bmpTotal;
+  const tr16Net   = tr16.deltaCf   - bmpTotal;
+  const comparison = [
+    ['Direct Determination', fmtN(direct.preCf, 0), fmtN(direct.postCf, 0), fmtN(direct.deltaCf, 0),
+      fmtN(directNet, 0), directNet <= 0 ? '✓ PASS' : '✗ FAIL',
+      'Depression + 24-hr Horton'],
+    ['TR-55 Formula', fmtN(tr55.preCf, 0), fmtN(tr55.postCf, 0), fmtN(tr55.deltaCf, 0),
+      fmtN(tr55Net, 0), tr55Net <= 0 ? '✓ PASS' : '✗ FAIL',
+      'Continuous CN math'],
+    ['TR-16 Exhibit (lookup)', fmtN(tr16.preCf, 0), fmtN(tr16.postCf, 0), fmtN(tr16.deltaCf, 0),
+      fmtN(tr16Net, 0), tr16Net <= 0 ? '✓ PASS' : '✗ FAIL',
+      'TR-55 math, P rounded to 0.1″'],
+  ];
+  const cmpHeaders = ['Method', 'Pre (cf)', 'Post (cf)', 'Δ (cf)', 'Net after BMP (cf)', 'Status', 'Rounding note'];
+  const applies = electedMethod === 'Yes';
+  const summary = !applies
+    ? 'EISA §438 does not apply (PROJECT!B11 = "No").'
+    : (directNet <= 0 && tr55Net <= 0 && tr16Net <= 0)
+      ? 'All three methods pass with BMP storage credited — compliant.'
+      : (directNet <= 0 || tr55Net <= 0 || tr16Net <= 0)
+        ? 'At least one method passes with BMP storage credited — compliant under the passing method; engineer selects which to submit.'
+        : 'No method passes with BMP storage credited — additional retention required to meet EISA §438.';
+  const body =
+    overview + why +
+    renderBlock('BMP STORAGE (RETENTION CREDIT)', renderDataTable(bmpHeaders, bmpRows)) +
+    renderBlock('METHOD COMPARISON', renderDataTable(cmpHeaders, comparison)) +
+    renderWorked(`<p>${esc(summary)}</p><p><b>EISA §438 applies:</b> ${esc(electedMethod || '(not specified)')}</p>`);
+  return renderSheetShell({
+    title: 'EISA §438 — Three-Method Comparison',
+    sub:   project.name || '',
+    body,
+    footer: 'EISA §438 TG (EPA, Dec 2009)',
+    landscape: true,
   });
 }
 

@@ -168,3 +168,69 @@ test('renderEisaIntroPage: explains 95th percentile + 1.7"', () => {
   assert.ok(html.includes('1.7'));
   assert.ok(html.includes('METF'));
 });
+
+import {
+  renderEisaDirectEduPage, renderEisaTr55EduPage,
+  renderEisaTr16EduPage, renderEisaComparisonEduPage,
+} from '../src/render-edu.mjs';
+import {
+  eisaDirectVolumeTraceCf, tr55VolumeTraceCf, HORTON_INFIL_LOSS_B, HORTON_INFIL_LOSS_C,
+} from '../src/calc.mjs';
+
+const eisaRows = [
+  { area: 10000, landUse: 'Impervious Vehicular', hsg: 'D' },
+  { area:  5000, landUse: 'Natural (Woods)',      hsg: 'C' },
+];
+
+test('renderEisaDirectEduPage: shows depression + Horton with numerical constants', () => {
+  const pre  = eisaDirectVolumeTraceCf(eisaRows, 1.7);
+  const post = eisaDirectVolumeTraceCf(eisaRows, 1.7);
+  const html = renderEisaDirectEduPage(sampleProject, pre, post);
+  assert.ok(html.includes('Direct Determination'));
+  assert.ok(html.includes('0.1'));                 // depression (impervious)
+  assert.ok(html.includes('0.2'));                 // depression (pervious)
+  assert.ok(html.includes('Horton'));
+  assert.ok(html.includes(HORTON_INFIL_LOSS_B.toFixed(2)));
+  assert.ok(html.includes(HORTON_INFIL_LOSS_C.toFixed(2)));
+});
+
+test('renderEisaTr55EduPage: derives S / Ia / Q with CN column', () => {
+  const pre  = tr55VolumeTraceCf(eisaRows, 1.7);
+  const post = tr55VolumeTraceCf(eisaRows, 1.7);
+  const html = renderEisaTr55EduPage(sampleProject, pre, post);
+  assert.ok(html.includes('S  = 1000'));
+  assert.ok(html.includes('Ia'));
+  assert.ok(html.includes('CN'));
+  assert.ok(html.includes('98'));                  // impervious CN
+});
+
+test('renderEisaTr16EduPage: renders lookup table for distinct project CNs with P=1.7 highlighted', () => {
+  const parsed = { sdas: eisaRows.map(r => ({ ...r, sdaId: 'SDA-1' })) };
+  const paramsForTr16 = {
+    cn: {
+      'Impervious Vehicular': { A: 98, B: 98, C: 98, D: 98 },
+      'Natural (Woods)':      { A: 25, B: 55, C: 70, D: 77 },
+    },
+  };
+  const html = renderEisaTr16EduPage(sampleProject, parsed, paramsForTr16);
+  assert.ok(html.includes('CN = 98'));
+  assert.ok(html.includes('CN = 70'));
+  assert.ok(html.includes('tr16-highlight'));
+  assert.ok(html.includes('1.48'));                 // CN 98 at P=1.7
+});
+
+test('renderEisaComparisonEduPage: shows all three method totals + BMP storage', () => {
+  const bmpStorage = [{ name: 'B-1', type: 'Bioretention', sdaId: 'SDA-1', rvCf: 100 }];
+  const html = renderEisaComparisonEduPage(sampleProject,
+    { preCf: 100, postCf: 150, deltaCf: 50 },
+    { preCf: 110, postCf: 160, deltaCf: 50 },
+    { preCf: 108, postCf: 158, deltaCf: 50 },     // TR-16 totals (rounded)
+    bmpStorage,
+    'Yes',
+  );
+  assert.ok(html.includes('Direct Determination'));
+  assert.ok(html.includes('TR-55'));
+  assert.ok(html.includes('TR-16'));
+  assert.ok(html.includes('BMP'));
+  assert.ok(html.includes('B-1'));
+});
