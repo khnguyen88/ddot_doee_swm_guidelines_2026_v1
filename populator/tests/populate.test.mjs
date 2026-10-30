@@ -68,7 +68,7 @@ const ALL_MAPPINGS = [generalRetention, ddotMep, swdbProw, swmpBmpCalc, rwh];
 
 const blankPath = (name) => join(__dirname, '..', 'blanks', name);
 
-test('populateAll: 18 outputs + 1 skipped on Minnesota Ave', async () => {
+test('populateAll: 19 outputs + 1 skipped on Minnesota Ave', async () => {
   const start = Date.now();
   const blanks = {
     'general-retention':    await readFile(blankPath('general-retention.xlsx')),
@@ -80,9 +80,9 @@ test('populateAll: 18 outputs + 1 skipped on Minnesota Ave', async () => {
   const results = await populateAll(wb, { mappings: ALL_MAPPINGS, blanks });
   const elapsedMs = Date.now() - start;
 
-  // 3 single mappings (general-retention, ddot-mep, swdb-prow) + 15 fan-out BMPs
-  // (4 PP + 4 Bio + 7 Trees from the Minnesota Ave fixture).
-  assert.equal(results.outputs.length, 18, `expected 18 outputs, got ${results.outputs.length}`);
+  // 3 single mappings (general-retention, ddot-mep, swdb-prow) + 16 fan-out BMPs
+  // (4 PP + 4 Bio + 1 Dry Swale + 7 Trees from the Minnesota Ave fixture).
+  assert.equal(results.outputs.length, 19, `expected 19 outputs, got ${results.outputs.length}`);
   assert.equal(results.skipped.length, 1);
   assert.equal(results.skipped[0].targetId, 'rainwater-harvesting');
 
@@ -93,6 +93,6 @@ test('populateAll: 18 outputs + 1 skipped on Minnesota Ave', async () => {
     assert.ok(zip.file('xl/workbook.xml'), `${out.targetId} missing xl/workbook.xml`);
   }
 
-  // Perf budget — 18 outputs (15 fan-out + 3 single); allow headroom for CI machines.
+  // Perf budget — 19 outputs (16 fan-out + 3 single); allow headroom for CI machines.
   assert.ok(elapsedMs < 30000, `populate took ${elapsedMs}ms — should be <30s`);
 });

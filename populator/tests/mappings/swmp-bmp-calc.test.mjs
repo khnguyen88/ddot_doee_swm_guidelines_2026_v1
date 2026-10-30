@@ -1,7 +1,7 @@
 // tests/mappings/swmp-bmp-calc.test.mjs
 //
-// Fan-out behavior: Minnesota Ave fixture has 4 PP + 4 Bio + 7 Trees = 15 BMPs
-// of supported types → applyMapping must produce 15 output files, each with
+// Fan-out behavior: Minnesota Ave fixture has 4 PP + 4 Bio + 1 Dry Swale + 7 Trees = 16 BMPs
+// of supported types → applyMapping must produce 16 output files, each with
 // only its one BMP's cells populated on its one type-specific sheet.
 
 import { test } from 'node:test';
@@ -31,8 +31,8 @@ test('swmp-bmp-calc: result exposes outputs[] for fan-out mappings', () => {
   assert.ok(Array.isArray(result.outputs), 'expected outputs[] array');
 });
 
-test('swmp-bmp-calc: 15 outputs for Minnesota Ave (4 PP + 4 Bio + 7 Trees)', () => {
-  assert.equal(result.outputs.length, 15, `expected 15 outputs, got ${result.outputs.length}`);
+test('swmp-bmp-calc: 16 outputs for Minnesota Ave (4 PP + 4 Bio + 1 Dry Swale + 7 Trees)', () => {
+  assert.equal(result.outputs.length, 16, `expected 16 outputs, got ${result.outputs.length}`);
 });
 
 test('swmp-bmp-calc: each filename starts with the standard prefix and ends .xlsm', () => {

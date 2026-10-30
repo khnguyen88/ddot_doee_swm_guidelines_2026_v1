@@ -143,13 +143,13 @@ export const target = {
           { sheet, ref: 'C66', value: bmp.bio.dPond },
         );
       } else if (bmp.type === 'Dry Swale') {
-        if (!bmp.bio) { warnings.push(`${bmp.name}: missing bio sub-object; skipped.`); continue; }
+        if (!bmp.swale) { warnings.push(`${bmp.name}: missing swale sub-object; skipped.`); continue; }
         cells.push(
-          { sheet, ref: 'C29', value: bmp.bio.saTop },
-          { sheet, ref: 'C30', value: bmp.bio.saBot },
-          { sheet, ref: 'C32', value: bmp.bio.dMedia },
-          { sheet, ref: 'C34', value: bmp.bio.dGravel },
-          { sheet, ref: 'C36', value: bmp.bio.dPond },
+          { sheet, ref: 'C29', value: bmp.swale.saTop },
+          { sheet, ref: 'C30', value: bmp.swale.saBot },
+          { sheet, ref: 'C32', value: bmp.swale.dMedia },
+          { sheet, ref: 'C34', value: bmp.swale.dGravel },
+          { sheet, ref: 'C36', value: bmp.swale.dPond },
         );
       } else if (bmp.type === 'Planted Trees' || bmp.type === 'Preserve Trees') {
         if (!bmp.trees) { warnings.push(`${bmp.name}: missing trees sub-object; skipped.`); continue; }

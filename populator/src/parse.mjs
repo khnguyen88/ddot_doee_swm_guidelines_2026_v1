@@ -125,8 +125,16 @@ function parseBmp(sheet) {
         sa: cell(sheet, r, 6) || 0,
         dReservoir: cell(sheet, r, 7) || 0,
       };
-    } else if (type === 'Bioretention' || type === 'Dry Swale') {
+    } else if (type === 'Bioretention') {
       row.bio = {
+        saTop: cell(sheet, r, 14) || 0,
+        saBot: cell(sheet, r, 15) || 0,
+        dMedia: cell(sheet, r, 17) || 0,
+        dGravel: cell(sheet, r, 19) || 0,
+        dPond: cell(sheet, r, 21) || 0,
+      };
+    } else if (type === 'Dry Swale') {
+      row.swale = {
         saTop: cell(sheet, r, 14) || 0,
         saBot: cell(sheet, r, 15) || 0,
         dMedia: cell(sheet, r, 17) || 0,
