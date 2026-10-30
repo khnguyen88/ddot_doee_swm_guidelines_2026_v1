@@ -6,18 +6,19 @@ import { dirname, join } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const paths = {
-  dev:       join(__dirname, 'education-dev.html'),
-  styles:    join(__dirname, 'src',  'styles.css'),
-  parse:     join(__dirname, 'src',  'parse.mjs'),
-  calc:      join(__dirname, 'src',  'calc.mjs'),
-  aggregate: join(__dirname, 'src',  'aggregate.mjs'),
-  tr16:      join(__dirname, 'src',  'tr16-exhibit.mjs'),
-  narrative: join(__dirname, 'src',  'narrative.mjs'),
-  renderEdu: join(__dirname, 'src',  'render-edu.mjs'),
-  ui:        join(__dirname, 'src',  'ui.mjs'),
-  sheetjs:   join(__dirname, 'lib',  'sheetjs-bundle.js'),
-  dist:      join(__dirname, 'education.html'),
+  dev:         join(__dirname, 'education-dev.html'),
+  styles:      join(__dirname, 'src',  'styles.css'),
+  parse:       join(__dirname, 'src',  'parse.mjs'),
+  calc:        join(__dirname, 'src',  'calc.mjs'),
+  aggregate:   join(__dirname, 'src',  'aggregate.mjs'),
+  tr16:        join(__dirname, 'src',  'tr16-exhibit.mjs'),
+  narrative:   join(__dirname, 'src',  'narrative.mjs'),
+  renderEdu:   join(__dirname, 'src',  'render-edu.mjs'),
+  ui:          join(__dirname, 'src',  'ui.mjs'),
+  sheetjs:     join(__dirname, 'lib',  'sheetjs-bundle.js'),
+  dist:        join(__dirname, 'education.html'),
 };
+paths.demoFixture = join(__dirname, 'tests', 'fixtures', 'minnesota-ave.xlsx');
 
 function stripRelativeImports(source) {
   return source
@@ -35,21 +36,24 @@ async function readIfExists(path) {
 }
 
 async function main() {
-  const [devHtml, stylesCss, parseJs, calcJs, aggregateJs, tr16Js, narrativeJs, renderEduJs, uiJs, sheetjsJs] =
+  const [devHtml, stylesCss, parseJs, calcJs, aggregateJs, tr16Js, narrativeJs, renderEduJs, uiJs, sheetjsJs, demoBytes] =
     await Promise.all([
-      readFile(paths.dev,       'utf8'),
-      readFile(paths.styles,    'utf8'),
-      readFile(paths.parse,     'utf8'),
-      readFile(paths.calc,      'utf8'),
-      readFile(paths.aggregate, 'utf8'),
+      readFile(paths.dev,         'utf8'),
+      readFile(paths.styles,      'utf8'),
+      readFile(paths.parse,       'utf8'),
+      readFile(paths.calc,        'utf8'),
+      readFile(paths.aggregate,   'utf8'),
       readIfExists(paths.tr16),
       readIfExists(paths.narrative),
       readIfExists(paths.renderEdu),
-      readFile(paths.ui,        'utf8'),
-      readFile(paths.sheetjs,   'utf8'),
+      readFile(paths.ui,          'utf8'),
+      readFile(paths.sheetjs,     'utf8'),
+      readFile(paths.demoFixture),
     ]);
+  const demoB64 = demoBytes.toString('base64');
 
   const combinedModule = [
+    `const DEMO_XLSX_B64 = ${JSON.stringify(demoB64)};`,
     '// ─ src/calc.mjs ─',          stripRelativeImports(calcJs),
     '// ─ src/parse.mjs ─',         stripRelativeImports(parseJs),
     '// ─ src/aggregate.mjs ─',     stripRelativeImports(aggregateJs),

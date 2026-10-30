@@ -3,6 +3,12 @@
 
 import { parseWorkbook } from './parse.mjs';
 
+const esc = (s) => String(s ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
 const main      = document.getElementById('main');
 const sidebar   = document.getElementById('sidebar');
 const topbar    = document.getElementById('topbar');
@@ -31,7 +37,7 @@ function renderEmptyState() {
 
 function renderTopbar() {
   topbar.innerHTML = `
-    <div class="filename">${state.filename || ''}</div>
+    <div class="filename">${esc(state.filename)}</div>
     <button class="clear-btn" title="Clear" id="clearBtn">×</button>
     <div class="spacer"></div>
     <button class="btn" id="printBtn" title="Print this walkthrough">Print</button>
@@ -50,7 +56,7 @@ function renderSidebar() {
   const nav = state.pages.map((p, i) =>
     `<button class="nav-btn ${i === state.activeIdx ? 'active' : ''}" data-idx="${i}">
        <span class="nav-num">${String(i + 1).padStart(2, '0')}</span>
-       <span>${p.label}</span>
+       <span>${esc(p.label)}</span>
      </button>`,
   ).join('');
   sidebar.innerHTML = `
@@ -83,11 +89,11 @@ function renderBanner(kind, text) {
 async function onFileChosen(event) {
   const file = event.target.files[0];
   if (!file) return;
-  state.filename = file.name;
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const workbook = window.XLSX.read(bytes, { type: 'array' });
     state.parsed = parseWorkbook(workbook);
+    state.filename = file.name;
     buildAndRender();
   } catch (err) {
     console.error(err);
@@ -97,8 +103,17 @@ async function onFileChosen(event) {
 
 async function loadDemo() {
   try {
-    const res = await fetch('./tests/fixtures/minnesota-ave.xlsx');
-    const bytes = new Uint8Array(await res.arrayBuffer());
+    // DEMO_XLSX_B64 is injected by build.js (see paths.demoFixture).
+    // For dev-mode (education-dev.html), fall back to fetch.
+    let bytes;
+    if (typeof DEMO_XLSX_B64 !== 'undefined') {
+      const binary = atob(DEMO_XLSX_B64);
+      bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    } else {
+      const res = await fetch('./tests/fixtures/minnesota-ave.xlsx');
+      bytes = new Uint8Array(await res.arrayBuffer());
+    }
     const workbook = window.XLSX.read(bytes, { type: 'array' });
     state.parsed = parseWorkbook(workbook);
     state.filename = 'Minnesota Ave (demo)';
@@ -135,10 +150,12 @@ function setActive(idx) {
 function doPrint() {
   if (!state.pages) return;
   document.body.classList.add('print-mode');
-  requestAnimationFrame(() => {
-    window.print();
-    setTimeout(() => document.body.classList.remove('print-mode'), 500);
-  });
+  const cleanup = () => {
+    document.body.classList.remove('print-mode');
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  requestAnimationFrame(() => window.print());
 }
 
 // Boot.
