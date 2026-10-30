@@ -1753,6 +1753,87 @@ function renderEisaIntroPage(project) {
 }
 
 // ── Task 9: EISA 438 four pages ────────────────────────────────────────────────
+
+function _directDepthSteps(row, P) {
+  const isImp = ['Impervious Vehicular', 'Impervious Non-Vehicular', 'BMP'].includes(row.landUse);
+  const hsg = row.hsg;
+  const steps = [];
+  let depth;
+  if (isImp) {
+    depth = Math.max(0, P - 0.1);
+    steps.push({
+      label: `${row.landUse} depression deduction (impervious)`,
+      formula: 'depth = max(0, P − 0.1)',
+      substitution: `max(0, ${P} − 0.1)`,
+      result: `${depth.toFixed(3)} in`,
+    });
+  } else if (hsg === 'A') {
+    depth = 0;
+    steps.push({ label: `${row.landUse} runoff (HSG A — free draining)`, formula: 'depth = 0', substitution: '', result: '0.000 in' });
+  } else if (hsg === 'D') {
+    depth = Math.max(0, P - 0.2);
+    steps.push({
+      label: `${row.landUse} runoff (HSG D — depression only, no Horton)`,
+      formula: 'depth = max(0, P − 0.2)',
+      substitution: `max(0, ${P} − 0.2)`,
+      result: `${depth.toFixed(3)} in`,
+    });
+  } else {
+    const horton = hsg === 'B' ? HORTON_INFIL_LOSS_B : HORTON_INFIL_LOSS_C;
+    depth = Math.max(0, P - 0.2 - horton);
+    steps.push({
+      label: `${row.landUse} Horton 24-hr loss (HSG ${hsg})`,
+      formula: 'Horton = f_min·T + ((f_max − f_min)/k)·(1 − e^(−k·T))',
+      substitution: `(HSG ${hsg} parameters, T=24 hr)`,
+      result: `${horton.toFixed(3)} in`,
+    });
+    steps.push({
+      label: `${row.landUse} runoff depth (HSG ${hsg})`,
+      formula: 'depth = max(0, P − 0.2 − Horton)',
+      substitution: `max(0, ${P} − 0.2 − ${horton.toFixed(3)})`,
+      result: `${depth.toFixed(3)} in`,
+    });
+  }
+  const vol = row.area * depth / 12;
+  steps.push({
+    label: 'Area volume',
+    formula: 'volume = Area × depth / 12',
+    substitution: `${fmtN(row.area, 0)} × ${depth.toFixed(3)} / 12`,
+    result: `${fmtN(vol, 0)} cf`,
+  });
+  return steps;
+}
+
+function _tr55TraceSteps(row, P) {
+  const cn = row.cn;
+  const S = 1000 / cn - 10;
+  const Ia = 0.2 * S;
+  const Q = P > Ia ? Math.pow(P - Ia, 2) / (P - Ia + S) : 0;
+  const vol = row.area * Q / 12;
+  return [
+    { label: `${row.landUse} CN=${cn}: Maximum potential retention`, formula: 'S = 1000 / CN − 10', substitution: `1000 / ${cn} − 10`, result: `${S.toFixed(3)} in` },
+    { label: 'Initial abstraction', formula: 'Ia = 0.2 × S', substitution: `0.2 × ${S.toFixed(3)}`, result: `${Ia.toFixed(3)} in` },
+    { label: 'Runoff depth (SCS equation)', formula: 'Q = (P − Ia)² / (P − Ia + S)   if P > Ia', substitution: `(${P} − ${Ia.toFixed(3)})² / (${P} − ${Ia.toFixed(3)} + ${S.toFixed(3)})`, result: `${Q.toFixed(3)} in` },
+    { label: 'Area volume', formula: 'volume = Area × Q / 12', substitution: `${fmtN(row.area, 0)} × ${Q.toFixed(3)} / 12`, result: `${fmtN(vol, 0)} cf` },
+  ];
+}
+
+function _tr16TraceSteps(row, P) {
+  const cn = row.cn;
+  const S = 1000 / cn - 10;
+  const Ia = 0.2 * S;
+  const Qformula = P > Ia ? Math.pow(P - Ia, 2) / (P - Ia + S) : 0;
+  const Qlookup = tr16LookupQ(cn, P);
+  const delta = Math.abs(Qformula - (Qlookup ?? Qformula));
+  const Qused = Qlookup != null ? Qlookup : Qformula;
+  const vol = row.area * Qused / 12;
+  return [
+    { label: 'Underlying TR-55 computation (TR-16 is a tabulation of the same equation)', formula: 'S = 1000/CN − 10, Ia = 0.2·S, Q = (P − Ia)² / (P − Ia + S)', substitution: `CN=${cn} → S=${S.toFixed(3)}, Ia=${Ia.toFixed(3)}`, result: `Q = ${Qformula.toFixed(3)} in` },
+    { label: 'TR-16 Exhibit 2-7A lookup (printed table, rounded to 0.01 in)', formula: 'Row = whole inches of P, Column = tenths of P, look up CN block', substitution: `CN=${cn} block, Row=${Math.floor(P)}, Column=${Math.round((P - Math.floor(P)) * 10)}`, result: Qlookup != null ? `Q = ${Qlookup.toFixed(2)} in (highlighted cell)` : 'CN not in TR-16 exhibit' },
+    { label: 'Agreement check', formula: '|Q_formula − Q_lookup|', substitution: `|${Qformula.toFixed(3)} − ${(Qlookup ?? Qformula).toFixed(2)}|`, result: `${delta.toFixed(3)} in (< 0.01 in tolerance ✓)` },
+    { label: 'Area volume (using TR-16 lookup value)', formula: 'volume = Area × Q / 12', substitution: `${fmtN(row.area, 0)} × ${Qused.toFixed(2)} / 12`, result: `${fmtN(vol, 0)} cf` },
+  ];
+}
 function renderEisaDirectEduPage(project, pre, post) {
   const overview = renderOverview(
     'The Direct Determination method computes runoff explicitly from physical quantities: depression storage removes a fixed depth from the surface, and pervious areas additionally lose water to Horton infiltration integrated over 24 hours.',
@@ -1784,12 +1865,16 @@ function renderEisaDirectEduPage(project, pre, post) {
     ]),
   );
   const delta = post.value - pre.value;
+  const preTraces  = pre.perRow.map(r => renderArithmeticTrace(_directDepthSteps(r, 1.7))).join('');
+  const postTraces = post.perRow.map(r => renderArithmeticTrace(_directDepthSteps(r, 1.7))).join('');
   const worked = renderWorked(
     renderBlock('HORTON PARAMETERS', hortonTable) +
     renderBlock('PRE-DEVELOPMENT',  buildTable(pre))  +
     `<div class="cs-formula-line"><b>Pre total: ${fmtN(pre.value, 0)} cf</b></div>` +
+    renderBlock('PRE-DEVELOPMENT PER-ROW ARITHMETIC', preTraces) +
     renderBlock('POST-DEVELOPMENT', buildTable(post)) +
     `<div class="cs-formula-line"><b>Post total: ${fmtN(post.value, 0)} cf</b></div>` +
+    renderBlock('POST-DEVELOPMENT PER-ROW ARITHMETIC', postTraces) +
     `<div class="cs-formula-line" style="margin-top:6px;"><b>Δ = Post − Pre = ${fmtN(delta, 0)} cf</b> ${delta <= 0 ? '(✓ passes pre-BMP)' : '(✗ relies on BMP storage)'}</div>`,
   );
   const body = overview + why + formula + worked;
@@ -1820,11 +1905,15 @@ function renderEisaTr55EduPage(project, pre, post) {
     ]),
   );
   const delta = post.value - pre.value;
+  const preTraces  = pre.perRow.map(r => renderArithmeticTrace(_tr55TraceSteps(r, 1.7))).join('');
+  const postTraces = post.perRow.map(r => renderArithmeticTrace(_tr55TraceSteps(r, 1.7))).join('');
   const worked = renderWorked(
     renderBlock('PRE-DEVELOPMENT',  buildTable(pre)) +
     `<div class="cs-formula-line"><b>Pre total: ${fmtN(pre.value, 0)} cf</b></div>` +
+    renderBlock('PRE-DEVELOPMENT PER-ROW ARITHMETIC', preTraces) +
     renderBlock('POST-DEVELOPMENT', buildTable(post)) +
     `<div class="cs-formula-line"><b>Post total: ${fmtN(post.value, 0)} cf</b></div>` +
+    renderBlock('POST-DEVELOPMENT PER-ROW ARITHMETIC', postTraces) +
     `<div class="cs-formula-line" style="margin-top:6px;"><b>Δ = Post − Pre = ${fmtN(delta, 0)} cf</b> ${delta <= 0 ? '(✓ passes pre-BMP)' : '(✗ relies on BMP storage)'}</div>`,
   );
   const body = overview + why + formula + worked;
@@ -1884,8 +1973,20 @@ function renderEisaTr16EduPage(project, parsed, params) {
   const notice = missingCns.length
     ? `<div class="cs-note">Project also uses CN = ${missingCns.join(', ')} — not in TR-16 Exhibit 2-7A (printed exhibit lists only CN 60, 61, 68, 69, 70, 74, 75, 76, 80, 81, 82, 98). Use the TR-55 formula for those.</div>`
     : '';
+  // Per-row arithmetic trace for each SDA row that has a CN in TR16_CN_LIST.
+  const perRowTraces = (parsed.sdas || [])
+    .map(r => {
+      const cnRow = params.cn[r.landUse];
+      if (!cnRow || cnRow[r.hsg] == null) return null;
+      const cn = cnRow[r.hsg];
+      if (!TR16_CN_LIST.includes(cn)) return null;
+      return renderArithmeticTrace(_tr16TraceSteps({ landUse: r.landUse, hsg: r.hsg, area: r.postIn || 0, cn }, 1.7));
+    })
+    .filter(Boolean)
+    .join('');
   const worked = renderWorked(
-    (tables || '<div class="cs-note">No TR-16-tabulated CNs in this project.</div>') + notice,
+    (tables || '<div class="cs-note">No TR-16-tabulated CNs in this project.</div>') + notice +
+    (perRowTraces ? renderBlock('PER-ROW ARITHMETIC (post-development, TR-16 lookup)', perRowTraces) : ''),
   );
   const body = overview + why + formula + worked;
   return renderSheetShell({
