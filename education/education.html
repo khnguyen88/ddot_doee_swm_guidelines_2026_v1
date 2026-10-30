@@ -1203,6 +1203,128 @@ function renderProjectTriggersPage(project) {
     footer: '21 DCMR §502 · 21 DCMR §508.9 · EISA 2007',
   });
 }
+function renderSiteDaPage(project, agg) {
+  const overview = renderOverview(
+    'The Site Drainage Area (Site DA) rolls up every land-cover row inside the Limit of Disturbance (LOD) to show how impervious coverage changed from pre- to post-development. This drives the SWRv target.',
+  );
+  const why = renderWhy(`
+    <p>Compliance is calculated per Site Drainage Area, not per land-cover row. The Site DA roll-up is informational — it shows the magnitude of the change — but the authoritative compliance check happens on the per-SDA breakdown later. The DOEE Guidebook treats "impervious coverage increase" as the headline development metric.</p>
+  `);
+  const daHeaders = ['Land Cover', 'Pre (sf)', 'Post (sf)', 'Δ (sf)'];
+  const daRows = [
+    ['Natural (Woods)',   fmtN(agg.pre.natural),    fmtN(agg.post.natural),    fmtN(agg.post.natural    - agg.pre.natural)],
+    ['Compacted (Open)',  fmtN(agg.pre.compacted),  fmtN(agg.post.compacted),  fmtN(agg.post.compacted  - agg.pre.compacted)],
+    ['Impervious',        fmtN(agg.pre.impervious), fmtN(agg.post.impervious), fmtN(agg.post.impervious - agg.pre.impervious)],
+    ['BMP (as land cover)', fmtN(agg.pre.bmp),      fmtN(agg.post.bmp),        fmtN(agg.post.bmp - agg.pre.bmp)],
+    ['TOTAL LOD',         fmtN(agg.preTotal),       fmtN(agg.postTotal),       fmtN(agg.postTotal - agg.preTotal)],
+  ];
+  const worked = renderWorked(
+    renderDataTable(daHeaders, daRows) +
+    renderKvTable([
+      ['Pre impervious %',  fmtN(agg.impPctPre, 1) + '%'],
+      ['Post impervious %', fmtN(agg.impPctPost, 1) + '%'],
+    ]),
+  );
+  const body = overview + why + worked;
+  return renderSheetShell({
+    title: 'Site Drainage Area — Land Cover Roll-Up',
+    sub:   `${project.name || ''} · Total LOD ${fmtN(project.totalLod)} sf`,
+    body,
+    footer: 'DOEE Guidebook §2 · 21 DCMR §599',
+  });
+}
+function renderSdaCdaExplainedPage(project) {
+  const overview = renderOverview(
+    'Two different drainage-area concepts drive compliance math: SDA (Site Drainage Area) is the compliance unit, CDA (Contributing Drainage Area) is a BMP\'s catchment. They are not interchangeable.',
+  );
+  const why = renderWhy(`
+    <p><b>SDA</b> is a subdivision of the project site. 21 DCMR §599 requires the SWRv target be met <i>within each SDA</i>, not just site-wide. If one SDA passes and another fails, the project fails — you can't average across SDAs.</p>
+    <p><b>CDA</b> is the catchment that drains to a specific BMP (which may lie inside one SDA but collect runoff from multiple sub-areas). CDA defines the <b>maximum retention credit</b> any one BMP can earn: Max Credit = CDA area × 1.7″ / 12. This cap prevents an over-sized BMP from inflating its credit beyond the runoff it could physically receive.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">SWRv_SDA = P × Σ(A_i · Rv_i) / 12   <i>— must be met within each SDA</i></div>
+    <div class="cs-formula-line">Max BMP Credit = CDA_area × 1.7″ / 12   <i>— cap on any one BMP's Rv</i></div>
+  `);
+  const matrix = renderDataTable(
+    ['Concept', 'Granularity', 'Role'],
+    [
+      ['SDA (Site Drainage Area)',       'Sub-division of the project site', 'Compliance unit — SWRv target per SDA'],
+      ['CDA (Contributing Drainage Area)', 'Catchment of one BMP',           'Cap on Rv credit (1.7″ equivalent)'],
+      ['LOD (Limit of Disturbance)',     'Project construction boundary',    'Scopes which land-cover rows count'],
+    ],
+  );
+  const body = overview + why + formula + renderBlock('AT A GLANCE', matrix);
+  return renderSheetShell({
+    title: 'SDA & CDA Explained',
+    sub:   project.name || '',
+    body,
+    footer: '21 DCMR §599 · DOEE Guidebook §2',
+  });
+}
+function renderRvValuesPage(params) {
+  const overview = renderOverview(
+    'Rv (runoff coefficient) is the fraction of rainfall that becomes runoff for a given land cover. These coefficients are DOEE-published values applied in the SWRv formula.',
+  );
+  const why = renderWhy(`
+    <p>Rv embeds the physical reality that <b>natural wooded ground produces essentially no runoff for the 95th-percentile storm</b>, while paved surfaces produce almost all. The DOEE values are coarse but conservative, calibrated for compliance accounting rather than hydrologic simulation. For the finer SCS CN method, see the EISA 438 TR-55 and TR-16 pages.</p>
+  `);
+  const rvHeaders = ['Land Use', 'Rv', 'Physical interpretation'];
+  const rvRows = [
+    ['Impervious Vehicular',     fmtN(params.rv['Impervious Vehicular'] ?? 0.95, 2), 'Nearly 100% runoff; small depression storage'],
+    ['Impervious Non-Vehicular', fmtN(params.rv['Impervious Non-Vehicular'] ?? 0.95, 2), 'Same as vehicular — not vegetated'],
+    ['Compacted (Open Space)',   fmtN(params.rv['Compacted (Open Space)'] ?? 0.25, 2), 'Compacted turf, construction wear; limited infiltration'],
+    ['Natural (Woods)',          fmtN(params.rv['Natural (Woods)'] ?? 0.00, 2), 'Intact forest floor; near-zero runoff for the SWRv storm'],
+    ['BMP (as land cover)',      fmtN(params.rv['BMP'] ?? 0.00, 2), 'Captured runoff treated as retention — zero contribution'],
+  ];
+  const body = overview + why + renderBlock('Rv VALUES (DOEE)', renderDataTable(rvHeaders, rvRows));
+  return renderSheetShell({
+    title: 'Rv Values — Runoff Coefficients',
+    sub:   'Where the SWRv formula gets its multipliers',
+    body,
+    footer: 'DOEE Guidebook Appendix A (Compliance Calculator Sheet 1)',
+  });
+}
+function renderSwrvPerSdaPage(project, sdas, params) {
+  const overview = renderOverview(
+    'SWRv required per SDA is the compliance target: the volume of runoff that must be retained within each SDA for the design storm.',
+  );
+  const why = renderWhy(`
+    <p>21 DCMR §599 requires the retention volume target be met <b>within every SDA independently</b>. Site totals are informational only. The storm depth P is 1.2″ for MLD or 0.8″ for MSI; this project uses <b>${esc(fmtN(project.rainfallIn, 2))}″</b>.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">SWRv = (P/12) × Σ(A_i · Rv_i)   <i>per SDA, inside the LOD</i></div>
+    <div class="cs-formula-line">P = ${fmtN(project.rainfallIn, 2)}″   (project rainfall)</div>
+    <div class="cs-formula-line">A_i = post-development area of land-cover row i (sf, inside LOD)</div>
+    <div class="cs-formula-line">Rv_i = runoff coefficient (see "Rv Values" page)</div>
+  `);
+  const by = {};
+  for (const r of sdas) {
+    (by[r.sdaId] ??= []).push(r);
+  }
+  const rows = Object.entries(by).map(([sdaId, buckets]) => {
+    const terms = buckets.map(r => ({
+      area: r.postIn || 0,
+      rv: params.rv[r.landUse] ?? 0,
+    })).filter(t => t.area > 0);
+    const sumAR = terms.reduce((s, t) => s + t.area * t.rv, 0);
+    const swrv = sumAR * project.rainfallIn / 12;
+    const subs = terms.map(t => `${fmtN(t.area)}·${fmtN(t.rv, 2)}`).join(' + ');
+    return [sdaId, subs || '0', fmtN(sumAR, 0), fmtN(swrv, 0) + ' cf'];
+  });
+  const worked = renderWorked(
+    renderDataTable(
+      ['SDA', 'Σ(A·Rv) substitution', 'Σ(A·Rv)', 'SWRv required'],
+      rows,
+    ),
+  );
+  const body = overview + why + formula + worked;
+  return renderSheetShell({
+    title: 'SWRv Required (per SDA)',
+    sub:   `${project.name || ''} · Rainfall ${fmtN(project.rainfallIn, 2)}″`,
+    body,
+    footer: '21 DCMR §599 · DOEE Guidebook §2',
+  });
+}
 
 
 // ─ src/ui.mjs ─
