@@ -18,7 +18,8 @@ const paths = {
   sheetjs:     join(__dirname, 'lib',  'sheetjs-bundle.js'),
   dist:        join(__dirname, 'education.html'),
 };
-paths.demoFixture = join(__dirname, 'tests', 'fixtures', 'minnesota-ave.xlsx');
+paths.demoFixture      = join(__dirname, 'tests', 'fixtures', 'minnesota-ave.xlsx');
+paths.demoFixtureTrail = join(__dirname, 'tests', 'fixtures', 'trail.xlsx');
 
 function stripRelativeImports(source) {
   return source
@@ -56,24 +57,27 @@ async function readIfExists(path) {
 }
 
 async function main() {
-  const [devHtml, stylesCss, parseJs, calcJs, aggregateJs, tr16Js, narrativeJs, renderEduJs, uiJs, sheetjsJs, demoBytes] =
+  const [devHtml, stylesCss, parseJs, calcJs, aggregateJs, tr16Js, narrativeJs, renderEduJs, uiJs, sheetjsJs, demoBytes, demoBytesTrail] =
     await Promise.all([
-      readFile(paths.dev,         'utf8'),
-      readFile(paths.styles,      'utf8'),
-      readFile(paths.parse,       'utf8'),
-      readFile(paths.calc,        'utf8'),
-      readFile(paths.aggregate,   'utf8'),
+      readFile(paths.dev,              'utf8'),
+      readFile(paths.styles,           'utf8'),
+      readFile(paths.parse,            'utf8'),
+      readFile(paths.calc,             'utf8'),
+      readFile(paths.aggregate,        'utf8'),
       readIfExists(paths.tr16),
       readIfExists(paths.narrative),
       readIfExists(paths.renderEdu),
-      readFile(paths.ui,          'utf8'),
-      readFile(paths.sheetjs,     'utf8'),
+      readFile(paths.ui,               'utf8'),
+      readFile(paths.sheetjs,          'utf8'),
       readFile(paths.demoFixture),
+      readFile(paths.demoFixtureTrail),
     ]);
-  const demoB64 = demoBytes.toString('base64');
+  const demoB64      = demoBytes.toString('base64');
+  const demoB64Trail = demoBytesTrail.toString('base64');
 
   const combinedModule = deduplicateEsc([
     `const DEMO_XLSX_B64 = ${JSON.stringify(demoB64)};`,
+    `const DEMO_XLSX_TRAIL_B64 = ${JSON.stringify(demoB64Trail)};`,
     '// ─ src/calc.mjs ─',          stripRelativeImports(calcJs),
     '// ─ src/parse.mjs ─',         stripRelativeImports(parseJs),
     '// ─ src/aggregate.mjs ─',     stripRelativeImports(aggregateJs),

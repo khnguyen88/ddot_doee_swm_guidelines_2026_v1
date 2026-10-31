@@ -36,18 +36,23 @@ function renderEmptyState() {
     <div class="empty-state">
       <div>SWM Education — DOEE / EISA 438 walkthrough.</div>
       <div style="margin-top: 8px; font-size: 13px;">
-        Load a filled DOEE EISA 438 template, or click "Load demo" to walk through the Minnesota Ave fixture.
+        Load a filled DOEE EISA 438 template, or load one of the bundled demo projects below.
       </div>
       <label class="dropzone">
         <input type="file" accept=".xlsx,.xlsm" hidden>
         <div>Click to choose an .xlsx file</div>
       </label>
-      <div style="margin-top: 14px;">
-        <button class="btn-primary" id="demoBtn">Load Minnesota Ave demo</button>
+      <div style="margin-top: 14px; display: flex; gap: 10px; justify-content: center;">
+        <button class="btn-primary" id="demoBtnMinn">Load Minnesota Ave demo</button>
+        <button class="btn-primary" id="demoBtnTrail">Load Multi-Use Trail demo (EISA 438)</button>
+      </div>
+      <div style="margin-top: 6px; font-size: 11px; color: var(--muted);">
+        Minnesota Ave = DDOT PROW streetscape (10 SDAs, DOEE MLD, mixed BMPs) · Multi-Use Trail = federal/park retrofit (mixed-HSG, EISA 438 applies)
       </div>
     </div>`;
   main.querySelector('input[type=file]').addEventListener('change', onFileChosen);
-  document.getElementById('demoBtn').addEventListener('click', loadDemo);
+  document.getElementById('demoBtnMinn').addEventListener('click',  () => loadDemo('minnesota'));
+  document.getElementById('demoBtnTrail').addEventListener('click', () => loadDemo('trail'));
 }
 
 function renderTopbar() {
@@ -116,22 +121,43 @@ async function onFileChosen(event) {
   }
 }
 
-async function loadDemo() {
+// Decode a base64-encoded xlsx into a Uint8Array (for inlined-dist demos).
+function _b64ToBytes(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+const DEMO_SPECS = {
+  minnesota: {
+    label: 'Minnesota Ave (demo)',
+    devPath: './tests/fixtures/minnesota-ave.xlsx',
+    b64Var: 'DEMO_XLSX_B64',          // injected by build.js
+  },
+  trail: {
+    label: 'Multi-Use Trail (EISA 438 demo)',
+    devPath: './tests/fixtures/trail.xlsx',
+    b64Var: 'DEMO_XLSX_TRAIL_B64',    // injected by build.js
+  },
+};
+
+async function loadDemo(which = 'minnesota') {
+  const spec = DEMO_SPECS[which] || DEMO_SPECS.minnesota;
   try {
-    // DEMO_XLSX_B64 is injected by build.js (see paths.demoFixture).
-    // For dev-mode (education-dev.html), fall back to fetch.
+    // Base64 is injected into the single-file dist by build.js.
+    // In dev-mode (education-dev.html) the constant is undefined and we fetch instead.
     let bytes;
-    if (typeof DEMO_XLSX_B64 !== 'undefined') {
-      const binary = atob(DEMO_XLSX_B64);
-      bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const b64 = globalThis[spec.b64Var];
+    if (typeof b64 === 'string' && b64.length > 0) {
+      bytes = _b64ToBytes(b64);
     } else {
-      const res = await fetch('./tests/fixtures/minnesota-ave.xlsx');
+      const res = await fetch(spec.devPath);
       bytes = new Uint8Array(await res.arrayBuffer());
     }
     const workbook = window.XLSX.read(bytes, { type: 'array' });
     state.parsed = parseWorkbook(workbook);
-    state.filename = 'Minnesota Ave (demo)';
+    state.filename = spec.label;
     buildAndRender();
   } catch (err) {
     renderBanner('error', `Demo load failed: ${err.message}`);
