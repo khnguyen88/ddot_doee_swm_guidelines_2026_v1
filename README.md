@@ -23,7 +23,9 @@ Three artifacts cover the full SWMP compliance workflow — a project workbook p
 The master project workbook. Fill in project info, drainage areas, BMPs, and land cover; formulas handle the rest.
 
 - **Blank:** [`SW_Required_Provided_DOEE_EISA438.xlsx`](SW_Required_Provided_DOEE_EISA438.xlsx)
-- **Filled example:** [`SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx`](SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx) (Minnesota Ave Great Street test case)
+- **Filled examples:**
+  - [`SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx`](SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx) — DDOT PROW streetscape (10 SDAs, DOEE MLD, mixed BMPs)
+  - [`SW_Required_Provided_DOEE_EISA438_SAMPLE_Trail.xlsx`](SW_Required_Provided_DOEE_EISA438_SAMPLE_Trail.xlsx) — Multi-Use Trail retrofit (1 SDA mixed-HSG, EISA 438 applies)
 
 **Open the blank in Excel.** It has 13 sheets:
 
@@ -67,7 +69,7 @@ Targets filled:
 | General Retention Compliance Calculator | Full — project header + per-SDA + per-BMP |
 | DDOT MEP Worksheet | Full — user-selected phases |
 | SWDB PROW Import Template | Full — Drainage Areas + BMPs sheets (`.xlsx` with sheet protection; written at XML level) |
-| SWMP-BMP Calc Spreadsheet (`.xlsm`) | First BMP per type (3.5 Permeable Pavement, 3.6 Bioretention, 3.9 O-2 Dry Swale, 3.14 Tree Planting) — warns on additional. VBA preserved |
+| SWMP-BMP Calc Spreadsheet (`.xlsm`) | **One output file per BMP** (fan-out). Each clone of the DOEE blank gets only its one BMP's cells populated on its type-specific sheet (3.5 PP / 3.6 Bio / 3.9 O-2 Dry Swale / 3.14 Trees). VBA preserved per clone |
 | Rainwater Harvesting Calculator | Skipped unless the template has an RWH BMP |
 
 ### Rebuilding the template or webapps (developers only)
@@ -76,18 +78,24 @@ Targets filled:
 # Install Python deps
 pip install -r requirements.txt
 
-# Rebuild the blank template + Minnesota Ave sample
+# Rebuild the blank template + both samples
 python -m workbook
-python -m workbook.sample
+python -m workbook.sample                 # Minnesota Ave
+python -m workbook.sample_trail           # Multi-Use Trail (EISA 438)
 
-# Rebuild the webapp dists
+# Sync education engines (byte-identical calc/aggregate/parse from summary_calculator)
+bash scripts/sync-education-engines.sh
+
+# Rebuild the three webapp dists
 node summary_calculator/build.js
 node populator/build.js
+node education/build.js
 
 # Run tests
 pytest tests/                                                  # workbook builders
-cd summary_calculator && node --test tests/*.mjs && cd ..      # calc engine
-cd populator && node --test tests/**/*.test.mjs && cd ..       # populator
+cd summary_calculator && node --test tests/*.test.mjs && cd ..
+cd populator          && node --test tests/**/*.test.mjs && cd ..
+cd education          && node --test tests/*.test.mjs && cd ..
 ```
 
 End users never need to run any of the above — just open the HTML files.
@@ -133,12 +141,19 @@ Official DOEE/DDOT calculation tools required for SWMP submissions.
 | DDOT MEP Worksheet | PROW Maximum Extent Practicable documentation — 4-step, 3-phase process | [XLSX](docs/doee_spreadsheet_calculators/DDOT%20MEP%20Worksheet%20012019.xlsx) | [Summary](summary/doee_spreadsheet_calculators/DDOT_MEP_Worksheet.md) |
 | SWDB Template for PROW Information (July 2025) | DOEE Stormwater Database submission form for PROW projects | [XLSX](docs/doee_spreadsheet_calculators/SWDB%20Template%20for%20PROW%20Information_SWMP%20July%202025%20-%20final%20locked.xlsx) | [Summary](summary/doee_spreadsheet_calculators/SWDB_Template_PROW.md) |
 
+### 4. Education — `education/education.html`
+
+Pedagogical walkthrough of the full DOEE / EISA 438 compliance process. Every page shows the equation, the substitution with actual project values, and the arithmetic result. Bundled demos for both samples (Minnesota Ave + Multi-Use Trail).
+
+**To use:** open [`education/education.html`](education/education.html), click a demo button (or load your own filled template). The deck covers Compliance Landscape, Project Triggers, SWRv per SDA, each BMP sizing, MEP, **EISA 438 in all three methods** (Direct, TR-55, TR-16 Exhibit 2-7A lookup), Three-Method Comparison with "Why they diverge" narrative, Detention, Site Compliance, plus the full TR-16 exhibit as an appendix.
+
 ## Tools
 
-| Tool | Description | Local |
-|---|---|---|
-| SWM Summary Calculator | Letter-format printable calculation summaries from a filled DOEE EISA 438 template | [HTML](summary_calculator/summary-calculator.html) |
-| SWM DOEE Populator | Fills DOEE/DDOT submission workbooks from a filled template, preserving charts, macros, and protection | [HTML](populator/summary-populator.html) |
+| Tool | Description | Local | Live |
+|---|---|---|---|
+| SWM Summary Calculator | Letter-format printable calculation summaries from a filled DOEE EISA 438 template | [HTML](summary_calculator/summary-calculator.html) | [Pages](https://khnguyen88.github.io/ddot_doee_swm_guidelines_2026_v1/summary-calculator.html) |
+| SWM DOEE Populator | Fills DOEE/DDOT submission workbooks from a filled template, preserving charts, macros, and protection | [HTML](populator/summary-populator.html) | [Pages](https://khnguyen88.github.io/ddot_doee_swm_guidelines_2026_v1/populator.html) |
+| SWM Education | Pedagogical walkthrough with step-by-step arithmetic for every compliance calculation | [HTML](education/education.html) | [Pages](https://khnguyen88.github.io/ddot_doee_swm_guidelines_2026_v1/education.html) |
 
 ## Analysis & Working Documents
 

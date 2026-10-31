@@ -76,8 +76,11 @@ async function main() {
   const demoB64Trail = demoBytesTrail.toString('base64');
 
   const combinedModule = deduplicateEsc([
-    `const DEMO_XLSX_B64 = ${JSON.stringify(demoB64)};`,
-    `const DEMO_XLSX_TRAIL_B64 = ${JSON.stringify(demoB64Trail)};`,
+    // Attach to globalThis so loadDemo() can look them up dynamically by key.
+    // (A plain `const` declared inside <script type="module"> is scoped to
+    // the module and NOT visible via globalThis — which breaks lookup.)
+    `globalThis.DEMO_XLSX_B64 = ${JSON.stringify(demoB64)};`,
+    `globalThis.DEMO_XLSX_TRAIL_B64 = ${JSON.stringify(demoB64Trail)};`,
     '// ─ src/calc.mjs ─',          stripRelativeImports(calcJs),
     '// ─ src/parse.mjs ─',         stripRelativeImports(parseJs),
     '// ─ src/aggregate.mjs ─',     stripRelativeImports(aggregateJs),
