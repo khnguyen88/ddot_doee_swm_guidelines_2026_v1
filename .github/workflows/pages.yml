@@ -3,12 +3,9 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main, feat/populator]
-    paths:
-      - 'summary_calculator/**'
-      - 'populator/**'
-      - 'education/**'
-      - 'workbook/**'
-      - '.github/workflows/pages.yml'
+    # NOTE: no `paths:` filter — we want EVERY push on these branches to
+    # redeploy, including empty commits used to re-trigger after Pages
+    # configuration changes.
   workflow_dispatch:
 
 permissions:
