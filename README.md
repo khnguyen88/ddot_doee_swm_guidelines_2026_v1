@@ -2,6 +2,18 @@
 
 Reference documents and summaries for DC stormwater management guidelines (DOEE/DDOT), compiled for the 2026 project cycle.
 
+## 🌐 Live apps (GitHub Pages)
+
+Open any of the three apps directly in a browser — no install, works offline once loaded:
+
+| App | Live link | What it does |
+|---|---|---|
+| **Summary Calculator** | [📄 Open](https://khnguyen88.github.io/ddot_doee_swm_guidelines_2026_v1/summary-calculator.html) | Loads a filled template → produces a print-ready DOEE submission deck |
+| **Populator** | [📝 Open](https://khnguyen88.github.io/ddot_doee_swm_guidelines_2026_v1/populator.html) | Loads a filled template → populates all official DOEE/DDOT submission workbooks |
+| **Education** | [🎓 Open](https://khnguyen88.github.io/ddot_doee_swm_guidelines_2026_v1/education.html) | Pedagogical walkthrough with step-by-step arithmetic for every page (2 bundled demos: Minnesota Ave + Multi-Use Trail/EISA 438) |
+
+Landing page with all three + reference downloads: [`khnguyen88.github.io/ddot_doee_swm_guidelines_2026_v1`](https://khnguyen88.github.io/ddot_doee_swm_guidelines_2026_v1/)
+
 ## Getting Started
 
 Three artifacts cover the full SWMP compliance workflow — a project workbook plus two offline webapps. **No install needed to use them.**

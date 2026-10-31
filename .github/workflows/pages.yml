@@ -1,0 +1,138 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, feat/populator]
+    paths:
+      - 'summary_calculator/**'
+      - 'populator/**'
+      - 'education/**'
+      - 'workbook/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Each app's build.js has no external deps for the build step itself
+      # (SheetJS + JSZip are vendored under lib/ and inlined, Playwright is
+      # only for tests). We only need Node to run build.js.
+      - name: Build summary_calculator dist
+        run: node summary_calculator/build.js
+
+      - name: Build populator dist
+        run: node populator/build.js
+
+      - name: Build education dist
+        run: node education/build.js
+
+      - name: Stage the Pages site
+        run: |
+          mkdir -p _site
+          cp summary_calculator/summary-calculator.html _site/summary-calculator.html
+          cp populator/summary-populator.html         _site/populator.html
+          cp education/education.html                 _site/education.html
+          cp SW_Required_Provided_DOEE_EISA438.xlsx                       _site/blank-template.xlsx || true
+          cp SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx   _site/sample-minnesota-ave.xlsx || true
+          cp SW_Required_Provided_DOEE_EISA438_SAMPLE_Trail.xlsx          _site/sample-trail.xlsx || true
+          cat > _site/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>DDOT DOEE SWM Guidelines 2026 — Apps</title>
+            <style>
+              :root {
+                --bg:#0B1220; --panel:#121B2B; --border:#26374D; --text:#E7EEF6;
+                --muted:#8FA3BF; --accent:#38C6B4;
+              }
+              * { box-sizing: border-box; }
+              html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+                font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+              .wrap { max-width: 820px; margin: 40px auto; padding: 0 24px; }
+              h1 { font-size: 24px; margin: 0 0 6px; }
+              .sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+              .card { background: var(--panel); border: 1px solid var(--border);
+                border-radius: 8px; padding: 18px 22px; margin-bottom: 14px; }
+              .card h2 { margin: 0 0 6px; font-size: 17px; color: var(--accent); }
+              .card p { margin: 4px 0; color: var(--muted); font-size: 13px; }
+              .card a.btn { display: inline-block; margin-top: 10px; padding: 7px 14px;
+                background: rgba(56,198,180,0.14); color: var(--accent);
+                border: 1px solid rgba(56,198,180,0.35); border-radius: 6px;
+                text-decoration: none; font-size: 13px; }
+              .card a.btn:hover { background: rgba(56,198,180,0.26); }
+              .downloads { margin-top: 28px; font-size: 12.5px; color: var(--muted); }
+              .downloads a { color: var(--accent); margin-right: 12px; }
+              code { font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+                background: rgba(56,198,180,0.08); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+              footer { margin-top: 36px; font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 14px; }
+            </style>
+          </head>
+          <body>
+            <div class="wrap">
+              <h1>DDOT DOEE SWM Guidelines 2026 — Apps</h1>
+              <div class="sub">Three offline-capable browser apps for DC stormwater compliance workflows. All open from a single HTML file (no server, no network calls once loaded).</div>
+
+              <div class="card">
+                <h2>Summary Calculator</h2>
+                <p>Loads a filled DOEE/EISA 438 template XLSX, computes per-SDA SWRv compliance, EISA 438 Direct + TR-55 + Compliance pages, DDOT MEP, detention, and a print-ready deck.</p>
+                <a class="btn" href="./summary-calculator.html">Open Summary Calculator →</a>
+              </div>
+
+              <div class="card">
+                <h2>Populator</h2>
+                <p>Reads the same filled template and populates the official DOEE / DDOT submission workbooks (General Retention, DDOT MEP Worksheet, SWDB PROW, SWMP-BMP Calc Spreadsheet) via surgical XML-level edits that preserve charts, macros, and formatting.</p>
+                <a class="btn" href="./populator.html">Open Populator →</a>
+              </div>
+
+              <div class="card">
+                <h2>Education</h2>
+                <p>Pedagogical walkthrough of the full DOEE / EISA 438 compliance process. Every page shows equation → substitution → arithmetic → result. Includes the TR-16 Exhibit 2-7A lookup tables and a side-by-side comparison of all three EISA 438 methods.</p>
+                <a class="btn" href="./education.html">Open Education →</a>
+              </div>
+
+              <div class="downloads">
+                <b>Reference downloads:</b><br>
+                <a href="./blank-template.xlsx">Blank DOEE/EISA 438 template</a>
+                <a href="./sample-minnesota-ave.xlsx">Minnesota Ave sample</a>
+                <a href="./sample-trail.xlsx">Multi-Use Trail sample (EISA 438)</a>
+              </div>
+
+              <footer>
+                Built from source at <a href="https://github.com/khnguyen88/ddot_doee_swm_guidelines_2026_v1" style="color: var(--accent);">khnguyen88/ddot_doee_swm_guidelines_2026_v1</a>.
+                Each app is a single HTML file — right-click → Save As to use offline.
+              </footer>
+            </div>
+          </body>
+          </html>
+          HTML
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
