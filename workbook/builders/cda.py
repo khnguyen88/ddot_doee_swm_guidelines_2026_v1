@@ -96,3 +96,72 @@ def build_cda_existing_sheet(wb: Workbook, n_rows: int = 50) -> None:
 
     styles.apply_top_divider(ws, summary_header_row, 1, 10)
     styles.apply_bottom_divider(ws, sum_data_end, 1, 2)
+
+
+def build_cda_proposed_sheet(wb: Workbook, n_rows: int = 50) -> None:
+    ws = wb.create_sheet("CDA_Proposed")
+    ws.sheet_view.showGridLines = False
+
+    widths = [14, 12, 24, 8, 14, 14, 8, 11, 14, 14]
+    for i, w in enumerate(widths, 1):
+        styles.cw(ws, i, w)
+
+    styles.hdr(ws, 1, 1,
+               "CDA_Proposed — Proposed contributing drainage areas "
+               "(one row per CDA × Land Use × HSG)",
+               styles.BH, span=10)
+    ws.row_dimensions[1].height = 24
+
+    for i, h in enumerate(HEADERS, 1):
+        styles.hdr(ws, 3, i, h, styles.BS)
+    ws.row_dimensions[3].height = 36
+
+    data_start = 4
+    data_end = data_start + n_rows - 1
+
+    _build_data_rows(ws, data_start, data_end)
+    _add_dropdowns(ws, data_start, data_end, LAND_USES_PROPOSED)
+
+    # Summary block.
+    summary_header_row = data_end + 3   # 56
+    styles.hdr(ws, summary_header_row, 1,
+               "CDA_Proposed Summary — Max BMP Credit per CDA (DOEE 1.7\" cap)",
+               styles.BH, span=10)
+    sum_hdrs = [
+        "CDA_ID", "SDA_ID", "Total CDA Within LOD (SF) (post)",
+        "Max BMP Credit (CF)", "Area Match?",
+    ]
+    sum_row = summary_header_row + 1    # 57
+    for i, h in enumerate(sum_hdrs, 1):
+        styles.hdr(ws, sum_row, i, h, styles.BS)
+
+    sum_data_start = sum_row + 1        # 58
+    sum_data_end = sum_data_start + N_SUMMARY_ROWS - 1
+
+    for i in range(N_SUMMARY_ROWS):
+        r = sum_data_start + i
+        styles.lbl(ws, r, 1, f"CDA-{i+1}", styles.BL, bold=True)
+        # SDA_ID lookup for the CDA_ID on A{r}.
+        styles.calc_c(ws, r, 2,
+                      f'=IFERROR(INDEX($B${data_start}:$B${data_end},'
+                      f'MATCH(A{r},$A${data_start}:$A${data_end},0)),"")')
+        # Total CDA Within LOD (post) — SUMIFS on E (within).
+        styles.calc_c(ws, r, 3,
+                      f'=SUMIFS($E${data_start}:$E${data_end},'
+                      f'$A${data_start}:$A${data_end},A{r})')
+        # Max BMP Credit — 1.7" DOEE ceiling, hardcoded.
+        styles.calc_c(ws, r, 4, f"=C{r}*1.7/12")
+        # Area Match? — vs CDA_Existing summary col B (Pre Total Within LOD).
+        area_match = (
+            f'=IF(ABS(C{r}-'
+            f"'CDA_Existing'!B{r})<=1,\"OK\",\"⚠ MISMATCH\")"
+        )
+        styles.calc_c(ws, r, 5, area_match)
+
+    wb.defined_names.add(DefinedName(
+        "CDA_IDs",
+        attr_text=f"'CDA_Proposed'!$A${sum_data_start}:$A${sum_data_end}",
+    ))
+
+    styles.apply_top_divider(ws, summary_header_row, 1, 10)
+    styles.apply_bottom_divider(ws, sum_data_end, 1, 5)
