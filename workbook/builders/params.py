@@ -26,7 +26,7 @@ def build_params_sheet(wb: Workbook) -> None:
         ("Impervious Non-Vehicular", 0.95),
         ("Compacted (Open Space)",   0.25),
         ("Natural (Woods)",          0.00),
-        ("BMP",                       0.00),
+        ("BMP",                       0.95),
     ]
     for i, (name, rv) in enumerate(rv_rows):
         r = 7 + i

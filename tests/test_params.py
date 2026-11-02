@@ -24,7 +24,7 @@ def test_rv_table_values(wb):
         ("Impervious Non-Vehicular", 0.95),
         ("Compacted (Open Space)", 0.25),
         ("Natural (Woods)", 0.00),
-        ("BMP", 0.00),
+        ("BMP", 0.95),
     ]
     for i, (name, rv) in enumerate(expected):
         r = 7 + i
