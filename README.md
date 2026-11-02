@@ -27,15 +27,17 @@ The master project workbook. Fill in project info, drainage areas, BMPs, and lan
   - [`SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx`](SW_Required_Provided_DOEE_EISA438_SAMPLE_MinnesotaAve.xlsx) — DDOT PROW streetscape (10 SDAs, DOEE MLD, mixed BMPs)
   - [`SW_Required_Provided_DOEE_EISA438_SAMPLE_Trail.xlsx`](SW_Required_Provided_DOEE_EISA438_SAMPLE_Trail.xlsx) — Multi-Use Trail retrofit (1 SDA mixed-HSG, EISA 438 applies)
 
-**Open the blank in Excel.** It has 13 sheets:
+**Open the blank in Excel.** It has 15 sheets:
 
 | Group | Sheets | What to do |
 |---|---|---|
-| **Project header** | `PROJECT` | Fill in project name/number, LOD area, rainfall (default 1.7"), trigger (MLD/MSI/PROW), and EISA §438 applicability |
+| **Project header** | `PROJECT` | Fill in project name/number, LOD area, **two rainfall fields** (Retention Target `1.2"` default · EISA 438 Depth `1.7"`), trigger (MLD/MSI/PROW), and EISA §438 applicability |
 | **Reference** | `PARAMS` | Don't edit — Rv coefficients, CN table, detention storm depths |
-| **Land cover inputs** | `SDA`, `CDA` | Enter one row per drainage area × land use × HSG. Both sheets carry **Pre** and **Post** area columns (Within + Outside LOD). SDA and CDA summary blocks flag `⚠ MISMATCH` if pre-area and post-area totals disagree |
+| **Land cover inputs** | `SDA_Existing`, `SDA_Proposed`, `CDA_Existing`, `CDA_Proposed` | Four sheets: pre-development vs. proposed, same row shape. Each has one row per drainage area × land use × HSG. `_Proposed` dropdowns include `BMP` as a land use; `_Existing` does not. The Proposed summaries cross-check against Existing with an **Area Match?** flag |
 | **BMP inputs** | `BMP` | Enter one row per BMP (name, parent SDA/CDA, type, dimensions). Ksat and max-credit auto-fill from CDA land cover |
 | **Auto-calculated outputs** (don't edit) | `CORRECT_MEP_SUMMARY`, `EISA_DIRECT`, `EISA_TR55`, `DOEE_SDA`, `DOEE_BMP_DATA`, `DOEE_DETENTION` (SDA-keyed), `DOEE_DETENTION_BMP` (CDA-keyed, per BMP), `DOEE_COMPLIANCE` | Mirrors of the DOEE compliance calc sheets. All formulas auto-update from your SDA/CDA/BMP entries |
+
+> **Schema change — 2026-11:** The single `SDA` and `CDA` sheets were split into `_Existing` + `_Proposed` pairs because `BMP` as a land use has no coherent pre-development identity. Rainfall also split: SDA/CDA retention calcs use `PROJECT_Rainfall_Retention` (default 1.2″); EISA 438 calcs use `PROJECT_Rainfall_EISA` (fixed 1.7″). Templates filled before this change cannot be loaded by the current apps — regenerate from the blank template with `python -m workbook`.
 
 The two detention sheets carry a note on row 2 reminding you that CN composites and runoff depths use Within-LOD land cover per DOEE convention — project-specific exceptions (offsite inflow, retrofit along existing ROW) require manual adjustment.
 
