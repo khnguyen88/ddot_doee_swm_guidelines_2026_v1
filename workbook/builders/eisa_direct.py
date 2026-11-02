@@ -25,11 +25,11 @@ RUNOFF_ROWS = [
 ]
 
 
-def _area_formula(area_col: str, lu: str, hsg: str | None) -> str:
-    base = (f"SUMIFS('SDA'!${area_col}${SDA_FIRST}:${area_col}${SDA_LAST},"
-            f"'SDA'!$C${SDA_FIRST}:$C${SDA_LAST},\"{lu}\"")
+def _area_formula(sheet: str, lu: str, hsg: str | None) -> str:
+    base = (f"SUMIFS('{sheet}'!$E${SDA_FIRST}:$E${SDA_LAST},"
+            f"'{sheet}'!$C${SDA_FIRST}:$C${SDA_LAST},\"{lu}\"")
     if hsg:
-        base += f",'SDA'!$D${SDA_FIRST}:$D${SDA_LAST},\"{hsg}\""
+        base += f",'{sheet}'!$D${SDA_FIRST}:$D${SDA_LAST},\"{hsg}\""
     return "=" + base + ")"
 
 
@@ -46,7 +46,7 @@ def _runoff_depth_formula(lu: str, hsg: str | None, horton_name: str) -> str:
 
 
 def _write_runoff_table(ws, start_row: int, title: str,
-                        area_col: str) -> tuple[int, int]:
+                        sheet: str) -> tuple[int, int]:
     """Write one runoff table (pre or post).
 
     Returns (next_free_row, totals_row).
@@ -64,7 +64,7 @@ def _write_runoff_table(ws, start_row: int, title: str,
     for label, hsg, lu, hsg_filter in RUNOFF_ROWS:
         styles.lbl(ws, r, 1, label, styles.GRY)
         styles.lbl(ws, r, 2, hsg, styles.GRY)
-        styles.calc_c(ws, r, 3, _area_formula(area_col, lu, hsg_filter))
+        styles.calc_c(ws, r, 3, _area_formula(sheet, lu, hsg_filter))
         styles.calc_c(ws, r, 4, _runoff_depth_formula(lu, hsg_filter, "PARAMS_HortonLossB"))
         styles.calc_c(ws, r, 5, _runoff_depth_formula(lu, hsg_filter, "PARAMS_HortonLossC"))
         styles.calc_c(ws, r, 6, f"=IFERROR(C{r}*D{r}/12,0)")
@@ -124,18 +124,18 @@ def build_eisa_direct(wb: Workbook) -> None:
         r += 1
     r += 1  # blank spacer
 
-    # Pre-Construction Runoff Table
+    # Pre-Construction Runoff Table (from SDA_Existing)
     r, pre_totals_row = _write_runoff_table(
         ws, r,
-        "Pre-Construction Runoff (from SDA pre totals)",
-        area_col="E",
+        "Pre-Construction Runoff (from SDA_Existing totals)",
+        sheet="SDA_Existing",
     )
 
-    # Post-Construction Runoff Table
+    # Post-Construction Runoff Table (from SDA_Proposed)
     r, post_totals_row = _write_runoff_table(
         ws, r,
-        "Post-Construction Runoff (from SDA post totals)",
-        area_col="G",
+        "Post-Construction Runoff (from SDA_Proposed totals)",
+        sheet="SDA_Proposed",
     )
 
     # Compliance Check block

@@ -32,11 +32,11 @@ RUNOFF_ROWS = [
 ]
 
 
-def _area_formula(area_col: str, lu: str, hsg_filter: str | None) -> str:
-    base = (f"SUMIFS('SDA'!${area_col}${SDA_FIRST}:${area_col}${SDA_LAST},"
-            f"'SDA'!$C${SDA_FIRST}:$C${SDA_LAST},\"{lu}\"")
+def _area_formula(sheet: str, lu: str, hsg_filter: str | None) -> str:
+    base = (f"SUMIFS('{sheet}'!$E${SDA_FIRST}:$E${SDA_LAST},"
+            f"'{sheet}'!$C${SDA_FIRST}:$C${SDA_LAST},\"{lu}\"")
     if hsg_filter:
-        base += f",'SDA'!$D${SDA_FIRST}:$D${SDA_LAST},\"{hsg_filter}\""
+        base += f",'{sheet}'!$D${SDA_FIRST}:$D${SDA_LAST},\"{hsg_filter}\""
     return "=" + base + ")"
 
 
@@ -52,7 +52,7 @@ def _q_formula(cn_cell: str) -> str:
 
 
 def _write_runoff_table(
-    ws, start_row: int, title: str, area_col: str
+    ws, start_row: int, title: str, sheet: str
 ) -> tuple[int, int]:
     """Write one runoff table (pre or post).
 
@@ -76,7 +76,7 @@ def _write_runoff_table(
         else:
             styles.calc_c(ws, r, 3, cn_val)
         # Area column (D)
-        styles.calc_c(ws, r, 4, _area_formula(area_col, lu, hsg_filter))
+        styles.calc_c(ws, r, 4, _area_formula(sheet, lu, hsg_filter))
         # Q column (E) — references CN in same row, column C
         styles.calc_c(ws, r, 5, _q_formula(f"C{r}"))
         # Vol column (F) = Area × Q / 12
@@ -122,14 +122,14 @@ def build_eisa_tr55(wb: Workbook) -> None:
         r += 1
     r += 1  # blank spacer
 
-    # Pre-Construction Runoff Table (SDA col E = pre area)
+    # Pre-Construction Runoff Table (SDA_Existing col E = Area Within LOD)
     r, pre_totals_row = _write_runoff_table(
-        ws, r, "Pre-Construction Runoff (Method A)", "E"
+        ws, r, "Pre-Construction Runoff (Method A)", "SDA_Existing"
     )
 
-    # Post-Construction Runoff Table (SDA col G = post area)
+    # Post-Construction Runoff Table (SDA_Proposed col E = Area Within LOD)
     r, post_totals_row = _write_runoff_table(
-        ws, r, "Post-Construction Runoff (Method A)", "G"
+        ws, r, "Post-Construction Runoff (Method A)", "SDA_Proposed"
     )
 
     # Compliance Check block

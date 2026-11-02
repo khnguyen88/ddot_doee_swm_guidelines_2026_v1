@@ -45,10 +45,10 @@ def test_pre_runoff_table_impervious_row(wb):
             imp_row = r
             break
     assert imp_row is not None
-    # Area formula references SDA sheet column E (pre within LOD) with SUMIFS
+    # Area formula references SDA_Existing sheet column E (Area Within LOD) with SUMIFS
     area_formula = ws.cell(row=imp_row, column=3).value
     assert "SUMIFS" in area_formula
-    assert "'SDA'" in area_formula
+    assert "'SDA_Existing'" in area_formula
     # Depth formula references PROJECT_Rainfall_EISA - 0.1 (impervious depression storage)
     depth_formula_b = ws.cell(row=imp_row, column=4).value
     assert "PROJECT_Rainfall_EISA" in depth_formula_b
