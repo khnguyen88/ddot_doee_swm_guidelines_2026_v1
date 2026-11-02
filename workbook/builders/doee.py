@@ -43,12 +43,12 @@ DETENTION_USER_NOTE = (
 )
 
 
-def _area_sumifs(area_col: str, sda_cell: str, lu: str) -> str:
-    """Return a SUMIFS fragment aggregating area_col from SDA by SDA_ID and Land Use."""
+def _area_sumifs(area_col: str, sda_cell: str, lu: str, sheet: str = "SDA_Proposed") -> str:
+    """Return a SUMIFS fragment aggregating area_col from the given SDA sheet by SDA_ID and Land Use."""
     return (
-        f"SUMIFS('SDA'!${area_col}${SDA_FIRST}:${area_col}${SDA_LAST},"
-        f"'SDA'!$A${SDA_FIRST}:$A${SDA_LAST},{sda_cell},"
-        f"'SDA'!$C${SDA_FIRST}:$C${SDA_LAST},\"{lu}\")"
+        f"SUMIFS('{sheet}'!${area_col}${SDA_FIRST}:${area_col}${SDA_LAST},"
+        f"'{sheet}'!$A${SDA_FIRST}:$A${SDA_LAST},{sda_cell},"
+        f"'{sheet}'!$C${SDA_FIRST}:$C${SDA_LAST},\"{lu}\")"
     )
 
 
@@ -94,44 +94,44 @@ def build_doee_sda(wb: Workbook) -> None:
     for i in range(10):
         r = 4 + i
         sda_summary_row = SDA_SUMMARY_FIRST + i
-        sda_cell = f"'SDA'!A{sda_summary_row}"
+        sda_cell = f"'SDA_Proposed'!A{sda_summary_row}"
 
-        # Col A: SDA Number (label from SDA summary)
+        # Col A: SDA Number (label from SDA_Proposed summary)
         styles.calc_c(ws, r, 1, f"={sda_cell}")
 
-        # Col B: In PROW? — first "Yes/No" value in SDA data rows for this SDA
+        # Col B: In PROW? — first "Yes/No" value in SDA_Proposed data rows for this SDA
         styles.calc_c(ws, r, 2,
-                      f"=IFERROR(INDEX('SDA'!$B${SDA_FIRST}:$B${SDA_LAST},"
-                      f"MATCH(A{r},'SDA'!$A${SDA_FIRST}:$A${SDA_LAST},0)),\"\")")
+                      f"=IFERROR(INDEX('SDA_Proposed'!$B${SDA_FIRST}:$B${SDA_LAST},"
+                      f"MATCH(A{r},'SDA_Proposed'!$A${SDA_FIRST}:$A${SDA_LAST},0)),\"\")")
 
-        # Cols C-F: Pre land cover (SDA col E = Pre Within LOD SF)
+        # Cols C-F: Pre land cover from SDA_Existing (col E = Area Within LOD SF)
         styles.calc_c(ws, r, 3,
-                      "=" + _area_sumifs("E", f"A{r}", "Natural (Woods)"))
+                      "=" + _area_sumifs("E", f"A{r}", "Natural (Woods)", "SDA_Existing"))
         styles.calc_c(ws, r, 4,
-                      "=" + _area_sumifs("E", f"A{r}", "Compacted (Open Space)"))
+                      "=" + _area_sumifs("E", f"A{r}", "Compacted (Open Space)", "SDA_Existing"))
         styles.calc_c(ws, r, 5,
+                      "=" + _area_sumifs("E", f"A{r}", "Impervious Vehicular", "SDA_Existing")
+                      + "+" + _area_sumifs("E", f"A{r}", "Impervious Non-Vehicular", "SDA_Existing"))
+        styles.calc_c(ws, r, 6,
+                      "=" + _area_sumifs("E", f"A{r}", "BMP", "SDA_Existing"))
+
+        # Cols G-J: Post land cover from SDA_Proposed (col E = Area Within LOD SF)
+        styles.calc_c(ws, r, 7,
+                      "=" + _area_sumifs("E", f"A{r}", "Natural (Woods)"))
+        styles.calc_c(ws, r, 8,
+                      "=" + _area_sumifs("E", f"A{r}", "Compacted (Open Space)"))
+        styles.calc_c(ws, r, 9,
                       "=" + _area_sumifs("E", f"A{r}", "Impervious Vehicular")
                       + "+" + _area_sumifs("E", f"A{r}", "Impervious Non-Vehicular"))
-        styles.calc_c(ws, r, 6,
-                      "=" + _area_sumifs("E", f"A{r}", "BMP"))
-
-        # Cols G-J: Post land cover (SDA col G = Post Within LOD SF)
-        styles.calc_c(ws, r, 7,
-                      "=" + _area_sumifs("G", f"A{r}", "Natural (Woods)"))
-        styles.calc_c(ws, r, 8,
-                      "=" + _area_sumifs("G", f"A{r}", "Compacted (Open Space)"))
-        styles.calc_c(ws, r, 9,
-                      "=" + _area_sumifs("G", f"A{r}", "Impervious Vehicular")
-                      + "+" + _area_sumifs("G", f"A{r}", "Impervious Non-Vehicular"))
         styles.calc_c(ws, r, 10,
-                      "=" + _area_sumifs("G", f"A{r}", "BMP"))
+                      "=" + _area_sumifs("E", f"A{r}", "BMP"))
 
         # Col K: Post Vehicular only
         styles.calc_c(ws, r, 11,
-                      "=" + _area_sumifs("G", f"A{r}", "Impervious Vehicular"))
+                      "=" + _area_sumifs("E", f"A{r}", "Impervious Vehicular"))
 
-        # Col L: SWRv Required (CF) — from SDA summary col J (10)
-        styles.calc_c(ws, r, 12, f"='SDA'!J{sda_summary_row}")
+        # Col L: SWRv Required (CF) — from SDA_Proposed summary col G (7)
+        styles.calc_c(ws, r, 12, f"='SDA_Proposed'!G{sda_summary_row}")
 
         # Col M: WQTv flag
         styles.calc_c(ws, r, 13, f'=IF(K{r}>0,"Yes","No")')
@@ -196,27 +196,28 @@ def build_doee_bmp_data(wb: Workbook) -> None:
         styles.calc_c(ws, r, 5,
                       f'=IFERROR(\'BMP\'!D{src}&" / "&\'BMP\'!E{src},"")')
 
-        # CDA land cover — SUMIFS from CDA sheet by CDA_ID (BMP col C) + Land Use
+        # CDA land cover — SUMIFS from CDA_Proposed sheet by CDA_ID (BMP col C) + Land Use
+        # col E = Area Within LOD (SF) on CDA_Proposed (post data)
         cda_cell = f"'BMP'!C{src}"
         styles.calc_c(ws, r, 6,
-                      f"=SUMIFS('CDA'!$G$4:$G$53,"
-                      f"'CDA'!$A$4:$A$53,{cda_cell},"
-                      f"'CDA'!$C$4:$C$53,\"Natural (Woods)\")")
+                      f"=SUMIFS('CDA_Proposed'!$E${CDA_FIRST}:$E${CDA_LAST},"
+                      f"'CDA_Proposed'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
+                      f"'CDA_Proposed'!$C${CDA_FIRST}:$C${CDA_LAST},\"Natural (Woods)\")")
         styles.calc_c(ws, r, 7,
-                      f"=SUMIFS('CDA'!$G$4:$G$53,"
-                      f"'CDA'!$A$4:$A$53,{cda_cell},"
-                      f"'CDA'!$C$4:$C$53,\"Compacted (Open Space)\")")
+                      f"=SUMIFS('CDA_Proposed'!$E${CDA_FIRST}:$E${CDA_LAST},"
+                      f"'CDA_Proposed'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
+                      f"'CDA_Proposed'!$C${CDA_FIRST}:$C${CDA_LAST},\"Compacted (Open Space)\")")
         styles.calc_c(ws, r, 8,
-                      f"=SUMIFS('CDA'!$G$4:$G$53,"
-                      f"'CDA'!$A$4:$A$53,{cda_cell},"
-                      f"'CDA'!$C$4:$C$53,\"Impervious Vehicular\")"
-                      f"+SUMIFS('CDA'!$G$4:$G$53,"
-                      f"'CDA'!$A$4:$A$53,{cda_cell},"
-                      f"'CDA'!$C$4:$C$53,\"Impervious Non-Vehicular\")")
+                      f"=SUMIFS('CDA_Proposed'!$E${CDA_FIRST}:$E${CDA_LAST},"
+                      f"'CDA_Proposed'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
+                      f"'CDA_Proposed'!$C${CDA_FIRST}:$C${CDA_LAST},\"Impervious Vehicular\")"
+                      f"+SUMIFS('CDA_Proposed'!$E${CDA_FIRST}:$E${CDA_LAST},"
+                      f"'CDA_Proposed'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
+                      f"'CDA_Proposed'!$C${CDA_FIRST}:$C${CDA_LAST},\"Impervious Non-Vehicular\")")
         styles.calc_c(ws, r, 9,
-                      f"=SUMIFS('CDA'!$G$4:$G$53,"
-                      f"'CDA'!$A$4:$A$53,{cda_cell},"
-                      f"'CDA'!$C$4:$C$53,\"BMP\")")
+                      f"=SUMIFS('CDA_Proposed'!$E${CDA_FIRST}:$E${CDA_LAST},"
+                      f"'CDA_Proposed'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
+                      f"'CDA_Proposed'!$C${CDA_FIRST}:$C${CDA_LAST},\"BMP\")")
 
         # Col J: Sv Total — BMP col AI (35)
         styles.calc_c(ws, r, 10, f"='BMP'!AI{src}")
@@ -480,20 +481,21 @@ def build_doee_detention_bmp(wb: Workbook) -> None:
 
     cda_summary_last = CDA_SUMMARY_FIRST + 10 - 1  # row 67
 
-    def _sumifs_cda_landuse(area_col: str, cda_cell: str, land_use: str) -> str:
+    def _sumifs_cda_landuse(area_col: str, cda_cell: str, land_use: str,
+                            sheet: str = "CDA_Proposed") -> str:
         return (
-            f"SUMIFS('CDA'!${area_col}${CDA_FIRST}:${area_col}${CDA_LAST},"
-            f"'CDA'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
-            f"'CDA'!$C${CDA_FIRST}:$C${CDA_LAST},\"{land_use}\")"
+            f"SUMIFS('{sheet}'!${area_col}${CDA_FIRST}:${area_col}${CDA_LAST},"
+            f"'{sheet}'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
+            f"'{sheet}'!$C${CDA_FIRST}:$C${CDA_LAST},\"{land_use}\")"
         )
 
-    def _cn_composite(area_col: str, cda_cell: str) -> str:
-        """Area-weighted CN composite formula for the given CDA area column."""
-        nat  = _sumifs_cda_landuse(area_col, cda_cell, "Natural (Woods)")
-        comp = _sumifs_cda_landuse(area_col, cda_cell, "Compacted (Open Space)")
-        imp  = (_sumifs_cda_landuse(area_col, cda_cell, "Impervious Vehicular")
-                + "+" + _sumifs_cda_landuse(area_col, cda_cell, "Impervious Non-Vehicular"))
-        bmp_ = _sumifs_cda_landuse(area_col, cda_cell, "BMP")
+    def _cn_composite(area_col: str, cda_cell: str, sheet: str = "CDA_Proposed") -> str:
+        """Area-weighted CN composite formula for the given CDA sheet and area column."""
+        nat  = _sumifs_cda_landuse(area_col, cda_cell, "Natural (Woods)", sheet)
+        comp = _sumifs_cda_landuse(area_col, cda_cell, "Compacted (Open Space)", sheet)
+        imp  = (_sumifs_cda_landuse(area_col, cda_cell, "Impervious Vehicular", sheet)
+                + "+" + _sumifs_cda_landuse(area_col, cda_cell, "Impervious Non-Vehicular", sheet))
+        bmp_ = _sumifs_cda_landuse(area_col, cda_cell, "BMP", sheet)
         total = f"({nat}+{comp}+{imp}+{bmp_})"
         num = (f"({nat}*INDEX(PARAMS_DetentionCN,1,2)"
                f"+{comp}*INDEX(PARAMS_DetentionCN,2,2)"
@@ -513,16 +515,16 @@ def build_doee_detention_bmp(wb: Workbook) -> None:
                       f"=IFERROR(INDEX('BMP'!$A$4:$A$53,"
                       f"MATCH({cda_cell},'BMP'!$C$4:$C$53,0)),\"\")")
 
-        # Col C: SDA Number — from CDA summary block col B.
+        # Col C: SDA Number — from CDA_Proposed summary block col B.
         styles.calc_c(ws, r, 3,
-                      f"=IFERROR(INDEX('CDA'!$B${CDA_SUMMARY_FIRST}:$B${cda_summary_last},"
-                      f"MATCH({cda_cell},'CDA'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),\"\")")
+                      f"=IFERROR(INDEX('CDA_Proposed'!$B${CDA_SUMMARY_FIRST}:$B${cda_summary_last},"
+                      f"MATCH({cda_cell},'CDA_Proposed'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),\"\")")
 
-        # Col D: Pre CN composite — CDA col E (Pre Within LOD).
-        styles.calc_c(ws, r, 4, _cn_composite("E", cda_cell))
+        # Col D: Pre CN composite — CDA_Existing col E (Area Within LOD, pre-development).
+        styles.calc_c(ws, r, 4, _cn_composite("E", cda_cell, "CDA_Existing"))
 
-        # Col E: Post CN composite — CDA col G (Post Within LOD).
-        styles.calc_c(ws, r, 5, _cn_composite("G", cda_cell))
+        # Col E: Post CN composite — CDA_Proposed col E (Area Within LOD, proposed).
+        styles.calc_c(ws, r, 5, _cn_composite("E", cda_cell, "CDA_Proposed"))
 
         p2  = "INDEX(PARAMS_Detention,1,2)"
         p15 = "INDEX(PARAMS_Detention,2,2)"

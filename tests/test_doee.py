@@ -11,8 +11,10 @@ def wb():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     doee.build_doee_sda(w)
     doee.build_doee_bmp_data(w)
@@ -28,13 +30,13 @@ def test_all_four_doee_sheets_exist(wb):
 
 def test_doee_sda_rows(wb):
     ws = wb["DOEE_SDA"]
-    # Ten SDA rows (SDA-1 ... SDA-10) auto-pulled from SDA summary via ='SDA'!A57
+    # Ten SDA rows auto-pulled from SDA_Proposed summary via ='SDA_Proposed'!A58
     sda_ids = []
     for r in range(1, 50):
         v = ws.cell(row=r, column=1).value
-        if isinstance(v, str) and ("SDA" in v or "'SDA'" in v):
+        if isinstance(v, str) and ("SDA" in v or "'SDA_Proposed'" in v):
             sda_ids.append(v)
-    assert len(sda_ids) >= 10 or any("'SDA'" in s for s in sda_ids)
+    assert len(sda_ids) >= 10 or any("'SDA_Proposed'" in s for s in sda_ids)
 
 
 def test_doee_sda_swrv_formula(wb):
@@ -87,8 +89,10 @@ def _full_wb():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     doee.build_doee_sda(w)
     doee.build_doee_bmp_data(w)
@@ -96,18 +100,20 @@ def _full_wb():
 
 
 def test_doee_bmp_data_cda_sumifs_reads_post_within_column():
-    """DOEE_BMP_DATA land-cover SUMIFS must point at CDA col G (post within), not E."""
+    """DOEE_BMP_DATA land-cover SUMIFS must point at CDA_Proposed col E (post within)."""
     ws = _full_wb()["DOEE_BMP_DATA"]
-    saw_g = False
+    saw_e_proposed = False
     for row in ws.iter_rows():
         for c in row:
             v = c.value
-            if not isinstance(v, str) or "'CDA'!" not in v:
+            if not isinstance(v, str) or "'CDA_Proposed'!" not in v:
                 continue
-            assert "'CDA'!$E$" not in v, f"stale pre-within $E at {c.coordinate}: {v}"
-            if "'CDA'!$G$" in v:
-                saw_g = True
-    assert saw_g, "no CDA post-within SUMIFS emitted on DOEE_BMP_DATA"
+            assert "'CDA_Proposed'!$G$" not in v, (
+                f"stale old post-within $G at {c.coordinate}: {v}"
+            )
+            if "'CDA_Proposed'!$E$" in v:
+                saw_e_proposed = True
+    assert saw_e_proposed, "no CDA_Proposed post-within $E SUMIFS emitted on DOEE_BMP_DATA"
 
 
 def test_doee_detention_bmp_sheet_exists_with_11_cols():
@@ -116,8 +122,10 @@ def test_doee_detention_bmp_sheet_exists_with_11_cols():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     doee.build_doee_sda(w)
     doee.build_doee_detention(w)
@@ -140,8 +148,10 @@ def test_doee_detention_bmp_rows_fully_formula_driven():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     doee.build_doee_sda(w)
     doee.build_doee_detention(w)
@@ -157,25 +167,29 @@ def test_doee_detention_bmp_rows_fully_formula_driven():
             )
 
 
-def test_doee_detention_bmp_pre_cn_uses_cda_col_e():
-    """Pre CN composite must SUMIFS 'CDA'!$E (Pre Within LOD), not $G (Post)."""
+def test_doee_detention_bmp_pre_cn_uses_cda_existing_col_e():
+    """Pre CN composite must SUMIFS 'CDA_Existing'!$E (Area Within LOD, pre-development).
+    Post CN composite must SUMIFS 'CDA_Proposed'!$E (Area Within LOD, proposed).
+    Neither should reference the old unified 'CDA'! sheet."""
     w = openpyxl.Workbook()
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     doee.build_doee_sda(w)
     doee.build_doee_detention(w)
     doee.build_doee_detention_bmp(w)
     ws = w["DOEE_DETENTION_BMP"]
     pre_cn = ws.cell(row=4, column=4).value  # Pre CN first row
-    assert "'CDA'!$E$4:$E$53" in pre_cn
-    assert "'CDA'!$G" not in pre_cn
+    assert "'CDA_Existing'!$E$4:$E$53" in pre_cn, f"pre CN wrong: {pre_cn}"
+    assert "'CDA_Proposed'" not in pre_cn, f"pre CN must not ref CDA_Proposed: {pre_cn}"
     post_cn = ws.cell(row=4, column=5).value
-    assert "'CDA'!$G$4:$G$53" in post_cn
-    assert "'CDA'!$E$4:$E$53" not in post_cn
+    assert "'CDA_Proposed'!$E$4:$E$53" in post_cn, f"post CN wrong: {post_cn}"
+    assert "'CDA_Existing'" not in post_cn, f"post CN must not ref CDA_Existing: {post_cn}"
 
 
 def test_doee_detention_sheets_have_user_note():
@@ -184,8 +198,10 @@ def test_doee_detention_sheets_have_user_note():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     doee.build_doee_sda(w)
     doee.build_doee_detention(w)
