@@ -43,7 +43,8 @@ PROJECT = {
     "AWDZ":            "No",
     "DOEEReview":      "N/A (sample)",
     "TotalLOD":        222300,   # ~5.1 acres per DDOT
-    "Rainfall":        1.7,       # EISA / DOEE Vmax storm
+    "RainfallRetention": 1.2,     # DOEE SWRv — MLD trigger
+    "RainfallEisa":      1.7,     # EISA 438 95th percentile
     "Trigger":         "MLD",
     "EISA":            "No",
 }
@@ -136,7 +137,7 @@ PP_D_RESERVOIR = 1.0   # ft
 # Populate helpers
 # ---------------------------------------------------------------------------
 def _fill_project(ws) -> None:
-    """Overwrite PROJECT sheet value cells (rows 3-11, col B) with sample data."""
+    """Overwrite PROJECT sheet value cells (rows 3-12, col B) with sample data."""
     row_values = {
         3:  PROJECT["Name"],
         4:  PROJECT["Number"],
@@ -144,68 +145,90 @@ def _fill_project(ws) -> None:
         6:  PROJECT["AWDZ"],
         7:  PROJECT["DOEEReview"],
         8:  PROJECT["TotalLOD"],
-        9:  PROJECT["Rainfall"],
-        10: PROJECT["Trigger"],
-        11: PROJECT["EISA"],
+        9:  PROJECT["RainfallRetention"],
+        10: PROJECT["RainfallEisa"],
+        11: PROJECT["Trigger"],
+        12: PROJECT["EISA"],
     }
     for row, val in row_values.items():
         ws.cell(row=row, column=2).value = val
 
 
-def _fill_sda(ws) -> None:
-    """Write SDA data rows for each sample SDA.
-
-    One row per (SDA, land-use) combination where any pre_in, post_in, or
-    out area is non-zero. Pre and post values go into separate columns so
-    the fixture carries a real pre→post delta.
-    """
-    row = 4   # SDA data table starts at row 4
-    for sda_num, _ddot, pre_in, post_in, out, hsg in SDAS:
+def _fill_sda_existing(ws) -> None:
+    """Write pre-development SDA rows to SDA_Existing (6 input cols A-F)."""
+    row = 4
+    for sda_num, _ddot, pre_in, _post_in, out, hsg in SDAS:
         sda_id = f"SDA-{sda_num}"
-        # (land_use, HSG-or-None, pre_in, post_in, out)
         covers = [
-            ("Impervious Vehicular",   None, pre_in[0], post_in[0], out[0]),
-            ("Compacted (Open Space)", hsg,  pre_in[1], post_in[1], out[1]),
-            ("Natural (Woods)",        hsg,  pre_in[2], post_in[2], out[2]),
+            ("Impervious Vehicular",   None, pre_in[0], out[0]),
+            ("Compacted (Open Space)", hsg,  pre_in[1], out[1]),
+            ("Natural (Woods)",        hsg,  pre_in[2], out[2]),
         ]
-        for land_use, use_hsg, pin, pout, outside in covers:
-            if not (pin or pout or outside):
+        for land_use, use_hsg, area_in, area_out in covers:
+            if not (area_in or area_out):
                 continue
             ws.cell(row=row, column=1).value = sda_id
             ws.cell(row=row, column=2).value = "Yes"
             ws.cell(row=row, column=3).value = land_use
             if use_hsg:
                 ws.cell(row=row, column=4).value = use_hsg
-            ws.cell(row=row, column=5).value = pin        # Pre within LOD
-            ws.cell(row=row, column=6).value = outside    # Pre outside LOD (unchanged)
-            ws.cell(row=row, column=7).value = pout       # Post within LOD
-            ws.cell(row=row, column=8).value = outside    # Post outside LOD (unchanged)
+            ws.cell(row=row, column=5).value = area_in
+            ws.cell(row=row, column=6).value = area_out
             row += 1
 
 
-def _fill_cda(ws) -> None:
-    """One CDA row per structural BMP (CDA matches BMP's SDA land cover)."""
+def _fill_sda_proposed(ws) -> None:
+    """Write post-development SDA rows to SDA_Proposed (6 input cols A-F)."""
     row = 4
-    # Map sda_num → post-development impervious SF inside LOD (from SDAS).
-    # Tuple shape is (sda_num, ddot, pre_in, post_in, out, hsg); post_in[0] = post imp.
-    sda_imp = {
-        s[0]: s[3][0] for s in SDAS
-    }
+    for sda_num, _ddot, _pre_in, post_in, out, hsg in SDAS:
+        sda_id = f"SDA-{sda_num}"
+        covers = [
+            ("Impervious Vehicular",   None, post_in[0], out[0]),
+            ("Compacted (Open Space)", hsg,  post_in[1], out[1]),
+            ("Natural (Woods)",        hsg,  post_in[2], out[2]),
+        ]
+        for land_use, use_hsg, area_in, area_out in covers:
+            if not (area_in or area_out):
+                continue
+            ws.cell(row=row, column=1).value = sda_id
+            ws.cell(row=row, column=2).value = "Yes"
+            ws.cell(row=row, column=3).value = land_use
+            if use_hsg:
+                ws.cell(row=row, column=4).value = use_hsg
+            ws.cell(row=row, column=5).value = area_in
+            ws.cell(row=row, column=6).value = area_out
+            row += 1
+
+
+def _fill_cda_impl(ws) -> None:
+    row = 4
+    sda_imp = {s[0]: s[3][0] for s in SDAS}
     cda_idx = 0
     for sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees, geom in BMPS:
-        # Only structural BMPs need a CDA; tree BMPs don't
         if bmp_type in ("Planted Trees", "Preserve Trees"):
             continue
         cda_idx += 1
-        cda_id = f"CDA-{sda_num}" if sum(1 for b in BMPS if b[0] == sda_num and b[2] not in ("Planted Trees","Preserve Trees")) == 1 else f"CDA-{sda_num}-{cda_idx}"
+        n_structural = sum(
+            1 for b in BMPS
+            if b[0] == sda_num and b[2] not in ("Planted Trees", "Preserve Trees")
+        )
+        cda_id = f"CDA-{sda_num}" if n_structural == 1 else f"CDA-{sda_num}-{cda_idx}"
+        cda_area = min(sda_imp.get(sda_num, 0), int(surface_sf * 3))
         ws.cell(row=row, column=1).value = cda_id
         ws.cell(row=row, column=2).value = f"SDA-{sda_num}"
         ws.cell(row=row, column=3).value = "Impervious Vehicular"
-        # CDA area in LOD = BMP's share of SDA impervious. Approximate: 2x BMP SA
-        # (BMPs typically treat 2-5x their footprint).
-        cda_area = min(sda_imp.get(sda_num, 0), int(surface_sf * 3))
-        ws.cell(row=row, column=7).value = cda_area  # Post Within LOD
+        ws.cell(row=row, column=5).value = cda_area       # Area Within LOD (was col 7 Post Within)
         row += 1
+
+
+def _fill_cda_existing(ws) -> None:
+    """Write pre-makeup CDA rows to CDA_Existing (same cda_area as proposed, so Area Match stays OK)."""
+    _fill_cda_impl(ws)
+
+
+def _fill_cda_proposed(ws) -> None:
+    """Write post CDA rows to CDA_Proposed (6 input cols A-F)."""
+    _fill_cda_impl(ws)
 
 
 def _fill_bmp(ws) -> None:
@@ -325,8 +348,10 @@ def build_sample() -> Path:
     """Build the sample workbook and save to OUTPUT. Return the written path."""
     wb = build_workbook()
     _fill_project(wb["PROJECT"])
-    _fill_sda(wb["SDA"])
-    _fill_cda(wb["CDA"])
+    _fill_sda_existing(wb["SDA_Existing"])
+    _fill_sda_proposed(wb["SDA_Proposed"])
+    _fill_cda_existing(wb["CDA_Existing"])
+    _fill_cda_proposed(wb["CDA_Proposed"])
     _fill_bmp(wb["BMP"])
     _fill_mep_summary(wb["CORRECT_MEP_SUMMARY"])
     wb.save(OUTPUT)
