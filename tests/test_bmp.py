@@ -10,8 +10,10 @@ def wb():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     return w
 
@@ -92,11 +94,12 @@ def test_rv_applied_is_min_capped(wb):
 
 def test_max_bmp_credit_lookup_from_cda(wb):
     ws = wb["BMP"]
-    # AL4 (col 38) — lookup CDA_ID in CDA summary to get Max BMP Credit
+    # AL4 (col 38) — lookup CDA_ID in CDA_Proposed summary to get Max BMP Credit
     f_val = ws.cell(row=4, column=38).value
     assert "C4" in f_val
-    # References CDA sheet column D (Max BMP Credit) via VLOOKUP or INDEX/MATCH
-    assert ("CDA" in f_val) or ("VLOOKUP" in f_val) or ("INDEX" in f_val)
+    # References CDA_Proposed sheet column D (Max BMP Credit) via VLOOKUP
+    assert "CDA_Proposed" in f_val
+    assert "VLOOKUP" in f_val
 
 
 def test_sda_compliance_summary_block(wb):
@@ -128,8 +131,10 @@ def test_pp_ksat_only_enhanced():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     ws = w["BMP"]
     v = ws.cell(row=4, column=9).value  # col I = 9
@@ -146,8 +151,10 @@ def test_bio_ksat_only_enhanced():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     ws = w["BMP"]
     v = ws.cell(row=4, column=22).value
@@ -164,8 +171,10 @@ def test_bmp_sheet_has_ksat_note():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     ws = w["BMP"]
     note_text = ws.cell(row=2, column=1).value
@@ -178,10 +187,10 @@ from workbook.builders.bmp import _cda_dominant_hsg_formula
 
 
 def test_cda_dominant_hsg_sumifs_reads_post_within_column():
-    """Ksat HSG lookup must SUMIFS CDA's post-within column (G), not pre-within (E)."""
+    """Ksat HSG lookup must SUMIFS CDA_Proposed's within column (E)."""
     formula = _cda_dominant_hsg_formula("C4")
-    assert "'CDA'!$G$4:$G$53" in formula
-    assert "'CDA'!$E$4:$E$53" not in formula
+    assert "'CDA_Proposed'!$E$4:$E$53" in formula
+    assert "'CDA'!" not in formula
 
 
 def test_bmp_sheet_has_bio_geometry_columns():

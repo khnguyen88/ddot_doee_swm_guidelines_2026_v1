@@ -27,9 +27,9 @@ def _cda_dominant_hsg_formula(cda_cell: str) -> str:
     """
     def _sumifs(hsg: str) -> str:
         return (
-            f"SUMIFS('CDA'!$G${CDA_D1}:$G${CDA_DL},"
-            f"'CDA'!$A${CDA_D1}:$A${CDA_DL},{cda_cell},"
-            f"'CDA'!$D${CDA_D1}:$D${CDA_DL},\"{hsg}\")"
+            f"SUMIFS('CDA_Proposed'!$E${CDA_D1}:$E${CDA_DL},"
+            f"'CDA_Proposed'!$A${CDA_D1}:$A${CDA_DL},{cda_cell},"
+            f"'CDA_Proposed'!$D${CDA_D1}:$D${CDA_DL},\"{hsg}\")"
         )
     return (
         f'IF({_sumifs("D")}>0,"D",'
@@ -296,16 +296,12 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         # AK (37): Rv Uncapped = AI × AJ + AH
         styles.calc_c(ws, r, 37, f"=IFERROR(AI{r}*AJ{r}+AH{r},0)")
 
-        # AL (38): Max BMP Credit — VLOOKUP CDA_ID in CDA summary block.
-        # CDA summary data rows: with default n_rows=50, rows 58-67 (A:D).
-        # We reference the full 10-row data range $A$58:$D$67; col 4 = Max BMP Credit.
-        # To be robust across n_rows values we derive the range dynamically, but
-        # the CDA named range CDA_IDs already spans $A$sum_data_start:$A$sum_data_end.
-        # Simplest reliable formula: VLOOKUP against the CDA_IDs list + offset.
-        # However, VLOOKUP on a non-contiguous multi-column range is cleaner as
-        # a direct sheet reference.  Since CDA uses n_rows=50 → data rows 58-67:
+        # AL (38): Max BMP Credit — VLOOKUP CDA_ID in CDA_Proposed summary block.
+        # CDA_Proposed summary (5 cols): A=CDA_ID, B=SDA_ID, C=Total CDA Within Post,
+        # D=Max BMP Credit, E=Area Match.  With n_rows=50 → data rows 58-67.
+        # Col 4 (D) = Max BMP Credit — same position as old CDA summary.
         styles.calc_c(ws, r, 38,
-                      f"=IFERROR(VLOOKUP(C{r},'CDA'!$A$58:$D$67,4,FALSE),0)")
+                      f"=IFERROR(VLOOKUP(C{r},'CDA_Proposed'!$A$58:$D$67,4,FALSE),0)")
 
         # AM (39): Rv Applied = MIN(AK, AL); if AL=0 (no CDA) use AK unmodified.
         styles.calc_c(ws, r, 39,
@@ -384,17 +380,17 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
     for i, h in enumerate(sum_col_hdrs, 1):
         styles.hdr(ws, sum_row, i, h, styles.BS)
 
-    # 10 summary data rows mirror the SDA summary block.
-    # SDA summary data starts at SDA row sum_data_start = (50+3)+2 = 57 for n=50.
-    # Column A = SDA_ID label, column J (10) = Post SWRv Required.
+    # 10 summary data rows mirror the SDA_Proposed summary block.
+    # SDA_Proposed summary data starts at row sum_data_start = 58 for n=50.
+    # Column A = SDA_ID label, column G (7) = SWRv Required (CF).
     # With n_rows=50: SDA data_end=53, sum_header=56, sum_row=57, sum_data_start=58.
     sda_sum_data_start = (data_start + n_rows - 1) + 3 + 1 + 1  # = data_end+3+2
     for i in range(10):
         r = sum_row + 1 + i
-        # Mirror SDA_ID from SDA summary
-        styles.calc_c(ws, r, 1, f"='SDA'!A{sda_sum_data_start + i}")
-        # SWRv Required from SDA summary col J (10)
-        styles.calc_c(ws, r, 2, f"='SDA'!J{sda_sum_data_start + i}")
+        # Mirror SDA_ID from SDA_Proposed summary col A
+        styles.calc_c(ws, r, 1, f"='SDA_Proposed'!A{sda_sum_data_start + i}")
+        # SWRv Required from SDA_Proposed summary col G (was col J on old 13-col summary)
+        styles.calc_c(ws, r, 2, f"='SDA_Proposed'!G{sda_sum_data_start + i}")
         # Rv Provided = SUMIFS of AM column, matched by SDA_ID in B column
         styles.calc_c(ws, r, 3,
                       f"=SUMIFS($AM${data_start}:$AM${data_end},"
