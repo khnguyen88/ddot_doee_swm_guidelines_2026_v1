@@ -11,8 +11,10 @@ def wb():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     correct_mep_summary.build_correct_mep_summary(w)
     return w
@@ -76,25 +78,25 @@ def test_row12_col_a_sda_formula(ws):
     # A12 should use IF(...="","",...) pattern so blank SDA cells render as "" (not 0)
     v = ws.cell(row=12, column=1).value
     assert isinstance(v, str)
-    assert "'SDA'!A58" in v
+    assert "'SDA_Proposed'!A58" in v
     assert "=\"\",\"\"" in v or '="",""' in v  # the blank-check pattern
 
 
 def test_row12_col_b_sda_formula(ws):
-    # B12 should be guarded by IF(A12="","",'SDA'!F58)
+    # B12 should be guarded by IF(A12="","",'SDA_Proposed'!B58)
     v = ws.cell(row=12, column=2).value
     assert isinstance(v, str)
-    assert "'SDA'!F58" in v
+    assert "'SDA_Proposed'!B58" in v
     assert 'IF(A12="",""' in v
 
 
 def test_row12_col_f_sumifs_impervious(ws):
-    # F12 has SUMIFS with "Impervious Vehicular" and SDA references
+    # F12 has SUMIFS with "Impervious Vehicular" and SDA_Proposed references
     v = ws.cell(row=12, column=6).value
     assert isinstance(v, str)
     assert "SUMIFS" in v
     assert "Impervious Vehicular" in v
-    assert "'SDA'" in v
+    assert "'SDA_Proposed'" in v
 
 
 def test_row12_col_l_hsg_cascade(ws):
@@ -129,12 +131,12 @@ def test_row12_col_q_preserved_small_sumifs(ws):
 
 
 def test_row12_col_ac_cda_sumifs(ws):
-    # AC12 (col 29) — Total BMP CDA within LOD — SUMIFS over CDA post-within column G
+    # AC12 (col 29) — Total BMP CDA within LOD — SUMIFS over CDA_Proposed within column E
     v = ws.cell(row=12, column=29).value
     assert isinstance(v, str)
     assert "SUMIFS" in v
-    assert "$G$" in v
-    assert "'CDA'" in v
+    assert "$E$" in v
+    assert "'CDA_Proposed'" in v
 
 
 # ---------------------------------------------------------------------------
@@ -184,26 +186,26 @@ def test_row12_ap_rv_formula(ws):
 # Rows 22-44 now have IFERROR autopop formulas on all 33 DA rows
 # ---------------------------------------------------------------------------
 def test_row44_col_a_sda_formula(ws):
-    # A44 = =IF('SDA'!A90="","",'SDA'!A90)  — row 44 maps to SDA summary row 58+(44-12)=90
+    # A44 = =IF('SDA_Proposed'!A90="","",'SDA_Proposed'!A90)  — row 44 maps to SDA summary row 58+(44-12)=90
     v = ws.cell(row=44, column=1).value
     assert isinstance(v, str), f"Expected formula string at A44, got {repr(v)}"
-    assert "'SDA'!A90" in v, f"Expected 'SDA'!A90 in A44 formula, got {repr(v)}"
+    assert "'SDA_Proposed'!A90" in v, f"Expected 'SDA_Proposed'!A90 in A44 formula, got {repr(v)}"
     assert '="",""' in v, f"Expected blank-check pattern in A44 formula, got {repr(v)}"
 
 
 def test_row44_col_b_guarded_formula(ws):
-    # B44 = =IF(A44="","",'SDA'!F90)
+    # B44 = =IF(A44="","",'SDA_Proposed'!B90)
     v = ws.cell(row=44, column=2).value
     assert isinstance(v, str), f"Expected formula string at B44, got {repr(v)}"
     assert 'IF(A44="",""' in v, f"Expected A44 guard in B44 formula, got {repr(v)}"
-    assert "F90" in v, f"Expected F90 in B44 formula, got {repr(v)}"
+    assert "'SDA_Proposed'!B90" in v, f"Expected 'SDA_Proposed'!B90 in B44 formula, got {repr(v)}"
 
 
 def test_row22_col_a_sda_formula(ws):
     # A22 maps to SDA summary row 58+(22-12)=68
     v = ws.cell(row=22, column=1).value
     assert isinstance(v, str), f"Expected formula string at A22, got {repr(v)}"
-    assert "'SDA'!A68" in v
+    assert "'SDA_Proposed'!A68" in v
     assert '="",""' in v
 
 
@@ -247,27 +249,29 @@ def _mep_wb():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     correct_mep_summary.build_correct_mep_summary(w)
     return w
 
 
-def test_correct_mep_summary_cda_sumifs_use_post_columns():
-    """AC/AD CDA within/outside SUMIFS must use post columns G/H, not pre E/F."""
+def test_correct_mep_summary_cda_sumifs_use_proposed_columns():
+    """AC/AD CDA within/outside SUMIFS must use CDA_Proposed columns E/F, not old G/H."""
     ws = _mep_wb()[MEP_SHEET]
-    found_g = found_h = False
+    found_e = found_f = False
     for row in ws.iter_rows():
         for c in row:
             v = c.value
-            if not isinstance(v, str) or "'CDA'!" not in v:
+            if not isinstance(v, str) or "'CDA_Proposed'!" not in v:
                 continue
-            if "'CDA'!$G$" in v:
-                found_g = True
-            if "'CDA'!$H$" in v:
-                found_h = True
-            assert "'CDA'!$E$" not in v, f"stale $E at {c.coordinate}: {v}"
-            assert "'CDA'!$F$" not in v, f"stale $F at {c.coordinate}: {v}"
-    assert found_g, "no CDA post-within SUMIFS emitted on MEP summary"
-    assert found_h, "no CDA post-outside SUMIFS emitted on MEP summary"
+            if "'CDA_Proposed'!$E$" in v:
+                found_e = True
+            if "'CDA_Proposed'!$F$" in v:
+                found_f = True
+            assert "'CDA_Proposed'!$G$" not in v, f"stale $G at {c.coordinate}: {v}"
+            assert "'CDA_Proposed'!$H$" not in v, f"stale $H at {c.coordinate}: {v}"
+    assert found_e, "no CDA_Proposed within SUMIFS emitted on MEP summary"
+    assert found_f, "no CDA_Proposed outside SUMIFS emitted on MEP summary"

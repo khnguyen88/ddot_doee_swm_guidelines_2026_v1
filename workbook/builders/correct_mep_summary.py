@@ -502,12 +502,13 @@ def _write_da_rows(ws) -> None:
         a = f"A{r}"
 
         # ---- A: SDA_ID — uses direct = compare (NOT IFERROR, since blank refs are not errors) ----
-        ws.cell(row=r, column=1, value=f"=IF('SDA'!A{s}=\"\",\"\",'SDA'!A{s})")
+        ws.cell(row=r, column=1, value=f"=IF('SDA_Proposed'!A{s}=\"\",\"\",'SDA_Proposed'!A{s})")
 
-        # ---- B/C/D: SDA summary direct references, guarded on A ----
-        ws.cell(row=r, column=2, value=_guard(f"'SDA'!F{s}", a))  # B
-        ws.cell(row=r, column=3, value=_guard(f"'SDA'!G{s}", a))  # C
-        ws.cell(row=r, column=4, value=_guard(f"'SDA'!H{s}", a))  # D
+        # ---- B/C/D: SDA_Proposed summary direct references, guarded on A ----
+        # SDA_Proposed summary cols: A=ID, B=Imp, C=Comp, D=Nat
+        ws.cell(row=r, column=2, value=_guard(f"'SDA_Proposed'!B{s}", a))  # B — Imp Within
+        ws.cell(row=r, column=3, value=_guard(f"'SDA_Proposed'!C{s}", a))  # C — Comp Within
+        ws.cell(row=r, column=4, value=_guard(f"'SDA_Proposed'!D{s}", a))  # D — Nat Within
 
         # ---- User-preserved calculated columns, each guarded on A ----
         ws.cell(row=r, column=5,  value=_guard(f"SUM(B{r}:D{r})", a))  # E
@@ -529,28 +530,28 @@ def _write_da_rows(ws) -> None:
             f"IF(I{r}=0,\"\",(F{r}*0.95+G{r}*0.25+H{r}*0)/I{r})", a))  # AQ
 
         # ---- SUMIFS autopop columns, each guarded on A ----
-        # F — Post Imp outside LOD
+        # F — Imp outside LOD (SDA_Proposed col F = Outside LOD)
         ws.cell(row=r, column=6, value=_guard(
-            f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$C${D1}:$C${DL},\"Impervious Vehicular\")"
-            f"+SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$C${D1}:$C${DL},\"Impervious Non-Vehicular\")",
+            f"SUMIFS('SDA_Proposed'!$F${D1}:$F${DL},'SDA_Proposed'!$A${D1}:$A${DL},{a},'SDA_Proposed'!$C${D1}:$C${DL},\"Impervious Vehicular\")"
+            f"+SUMIFS('SDA_Proposed'!$F${D1}:$F${DL},'SDA_Proposed'!$A${D1}:$A${DL},{a},'SDA_Proposed'!$C${D1}:$C${DL},\"Impervious Non-Vehicular\")",
             a))
 
-        # G — Post Comp outside LOD
+        # G — Comp outside LOD (SDA_Proposed col F = Outside LOD)
         ws.cell(row=r, column=7, value=_guard(
-            f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$C${D1}:$C${DL},\"Compacted (Open Space)\")",
+            f"SUMIFS('SDA_Proposed'!$F${D1}:$F${DL},'SDA_Proposed'!$A${D1}:$A${DL},{a},'SDA_Proposed'!$C${D1}:$C${DL},\"Compacted (Open Space)\")",
             a))
 
-        # H — Post Nat outside LOD
+        # H — Nat outside LOD (SDA_Proposed col F = Outside LOD)
         ws.cell(row=r, column=8, value=_guard(
-            f"SUMIFS('SDA'!$H${D1}:$H${DL},'SDA'!$A${D1}:$A${DL},{a},'SDA'!$C${D1}:$C${DL},\"Natural (Woods)\")",
+            f"SUMIFS('SDA_Proposed'!$F${D1}:$F${DL},'SDA_Proposed'!$A${D1}:$A${DL},{a},'SDA_Proposed'!$C${D1}:$C${DL},\"Natural (Woods)\")",
             a))
 
         # L — Conservative-dominant HSG (D > C > B > A). Nested IF (not IFS)
         # for compatibility with Excel 2016 and earlier.
         def _sum_by_hsg(hsg: str) -> str:
-            return (f"SUMIFS('SDA'!$G${D1}:$G${DL},"
-                    f"'SDA'!$A${D1}:$A${DL},{a},"
-                    f"'SDA'!$D${D1}:$D${DL},\"{hsg}\")")
+            return (f"SUMIFS('SDA_Proposed'!$E${D1}:$E${DL},"
+                    f"'SDA_Proposed'!$A${D1}:$A${DL},{a},"
+                    f"'SDA_Proposed'!$D${D1}:$D${DL},\"{hsg}\")")
         ws.cell(row=r, column=12, value=_guard(
             f'IF({_sum_by_hsg("D")}>0,"D",'
             f'IF({_sum_by_hsg("C")}>0,"C",'
@@ -591,13 +592,13 @@ def _write_da_rows(ws) -> None:
             f"SUMIFS('BMP'!$F${BD1}:$F${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Permeable Pavement\")",
             a))
 
-        # AC — Total BMP CDA within LOD
+        # AC — Total BMP CDA within LOD (CDA_Proposed col E = Within LOD)
         ws.cell(row=r, column=29, value=_guard(
-            f"SUMIFS('CDA'!$G${CD1}:$G${CDL},'CDA'!$B${CD1}:$B${CDL},{a})", a))
+            f"SUMIFS('CDA_Proposed'!$E${CD1}:$E${CDL},'CDA_Proposed'!$B${CD1}:$B${CDL},{a})", a))
 
-        # AD — Total BMP CDA outside LOD
+        # AD — Total BMP CDA outside LOD (CDA_Proposed col F = Outside LOD)
         ws.cell(row=r, column=30, value=_guard(
-            f"SUMIFS('CDA'!$H${CD1}:$H${CDL},'CDA'!$B${CD1}:$B${CDL},{a})", a))
+            f"SUMIFS('CDA_Proposed'!$F${CD1}:$F${CDL},'CDA_Proposed'!$B${CD1}:$B${CDL},{a})", a))
 
         # AG — Max Bioretention Sv (Bio + Dry Swale)
         ws.cell(row=r, column=33, value=_guard(
