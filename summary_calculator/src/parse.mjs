@@ -1,12 +1,27 @@
 // src/parse.mjs — XLSX → structured JS object. SheetJS workbook comes from caller.
 
-const REQUIRED_SHEETS = ['PROJECT', 'SDA', 'CDA', 'BMP', 'PARAMS'];
+const REQUIRED_SHEETS = ['PROJECT', 'SDA_Existing', 'SDA_Proposed',
+                         'CDA_Existing', 'CDA_Proposed', 'BMP', 'PARAMS'];
+
+const LEGACY_SHEETS = ['SDA', 'CDA'];
 
 // Data input region matches workbook n_rows=50 (data rows 4-53). Keep in sync
 // with workbook/__main__.py; the SUMIFS summary blocks that start at row ~56
 // use labels like "SDA-1" that would otherwise be mistaken for data rows.
 const DATA_FIRST_ROW = 4;
 const DATA_LAST_ROW = 53;
+
+function rejectLegacySchema(wb) {
+  for (const name of LEGACY_SHEETS) {
+    if (wb.SheetNames.includes(name) &&
+        !wb.SheetNames.includes(`${name}_Existing`)) {
+      throw new Error(
+        `This workbook uses the old ${name} pre/post layout. ` +
+        `Regenerate from the current blank template ` +
+        `(SW_Required_Provided_DOEE_EISA438.xlsx).`);
+    }
+  }
+}
 
 function requireSheet(wb, name) {
   if (!wb.SheetNames.includes(name)) {
@@ -33,13 +48,14 @@ function cell(sheet, row, col) {
 }
 
 // PROJECT layout (from workbook/builders/project.py):
-//   col A = labels; col B = values (rows 3-11):
+//   col A = labels; col B = values (rows 3-12):
 //   3=name, 4=number, 5=ms4, 6=awdz, 7=doeeReview,
-//   8=totalLod, 9=rainfallIn, 10=trigger, 11=eisa
+//   8=totalLod, 9=rainfallRetention, 10=rainfallEisa, 11=trigger, 12=eisa438Applies
 function parseProject(sheet) {
-  const rainfall = cell(sheet, 9, 2);
-  if (rainfall == null) {
-    throw new Error('Missing PROJECT!B9 (Rainfall)');
+  const retention = cell(sheet, 9, 2);
+  const eisa = cell(sheet, 10, 2);
+  if (retention == null || eisa == null) {
+    throw new Error('Missing PROJECT!B9 (Retention) or !B10 (EISA)');
   }
   return {
     name: cell(sheet, 3, 2),
@@ -48,55 +64,59 @@ function parseProject(sheet) {
     awdz: cell(sheet, 6, 2),
     doeeReview: cell(sheet, 7, 2),
     totalLod: cell(sheet, 8, 2),
-    rainfallIn: rainfall,
-    trigger: cell(sheet, 10, 2),
-    eisa: cell(sheet, 11, 2),
+    rainfallRetention: retention,
+    rainfallEisa: eisa,
+    trigger: cell(sheet, 11, 2),
+    eisa438Applies: cell(sheet, 12, 2),
   };
 }
 
-// SDA layout (from workbook/builders/sda.py):
-//   data rows DATA_FIRST_ROW..DATA_LAST_ROW; cols A..H:
+// SDA layout (10 cols A-J per split sheet):
 //   A=sdaId, B=inProw, C=landUse, D=hsg,
-//   E=preIn, F=preOut, G=postIn, H=postOut
-function parseSda(sheet) {
+//   E=areaIn (Area Within LOD), F=areaOut (Area Outside LOD),
+//   G-J = formula cells (Rv, Rainfall, SWRv Within, SWRv Outside) — not parsed.
+function parseSdaRow(sheet, row) {
+  return {
+    sdaId:   cell(sheet, row, 1),
+    inProw:  cell(sheet, row, 2),
+    landUse: cell(sheet, row, 3),
+    hsg:     cell(sheet, row, 4),
+    areaIn:  cell(sheet, row, 5),
+    areaOut: cell(sheet, row, 6),
+  };
+}
+
+function parseSdaSheet(sheet) {
   const rows = [];
   for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
-    const sdaId = cell(sheet, r, 1);
-    if (!sdaId) break;
-    rows.push({
-      sdaId,
-      inProw: cell(sheet, r, 2),
-      landUse: cell(sheet, r, 3),
-      hsg: cell(sheet, r, 4) || 'D',
-      preIn: cell(sheet, r, 5) || 0,
-      preOut: cell(sheet, r, 6) || 0,
-      postIn: cell(sheet, r, 7) || 0,
-      postOut: cell(sheet, r, 8) || 0,
-    });
+    const row = parseSdaRow(sheet, r);
+    if (row.sdaId == null && row.landUse == null) continue;
+    rows.push(row);
   }
   return rows;
 }
 
-// CDA layout (from workbook/builders/cda.py — 13 cols A..M):
+// CDA layout (10 cols A-J per split sheet):
 //   A=cdaId, B=sdaId, C=landUse, D=hsg,
-//   E=preIn, F=preOut, G=postIn, H=postOut,
-//   I=Rv (calc), J-M=SWRv outputs (calc).
-// Parser reads A, B, C, D, E, F, G, H only; downstream calcs recompute SWRv.
-function parseCda(sheet) {
+//   E=areaIn (Area Within LOD), F=areaOut (Area Outside LOD),
+//   G-J = formula cells — not parsed.
+function parseCdaRow(sheet, row) {
+  return {
+    cdaId:   cell(sheet, row, 1),
+    sdaId:   cell(sheet, row, 2),
+    landUse: cell(sheet, row, 3),
+    hsg:     cell(sheet, row, 4),
+    areaIn:  cell(sheet, row, 5),
+    areaOut: cell(sheet, row, 6),
+  };
+}
+
+function parseCdaSheet(sheet) {
   const rows = [];
   for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
-    const cdaId = cell(sheet, r, 1);
-    if (!cdaId) break;
-    rows.push({
-      cdaId,
-      sdaId:  cell(sheet, r, 2),
-      landUse: cell(sheet, r, 3),
-      hsg:    cell(sheet, r, 4) || 'D',
-      preIn:  cell(sheet, r, 5) || 0,
-      preOut: cell(sheet, r, 6) || 0,
-      postIn: cell(sheet, r, 7) || 0,
-      postOut: cell(sheet, r, 8) || 0,
-    });
+    const row = parseCdaRow(sheet, r);
+    if (row.cdaId == null && row.landUse == null) continue;
+    rows.push(row);
   }
   return rows;
 }
@@ -247,28 +267,96 @@ function parseParams(sheet) {
  * consumes. The `bmps` array has a conditional shape — pp/bio/trees sub-objects
  * are only present for matching BMP types.
  *
+ * SDA and CDA data are exposed as split existing/proposed arrays; each row has
+ * `areaIn` (within LOD) and `areaOut` (outside LOD) rather than pre/post fields.
+ *
  * @param {{SheetNames: string[], Sheets: Record<string, object>}} wb
  * @returns {{
- *   project: {name, number, ms4, awdz, doeeReview, totalLod, rainfallIn, trigger, eisa},
- *   sdas:    Array<{sdaId, inProw, landUse, hsg, preIn, preOut, postIn, postOut}>,
- *   cdas:    Array<{cdaId, sdaId, landUse, hsg, preIn, preOut, postIn, postOut}>,
+ *   project: {name, number, ms4, awdz, doeeReview, totalLod,
+ *             rainfallRetention, rainfallEisa, trigger, eisa438Applies},
+ *   sdaExisting: Array<{sdaId, inProw, landUse, hsg, areaIn, areaOut}>,
+ *   sdaProposed: Array<{sdaId, inProw, landUse, hsg, areaIn, areaOut}>,
+ *   cdaExisting: Array<{cdaId, sdaId, landUse, hsg, areaIn, areaOut}>,
+ *   cdaProposed: Array<{cdaId, sdaId, landUse, hsg, areaIn, areaOut}>,
  *   bmps:    Array<{name, sdaId, cdaId, type, subType,
  *                   pp?:    {sa, dReservoir},
  *                   bio?:   {saTop, saBot, dMedia, dGravel, dPond},
  *                   trees?: {plantedSmall, plantedLarge, preservedSmall, preservedLarge, preservedSpecial, preservedHeritage}}>,
  *   params:  {rv, cn, bmpDesign, treeCredits, detention: {p2In, p15In, p100In}, detentionCn}
  * }}
- * @throws if a required sheet (PROJECT, SDA, CDA, BMP, PARAMS) is missing or
- *         if PROJECT!B9 (Rainfall) is empty.
+ * @throws if a legacy-schema workbook is detected, if a required sheet is missing,
+ *         or if PROJECT!B9/B10 (Retention/EISA rainfall) are empty.
  */
+// Merge the Existing + Proposed arrays into the pre-split {preIn, preOut,
+// postIn, postOut} shape so downstream consumers (render.mjs, ui.mjs, calc)
+// don't need rewiring for the schema change.
+function _mergeSdaCompat(existing, proposed) {
+  const key = (r) => `${r.sdaId}|${r.landUse}|${r.hsg || ''}`;
+  const byKey = new Map();
+  for (const r of existing) {
+    byKey.set(key(r), {
+      sdaId: r.sdaId, inProw: r.inProw, landUse: r.landUse, hsg: r.hsg,
+      preIn: r.areaIn || 0, preOut: r.areaOut || 0, postIn: 0, postOut: 0,
+    });
+  }
+  for (const r of proposed) {
+    const k = key(r);
+    const row = byKey.get(k) || {
+      sdaId: r.sdaId, inProw: r.inProw, landUse: r.landUse, hsg: r.hsg,
+      preIn: 0, preOut: 0, postIn: 0, postOut: 0,
+    };
+    row.postIn = r.areaIn || 0;
+    row.postOut = r.areaOut || 0;
+    byKey.set(k, row);
+  }
+  return [...byKey.values()];
+}
+
+function _mergeCdaCompat(existing, proposed) {
+  const key = (r) => `${r.cdaId}|${r.landUse}|${r.hsg || ''}`;
+  const byKey = new Map();
+  for (const r of existing) {
+    byKey.set(key(r), {
+      cdaId: r.cdaId, sdaId: r.sdaId, landUse: r.landUse, hsg: r.hsg,
+      preIn: r.areaIn || 0, preOut: r.areaOut || 0, postIn: 0, postOut: 0,
+    });
+  }
+  for (const r of proposed) {
+    const k = key(r);
+    const row = byKey.get(k) || {
+      cdaId: r.cdaId, sdaId: r.sdaId, landUse: r.landUse, hsg: r.hsg,
+      preIn: 0, preOut: 0, postIn: 0, postOut: 0,
+    };
+    row.postIn = r.areaIn || 0;
+    row.postOut = r.areaOut || 0;
+    byKey.set(k, row);
+  }
+  return [...byKey.values()];
+}
+
 export function parseWorkbook(wb) {
+  rejectLegacySchema(wb);
   for (const name of REQUIRED_SHEETS) requireSheet(wb, name);
 
+  const project = parseProject(requireSheet(wb, 'PROJECT'));
+  const sdaExisting = parseSdaSheet(requireSheet(wb, 'SDA_Existing'));
+  const sdaProposed = parseSdaSheet(requireSheet(wb, 'SDA_Proposed'));
+  const cdaExisting = parseCdaSheet(requireSheet(wb, 'CDA_Existing'));
+  const cdaProposed = parseCdaSheet(requireSheet(wb, 'CDA_Proposed'));
+
+  // rainfallIn alias — downstream rendering uses this name; it maps to the
+  // retention target (SWRv storm), not the EISA depth.
+  project.rainfallIn = project.rainfallRetention;
+
   return {
-    project: parseProject(wb.Sheets.PROJECT),
-    sdas:    parseSda(wb.Sheets.SDA),
-    cdas:    parseCda(wb.Sheets.CDA),
-    bmps:    parseBmp(wb.Sheets.BMP),
-    params:  parseParams(wb.Sheets.PARAMS),
+    project,
+    sdaExisting,
+    sdaProposed,
+    cdaExisting,
+    cdaProposed,
+    sdas: _mergeSdaCompat(sdaExisting, sdaProposed),
+    cdas: _mergeCdaCompat(cdaExisting, cdaProposed),
+    bmps: parseBmp(requireSheet(wb, 'BMP')),
+    params: parseParams(requireSheet(wb, 'PARAMS')),
   };
 }
