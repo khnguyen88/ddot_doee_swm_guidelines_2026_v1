@@ -10,8 +10,10 @@ def wb():
     w.remove(w.active)
     params.build_params_sheet(w)
     project.build_project_sheet(w)
-    sda.build_sda_sheet(w, n_rows=50)
-    cda.build_cda_sheet(w, n_rows=50)
+    sda.build_sda_existing_sheet(w, n_rows=50)
+    sda.build_sda_proposed_sheet(w, n_rows=50)
+    cda.build_cda_existing_sheet(w, n_rows=50)
+    cda.build_cda_proposed_sheet(w, n_rows=50)
     bmp.build_bmp_sheet(w, n_rows=50)
     eisa_direct.build_eisa_direct(w)
     return w
@@ -47,9 +49,9 @@ def test_pre_runoff_table_impervious_row(wb):
     area_formula = ws.cell(row=imp_row, column=3).value
     assert "SUMIFS" in area_formula
     assert "'SDA'" in area_formula
-    # Depth formula references PROJECT_Rainfall - 0.1 (impervious depression storage)
+    # Depth formula references PROJECT_Rainfall_EISA - 0.1 (impervious depression storage)
     depth_formula_b = ws.cell(row=imp_row, column=4).value
-    assert "PROJECT_Rainfall" in depth_formula_b
+    assert "PROJECT_Rainfall_EISA" in depth_formula_b
     assert "0.1" in depth_formula_b
 
 
@@ -74,7 +76,7 @@ def test_natural_woods_hsg_b_depth_uses_horton_loss(wb):
                 and ws.cell(row=r, column=2).value == "B"):
             v = ws.cell(row=r, column=4).value   # HSG B column
             assert "PARAMS_HortonLossB" in v
-            assert "PROJECT_Rainfall" in v
+            assert "PROJECT_Rainfall_EISA" in v
             assert "0.2" in v
             return
     pytest.fail("Natural (Woods) HSG-B row not found")

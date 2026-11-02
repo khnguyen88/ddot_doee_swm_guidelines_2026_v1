@@ -45,8 +45,8 @@ def _q_formula(cn_cell: str) -> str:
     S = f"(1000/{cn_cell}-10)"
     Ia = f"0.2*{S}"
     return (
-        f"=IFERROR(IF(PROJECT_Rainfall>{Ia},"
-        f"(PROJECT_Rainfall-{Ia})^2/(PROJECT_Rainfall-{Ia}+{S}),"
+        f"=IFERROR(IF(PROJECT_Rainfall_EISA>{Ia},"
+        f"(PROJECT_Rainfall_EISA-{Ia})^2/(PROJECT_Rainfall_EISA-{Ia}+{S}),"
         f"0),0)"
     )
 
@@ -114,7 +114,7 @@ def build_eisa_tr55(wb: Workbook) -> None:
     r += 1
     for label, formula in [
         ("Project Name",      "=PROJECT_Name"),
-        ("95th % Storm (in)", "=PROJECT_Rainfall"),
+        ("95th % Storm (in)", "=PROJECT_Rainfall_EISA"),
         ("Total LOD (SF)",    "=PROJECT_TotalLOD"),
     ]:
         styles.lbl(ws, r, 1, label, styles.GRY)

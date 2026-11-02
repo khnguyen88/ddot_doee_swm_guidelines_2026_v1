@@ -35,13 +35,13 @@ def _area_formula(area_col: str, lu: str, hsg: str | None) -> str:
 
 def _runoff_depth_formula(lu: str, hsg: str | None, horton_name: str) -> str:
     if lu in ("Impervious Vehicular", "Impervious Non-Vehicular", "BMP"):
-        return "=PROJECT_Rainfall-0.1"
+        return "=PROJECT_Rainfall_EISA-0.1"
     if hsg == "A":
         return "=0"
     if hsg in ("B", "C"):
-        return f"=MAX(0,PROJECT_Rainfall-0.2-{horton_name})"
+        return f"=MAX(0,PROJECT_Rainfall_EISA-0.2-{horton_name})"
     if hsg == "D":
-        return "=MAX(0,PROJECT_Rainfall-0.2)"
+        return "=MAX(0,PROJECT_Rainfall_EISA-0.2)"
     return "=0"
 
 
@@ -100,7 +100,7 @@ def build_eisa_direct(wb: Workbook) -> None:
     r += 1
     for label, formula in [
         ("Project Name",      "=PROJECT_Name"),
-        ("95th % Storm (in)", "=PROJECT_Rainfall"),
+        ("95th % Storm (in)", "=PROJECT_Rainfall_EISA"),
         ("Total LOD (SF)",    "=PROJECT_TotalLOD"),
     ]:
         styles.lbl(ws, r, 1, label, styles.GRY)
