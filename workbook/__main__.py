@@ -34,7 +34,8 @@ def build_workbook() -> openpyxl.Workbook:
     # Order of construction = order shown in Excel.
     project.build_project_sheet(wb)
     params.build_params_sheet(wb)
-    sda.build_sda_sheet(wb, n_rows=50)
+    sda.build_sda_existing_sheet(wb, n_rows=50)
+    sda.build_sda_proposed_sheet(wb, n_rows=50)
     cda.build_cda_sheet(wb, n_rows=50)
     bmp.build_bmp_sheet(wb, n_rows=50)
     correct_mep_summary.build_correct_mep_summary(wb)
