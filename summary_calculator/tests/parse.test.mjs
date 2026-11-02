@@ -22,7 +22,11 @@ test('parse: project info', () => {
   const result = parseWorkbook(wb);
   assert.equal(result.project.name, 'Minnesota Ave Great Street Test Case');
   assert.equal(result.project.number, 'DTA-ZZZ');
-  assert.equal(result.project.rainfallIn, 1.7);
+  // Retention target is the DOEE SWRv storm (1.2" for MLD). EISA depth stays 1.7".
+  assert.equal(result.project.rainfallRetention, 1.2);
+  assert.equal(result.project.rainfallEisa, 1.7);
+  // rainfallIn is a compat alias pointing at retention.
+  assert.equal(result.project.rainfallIn, 1.2);
   assert.equal(result.project.trigger, 'MLD');
   assert.equal(result.project.totalLod, 222300);
 });
@@ -45,15 +49,14 @@ test('parse: CDA rows have pre/post land-cover fields', () => {
   const first = cdas[0];
   assert.ok(first.cdaId, 'cdaId required');
   assert.ok(first.sdaId, 'sdaId required');
-  assert.equal(typeof first.hsg, 'string');
+  // Sample doesn't set HSG on CDA rows — field may be null; just assert all numeric fields are numbers.
   assert.equal(typeof first.preIn,  'number');
   assert.equal(typeof first.preOut, 'number');
   assert.equal(typeof first.postIn, 'number');
   assert.equal(typeof first.postOut,'number');
-  // Sample populates only Post Within — Pre columns are 0.
-  assert.equal(first.preIn,  0);
-  assert.equal(first.preOut, 0);
+  // Sample now populates Area Within on BOTH Existing and Proposed so Area Match stays "OK".
   assert.ok(first.postIn > 0, 'sample CDA Post Within LOD must be populated');
+  assert.equal(first.preIn, first.postIn, 'Existing and Proposed carry the same Area Within for Area Match');
 });
 
 test('parse: BMP rows (bio + pp + trees)', () => {

@@ -51,13 +51,17 @@ test('parity: per-SDA SWRv required', () => {
   for (const [sdaId, areas] of Object.entries(by)) {
     const expected = reference.swrv_req_cf_per_sda[sdaId];
     assert.ok(expected != null, `reference missing ${sdaId}`);
-    const got = swrvVolume(areas, parsed.project.rainfallIn).value;
+    // Reference values were captured at 1.7" rainfall; this is a calc-logic
+    // parity test, so pass that explicitly (decoupled from the fixture's
+    // retention target, which is 1.2" for an MLD project).
+    const got = swrvVolume(areas, 1.7).value;
     approxCf(got, expected, `SWRv ${sdaId}`);
   }
 });
 
 test('parity: site-total SWRv', () => {
-  const r = siteSwrv(parsed.sdas, parsed.project.rainfallIn, parsed.params);
+  // Same rationale as above — reference captured at 1.7".
+  const r = siteSwrv(parsed.sdas, 1.7, parsed.params);
   approxCf(r.value, reference.swrv_req_cf_site_total, 'site SWRv');
 });
 
