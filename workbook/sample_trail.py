@@ -35,7 +35,8 @@ PROJECT = {
     "AWDZ":            "No",
     "DOEEReview":      "N/A (sample)",
     "TotalLOD":        498179,      # 11.44 ac
-    "Rainfall":        1.7,         # EISA 95th percentile for DC
+    "RainfallRetention": 1.2,       # DOEE SWRv default (MLD); EISA 438 is the authoritative target
+    "RainfallEisa":      1.7,       # EISA 438 95th percentile for DC
     "Trigger":         "MLD",
     "EISA":            "Yes",       # Federal/park project — EISA applies
 }
@@ -72,7 +73,7 @@ SDA_ROWS = [
 # postIn is chosen so Max BMP Credit = postIn × 1.7 / 12 ≥ expected Sv.
 #
 # Tuple shape:
-#   (cda_id, sda_id, land_use, hsg, post_in)
+#   (cda_id, sda_id, land_use, hsg, area_within_lod)
 CDA_ROWS = [
     ("CDA-PA-A", "SDA-1", "Impervious Vehicular", "A", 60000),
     ("CDA-PA-B", "SDA-1", "Impervious Vehicular", "B", 90000),
@@ -119,47 +120,73 @@ PP_D_RESERVOIR = 1.0   # ft
 
 
 def _fill_project(ws) -> None:
+    """Overwrite PROJECT sheet value cells (rows 3-12, col B) with sample data."""
     row_values = {
-        3:  PROJECT["Name"],      4:  PROJECT["Number"],
-        5:  PROJECT["MS4"],       6:  PROJECT["AWDZ"],
-        7:  PROJECT["DOEEReview"], 8: PROJECT["TotalLOD"],
-        9:  PROJECT["Rainfall"],  10: PROJECT["Trigger"],
-        11: PROJECT["EISA"],
+        3:  PROJECT["Name"],
+        4:  PROJECT["Number"],
+        5:  PROJECT["MS4"],
+        6:  PROJECT["AWDZ"],
+        7:  PROJECT["DOEEReview"],
+        8:  PROJECT["TotalLOD"],
+        9:  PROJECT["RainfallRetention"],
+        10: PROJECT["RainfallEisa"],
+        11: PROJECT["Trigger"],
+        12: PROJECT["EISA"],
     }
     for row, val in row_values.items():
         ws.cell(row=row, column=2).value = val
 
 
-def _fill_sda(ws) -> None:
-    """Write Stone Stream's 7 SDA land-cover rows."""
+def _fill_sda_existing(ws) -> None:
+    """Write pre-development SDA rows to SDA_Existing (6 input cols A-F)."""
     row = 4
-    for sda_num, in_prow, land_use, hsg, pre_in, post_in, out in SDA_ROWS:
+    for sda_num, in_prow, land_use, hsg, pre_in, _post_in, out in SDA_ROWS:
         ws.cell(row=row, column=1).value = f"SDA-{sda_num}"
         ws.cell(row=row, column=2).value = in_prow
         ws.cell(row=row, column=3).value = land_use
         # Impervious doesn't carry an HSG value in the schema; leave blank.
         if land_use not in ("Impervious Vehicular", "Impervious Non-Vehicular"):
             ws.cell(row=row, column=4).value = hsg
-        ws.cell(row=row, column=5).value = pre_in       # Pre within LOD
-        ws.cell(row=row, column=6).value = out          # Pre outside LOD
-        ws.cell(row=row, column=7).value = post_in      # Post within LOD
-        ws.cell(row=row, column=8).value = out          # Post outside LOD
+        ws.cell(row=row, column=5).value = pre_in   # Area Within LOD (existing)
+        ws.cell(row=row, column=6).value = out       # Area Outside LOD
         row += 1
 
 
-def _fill_cda(ws) -> None:
-    """Write Stone Stream's 6 CDAs — one per structural BMP."""
+def _fill_sda_proposed(ws) -> None:
+    """Write post-development SDA rows to SDA_Proposed (6 input cols A-F)."""
     row = 4
-    for cda_id, sda_id, land_use, hsg, post_in in CDA_ROWS:
+    for sda_num, in_prow, land_use, hsg, _pre_in, post_in, out in SDA_ROWS:
+        ws.cell(row=row, column=1).value = f"SDA-{sda_num}"
+        ws.cell(row=row, column=2).value = in_prow
+        ws.cell(row=row, column=3).value = land_use
+        # Impervious doesn't carry an HSG value in the schema; leave blank.
+        if land_use not in ("Impervious Vehicular", "Impervious Non-Vehicular"):
+            ws.cell(row=row, column=4).value = hsg
+        ws.cell(row=row, column=5).value = post_in  # Area Within LOD (proposed)
+        ws.cell(row=row, column=6).value = out       # Area Outside LOD
+        row += 1
+
+
+def _fill_cda_impl(ws) -> None:
+    """Write CDA rows — col 5 = Area Within LOD (shared between Existing and Proposed)."""
+    row = 4
+    for cda_id, sda_id, land_use, hsg, area_within_lod in CDA_ROWS:
         ws.cell(row=row, column=1).value = cda_id
         ws.cell(row=row, column=2).value = sda_id
         ws.cell(row=row, column=3).value = land_use
         ws.cell(row=row, column=4).value = hsg
-        ws.cell(row=row, column=5).value = 0            # pre_in (not tracked)
-        ws.cell(row=row, column=6).value = 0            # pre_out
-        ws.cell(row=row, column=7).value = post_in
-        ws.cell(row=row, column=8).value = 0            # post_out
+        ws.cell(row=row, column=5).value = area_within_lod  # Area Within LOD
         row += 1
+
+
+def _fill_cda_existing(ws) -> None:
+    """Write CDA rows to CDA_Existing."""
+    _fill_cda_impl(ws)
+
+
+def _fill_cda_proposed(ws) -> None:
+    """Write CDA rows to CDA_Proposed."""
+    _fill_cda_impl(ws)
 
 
 def _fill_bmp(ws) -> None:
@@ -232,10 +259,13 @@ def _fill_mep_summary(ws) -> None:
 
 
 def build_sample() -> Path:
+    """Build the sample workbook and save to OUTPUT. Return the written path."""
     wb = build_workbook()
     _fill_project(wb["PROJECT"])
-    _fill_sda(wb["SDA"])
-    _fill_cda(wb["CDA"])
+    _fill_sda_existing(wb["SDA_Existing"])
+    _fill_sda_proposed(wb["SDA_Proposed"])
+    _fill_cda_existing(wb["CDA_Existing"])
+    _fill_cda_proposed(wb["CDA_Proposed"])
     _fill_bmp(wb["BMP"])
     _fill_mep_summary(wb["CORRECT_MEP_SUMMARY"])
     wb.save(OUTPUT)
