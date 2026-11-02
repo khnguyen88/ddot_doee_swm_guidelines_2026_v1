@@ -1,4 +1,4 @@
-"""Build the SDA sheet — relational land-use table with Rv/SWRv formulas."""
+"""Build SDA sheets — one for existing conditions, one for proposed."""
 from openpyxl import Workbook
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -6,39 +6,72 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from workbook import styles
 
 
-LAND_USES = [
+LAND_USES_EXISTING = [
     "Impervious Vehicular",
     "Impervious Non-Vehicular",
     "Compacted (Open Space)",
     "Natural (Woods)",
-    "BMP",
 ]
+
+LAND_USES_PROPOSED = LAND_USES_EXISTING + ["BMP"]
 
 HEADERS = [
     "SDA_ID", "In PROW?", "Land Use", "HSG",
-    "Pre Within LOD (SF)", "Pre Outside LOD (SF)",
-    "Post Within LOD (SF)", "Post Outside LOD (SF)",
+    "Area Within LOD (SF)", "Area Outside LOD (SF)",
     "Rv", "Rainfall (in)",
-    "Pre SWRv Within (CF)", "Pre SWRv Outside (CF)",
-    "Post SWRv Within (CF)", "Post SWRv Outside (CF)",
+    "SWRv Within (CF)", "SWRv Outside (CF)",
 ]
 
 N_SUMMARY_ROWS = 10
 
+# Backward-compat alias — cda.py imports this; remove when cda is updated.
+LAND_USES = LAND_USES_PROPOSED
 
-def build_sda_sheet(wb: Workbook, n_rows: int = 50) -> None:
-    ws = wb.create_sheet("SDA")
+
+def _list_dv(formula1: str) -> DataValidation:
+    return DataValidation(
+        type="list", formula1=formula1, allow_blank=True,
+        showErrorMessage=True, errorTitle="Invalid entry",
+        error="Pick a value from the dropdown list.")
+
+
+def _build_data_rows(ws, data_start: int, data_end: int) -> None:
+    for r in range(data_start, data_end + 1):
+        for c in range(1, 7):  # A-F are user inputs
+            styles.inp(ws, r, c)
+        styles.calc_c(ws, r, 7, f'=IFERROR(VLOOKUP(C{r},PARAMS_Rv,2,FALSE),"")')
+        styles.calc_c(ws, r, 8, "=PROJECT_Rainfall_Retention")
+        styles.calc_c(ws, r, 9,  f"=IFERROR(E{r}*G{r}*H{r}/12,0)")
+        styles.calc_c(ws, r, 10, f"=IFERROR(F{r}*G{r}*H{r}/12,0)")
+
+
+def _add_dropdowns(ws, data_start: int, data_end: int, land_uses: list[str]) -> None:
+    dv_prow = _list_dv('"Yes,No"')
+    ws.add_data_validation(dv_prow)
+    dv_prow.sqref = f"B{data_start}:B{data_end}"
+
+    dv_lu = _list_dv('"' + ",".join(land_uses) + '"')
+    ws.add_data_validation(dv_lu)
+    dv_lu.sqref = f"C{data_start}:C{data_end}"
+
+    dv_hsg = _list_dv('"A,B,C,D"')
+    ws.add_data_validation(dv_hsg)
+    dv_hsg.sqref = f"D{data_start}:D{data_end}"
+
+
+def build_sda_existing_sheet(wb: Workbook, n_rows: int = 50) -> None:
+    ws = wb.create_sheet("SDA_Existing")
     ws.sheet_view.showGridLines = False
 
-    widths = [12, 10, 24, 8, 14, 14, 14, 14, 8, 11, 14, 14, 14, 14]
+    widths = [12, 10, 24, 8, 14, 14, 8, 11, 14, 14]
     for i, w in enumerate(widths, 1):
         styles.cw(ws, i, w)
 
-    styles.hdr(ws, 1, 1, "SDA — Site Drainage Areas (one row per SDA × Land Use × HSG)",
-               styles.BH, span=14)
+    styles.hdr(ws, 1, 1,
+               "SDA_Existing — Existing Site Drainage Areas (one row per SDA × Land Use × HSG)",
+               styles.BH, span=10)
     ws.row_dimensions[1].height = 24
 
-    # Header row at row 3.
     for i, h in enumerate(HEADERS, 1):
         styles.hdr(ws, 3, i, h, styles.BS)
     ws.row_dimensions[3].height = 36
@@ -46,111 +79,41 @@ def build_sda_sheet(wb: Workbook, n_rows: int = 50) -> None:
     data_start = 4
     data_end = data_start + n_rows - 1
 
-    for r in range(data_start, data_end + 1):
-        for c in range(1, 9):
-            styles.inp(ws, r, c)
-        styles.calc_c(ws, r, 9,  f'=IFERROR(VLOOKUP(C{r},PARAMS_Rv,2,FALSE),"")')
-        styles.calc_c(ws, r, 10, f'=IF(B{r}="Yes",0,PROJECT_Rainfall)')
-        styles.calc_c(ws, r, 11, f"=IFERROR(E{r}*I{r}*J{r}/12,0)")
-        styles.calc_c(ws, r, 12, f"=IFERROR(F{r}*I{r}*J{r}/12,0)")
-        styles.calc_c(ws, r, 13, f"=IFERROR(G{r}*I{r}*J{r}/12,0)")
-        styles.calc_c(ws, r, 14, f"=IFERROR(H{r}*I{r}*J{r}/12,0)")
+    _build_data_rows(ws, data_start, data_end)
+    _add_dropdowns(ws, data_start, data_end, LAND_USES_EXISTING)
 
-    # Data validations.
-    dv_prow = DataValidation(type="list", formula1='"Yes,No"',
-                             allow_blank=True, showDropDown=False)
-    ws.add_data_validation(dv_prow)
-    dv_prow.sqref = f"B{data_start}:B{data_end}"
-
-    dv_lu = DataValidation(type="list", formula1='"' + ",".join(LAND_USES) + '"',
-                           allow_blank=True, showDropDown=False)
-    ws.add_data_validation(dv_lu)
-    dv_lu.sqref = f"C{data_start}:C{data_end}"
-
-    dv_hsg = DataValidation(type="list", formula1='"A,B,C,D"',
-                            allow_blank=True, showDropDown=False)
-    ws.add_data_validation(dv_hsg)
-    dv_hsg.sqref = f"D{data_start}:D{data_end}"
-
-    # ── Summary block ──
-    summary_header_row = data_end + 3  # one blank, one spacer, then header
+    # Summary block.
+    summary_header_row = data_end + 3   # e.g. 56
     styles.hdr(ws, summary_header_row, 1,
-               "SDA Summary (SUMIFS aggregation per SDA_ID)",
-               styles.BH, span=14)
-
-    sum_headers = [
-        "SDA_ID",
-        "Pre Imp Total (SF)", "Pre Comp Total (SF)",
-        "Pre Nat Total (SF)", "Pre BMP Total (SF)",
-        "Post Imp Total (SF)", "Post Comp Total (SF)",
-        "Post Nat Total (SF)", "Post BMP Total (SF)",
-        "Post SWRv Required (CF)",
-        "Pre Total Within (SF)",
-        "Post Total Within (SF)",
-        "Area Match?",
-    ]
-    sum_row = summary_header_row + 1
-    for i, h in enumerate(sum_headers, 1):
+               "SDA_Existing Summary (SUMIFS aggregation per SDA_ID)",
+               styles.BH, span=10)
+    sum_hdrs = ["SDA_ID", "Imp Total (SF)", "Comp Total (SF)",
+                "Nat Total (SF)", "Pre Total Within (SF)"]
+    sum_row = summary_header_row + 1    # 57
+    for i, h in enumerate(sum_hdrs, 1):
         styles.hdr(ws, sum_row, i, h, styles.BS)
 
-    sum_data_start = sum_row + 1
-    sum_data_end   = sum_data_start + N_SUMMARY_ROWS - 1
+    sum_data_start = sum_row + 1        # 58
+    sum_data_end = sum_data_start + N_SUMMARY_ROWS - 1
 
     for i in range(N_SUMMARY_ROWS):
         r = sum_data_start + i
-        sda_id = f"SDA-{i+1}"
-        styles.lbl(ws, r, 1, sda_id, styles.BL, bold=True)
-
-        imp_pre = (
+        styles.lbl(ws, r, 1, f"SDA-{i+1}", styles.BL, bold=True)
+        # Imp = Impervious Vehicular + Non-Vehicular SUMIFS on E (within LOD)
+        imp = (
             f'=SUMIFS($E${data_start}:$E${data_end},$A${data_start}:$A${data_end},A{r},'
             f'$C${data_start}:$C${data_end},"Impervious Vehicular")'
             f'+SUMIFS($E${data_start}:$E${data_end},$A${data_start}:$A${data_end},A{r},'
             f'$C${data_start}:$C${data_end},"Impervious Non-Vehicular")'
         )
-        styles.calc_c(ws, r, 2, imp_pre)
-
-        for col, lu in [(3, "Compacted (Open Space)"), (4, "Natural (Woods)"), (5, "BMP")]:
+        styles.calc_c(ws, r, 2, imp)
+        for col, lu in [(3, "Compacted (Open Space)"), (4, "Natural (Woods)")]:
             f = (
                 f'=SUMIFS($E${data_start}:$E${data_end},$A${data_start}:$A${data_end},A{r},'
                 f'$C${data_start}:$C${data_end},"{lu}")'
             )
             styles.calc_c(ws, r, col, f)
+        styles.calc_c(ws, r, 5, f"=B{r}+C{r}+D{r}")
 
-        imp_post = (
-            f'=SUMIFS($G${data_start}:$G${data_end},$A${data_start}:$A${data_end},A{r},'
-            f'$C${data_start}:$C${data_end},"Impervious Vehicular")'
-            f'+SUMIFS($G${data_start}:$G${data_end},$A${data_start}:$A${data_end},A{r},'
-            f'$C${data_start}:$C${data_end},"Impervious Non-Vehicular")'
-        )
-        styles.calc_c(ws, r, 6, imp_post)
-
-        for col, lu in [(7, "Compacted (Open Space)"), (8, "Natural (Woods)"), (9, "BMP")]:
-            f = (
-                f'=SUMIFS($G${data_start}:$G${data_end},$A${data_start}:$A${data_end},A{r},'
-                f'$C${data_start}:$C${data_end},"{lu}")'
-            )
-            styles.calc_c(ws, r, col, f)
-
-        swrv_req = (
-            f'=SUMIFS($M${data_start}:$M${data_end},'
-            f'$A${data_start}:$A${data_end},A{r})'
-        )
-        styles.calc_c(ws, r, 10, swrv_req)
-
-        # Col K (11): Pre Total Within = sum of pre land-use totals.
-        styles.calc_c(ws, r, 11, f"=B{r}+C{r}+D{r}+E{r}")
-        # Col L (12): Post Total Within = sum of post land-use totals.
-        styles.calc_c(ws, r, 12, f"=F{r}+G{r}+H{r}+I{r}")
-        # Col M (13): Area match — pre vs post Within LOD, ±1 SF tolerance.
-        styles.calc_c(ws, r, 13, f'=IF(ABS(K{r}-L{r})<=1,"OK","⚠ MISMATCH")')
-
-    # Named range for SDA_IDs (used by CDA/BMP dropdowns).
-    wb.defined_names.add(DefinedName(
-        "SDA_IDs",
-        attr_text=f"'SDA'!$A${sum_data_start}:$A${sum_data_end}",
-    ))
-
-    # Thick separator above summary block — visually distinguishes data from summary.
-    styles.apply_top_divider(ws, summary_header_row, 1, 14)
-    # Thick bottom separator under summary data for closure.
-    styles.apply_bottom_divider(ws, sum_data_end, 1, 13)
+    styles.apply_top_divider(ws, summary_header_row, 1, 10)
+    styles.apply_bottom_divider(ws, sum_data_end, 1, 5)
