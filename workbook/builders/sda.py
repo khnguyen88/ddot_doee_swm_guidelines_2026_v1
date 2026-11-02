@@ -24,9 +24,6 @@ HEADERS = [
 
 N_SUMMARY_ROWS = 10
 
-# Backward-compat alias — cda.py imports this; remove when cda is updated.
-LAND_USES = LAND_USES_PROPOSED
-
 
 def _list_dv(formula1: str) -> DataValidation:
     return DataValidation(
