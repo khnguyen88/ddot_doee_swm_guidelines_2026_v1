@@ -5,7 +5,8 @@ from workbook.__main__ import build_workbook, main, DEFAULT_OUTPUT
 
 
 EXPECTED_ORDER = [
-    "PROJECT", "PARAMS", "SDA", "CDA", "BMP", "CORRECT_MEP_SUMMARY",
+    "PROJECT", "PARAMS", "SDA_Existing", "SDA_Proposed", "CDA_Existing", "CDA_Proposed",
+    "BMP", "CORRECT_MEP_SUMMARY",
     "EISA_DIRECT", "EISA_TR55",
     "DOEE_SDA", "DOEE_BMP_DATA", "DOEE_DETENTION", "DOEE_DETENTION_BMP",
     "DOEE_COMPLIANCE",
