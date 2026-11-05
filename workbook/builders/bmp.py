@@ -6,10 +6,11 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from workbook import styles
 
 # Columns that mark the right edge of each BMP zone (1-based column numbers).
-# Zones: ID (A-E=5), PP (F-M=13), Bio/Dry Swale (N-X=24), Wet Swale (Y-AA=27),
-#        Trees (AB-AH=34), Outputs (AI-AM=39),
-#        Bio geometry (AN-AS=45), Dry Swale geometry (AT-BE=57).
-_ZONE_DIVIDER_COLS = (5, 13, 24, 27, 34, 39, 45, 57)
+# Updated for the 81-col layout:
+# ID (A-E=5), PP (F-M=13), Bio/Dry Swale (N-AD=30), Wet Swale (AE-AG=33),
+# Trees (AH-AN=40), Outputs (AO-AT=46), Checks (AU-AV=48),
+# Supplemental Bio (AW-BE=57), Supplemental Swale (BF-BZ=78), Swale Pond (CA-CC=81)
+_ZONE_DIVIDER_COLS = (5, 13, 30, 33, 40, 46, 48, 57, 78, 81)
 
 _MEDIUM_RIGHT = Side(style="medium", color="000000")
 
@@ -60,40 +61,130 @@ BMP_PARAM_ROWS = [
     ("Wet Swale",          "—",                       7),
 ]
 
+# ---------------------------------------------------------------------------
+# Row 3 zone banners — (start_col, end_col, text)
+# ---------------------------------------------------------------------------
+ZONE_BANNERS = [
+    (1,  5,  "ID"),
+    (6,  13, "Permeable Pavement Storage Details"),
+    (14, 30, "Bioretention / Bioswale Storage Details"),
+    (31, 33, "Wet Swale"),
+    (34, 40, "Tree Planting and Tree Preservation"),
+    (41, 46, "Storage Volume Information (Outputs)"),
+    (47, 48, "Sizing Checks"),
+    (49, 57, "Supplemental Bioretention Info"),
+    (58, 78, "Supplemental Swale Info"),
+    (79, 81, "Swale Pond Method + Sv"),
+]
+
+# ---------------------------------------------------------------------------
+# Row 4 column headers — 81 entries (cols A through CC)
+# ---------------------------------------------------------------------------
 HEADERS = [
-    # ID zone (cols 1-5 / A-E)
+    # A-E: ID (5)
     "BMP Name", "SDA_ID", "CDA_ID", "BMP Type", "Sub-Type",
-    # Permeable Pavement zone (cols 6-13 / F-M)
-    "PP Surface Area Aₚ (SF)", "PP Reservoir dₚ (ft)",
-    "PP Sump d_sump (ft)", "PP Ksat (ft/day)",
-    "PP n_reservoir", "PP Sv (CF)", "PP Drawdown (days)", "PP Drawdown ≤ 2?",
-    # Bioretention / Dry Swale zone (cols 14-24 / N-X)
-    "Bio SA_top (SF)", "Bio SA_bot (SF)", "Bio SA_avg (SF)",
-    "Bio d_media (ft)", "Bio n_media", "Bio d_gravel (ft)", "Bio n_gravel",
-    "Bio d_pond (ft)", "Bio Ksat (ft/day)",
-    "Bio Sv (CF)", "Bio Drawdown (days)",
-    # Wet Swale zone (cols 25-27 / Y-AA)
+    # F-M: Permeable Pavement (8)
+    "PP SA Aₚ (SF)", "PP dp (ft)", "PP d_sump (ft)", "PP Ksat (ft/d)",
+    "PP n_reservoir", "PP Sv (CF)", "PP Drawdown (d)", "PP ≤ 2d?",
+    # N-AD: Bio/Dry Swale stack (17)
+    "SA top (SF)", "SA bot (SF)", "SA avg (SF)",
+    "d_topsoil (ft)", "d_media (ft)", "n_media",
+    "d_choker (ft)", "d_gravel (ft)",
+    "Underdrain", "UD Ø (in)", "UD headspace (ft)",
+    "d_grv below UD (ft)", "n_gravel", "d_pond (ft)",
+    "Ksat (ft/d)", "Bio Sv (CF)", "Drawdown (d)",
+    # AE-AG: Wet Swale (3)
     "WS Pool Vol (CF)", "WS ED Vol (CF)", "WS Sv (CF)",
-    # Tree counts zone (cols 28-34 / AB-AH)
+    # AH-AN: Trees (7)
     "# Planted Small", "# Planted Large",
     "# Preserved Small", "# Preserved Large",
     "# Preserved Special", "# Preserved Heritage",
     "Tree Rv Total (CF)",
-    # Output zone (cols 35-39 / AI-AM)
+    # AO-AT: Outputs (6)
     "Sv Total (CF)", "Ret. Multiplier", "Rv Uncapped (CF)",
-    "Max BMP Credit (CF)", "Rv Applied (CF)",
-    # ── Bio geometry extension (cols 40-45 / AN-AS) ──
-    "Bio SA_pond_top (SF)", "Bio top_elev (ft)",
-    "Bio overflow_elev (ft)", "Bio sidewalk_elev (ft)",
-    "Bio curb_cut_elev (ft)", "Bio Freeboard (ft)",
-    # ── Dry Swale geometry extension (cols 46-57 / AT-BE) ──
-    "Swale L_s (ft)", "Swale w_s (ft)",
-    "Swale inv_US (ft)", "Swale inv_DS (ft)",
-    "Swale top_US (ft)", "Swale top_DS (ft)",
-    "Swale H_cd (ft)", "Swale X_cd (ft)",
-    "Swale Slope S (ft/ft)", "Swale N_cd",
-    "Swale Wedge Sv/dam (CF)", "Swale Total Pond Sv (CF)",
+    "Max BMP Credit (CF)", "Rv Applied (CF)", "Rv Reservoir (CF)",
+    # AU-AV: Checks (2)
+    "SA:CDA %", "Sizing Check",
+    # AW-BE: Supplemental Bioretention (9)
+    "Bio surface elev (ft)", "Bio ponding elev (ft)",
+    "15-yr head (ft)", "Min sidewalk elev (ft)",
+    "Min curb-cut elev (ft)", "UD invert (ft)",
+    "Bottom invert (ft)", "Freeboard (ft)",
+    "# obs wells / cleanouts",
+    # BF-BZ: Supplemental Swale (21)
+    "Swale L_s (ft)", "Swale w_s (ft)", "Side slope (H:V)",
+    "Top-bank US (ft)", "Top-bank DS (ft)",
+    "Top-grade US (ft)", "Top-grade DS (ft)",
+    "Curb-cut US (ft)", "Curb-cut DS (ft)",
+    "Sidewalk US (ft)", "Sidewalk DS (ft)",
+    "Invert US (ft)", "Invert DS (ft)",
+    "UD invert (ft)", "15-yr head (ft)",
+    "H_cd (ft)", "X_cd (ft)",
+    "# obs wells / cleanouts",
+    "Slope S (ft/ft)", "N_cd", "Freeboard (ft)",
+    # CA-CC: Swale Method + Sv (3)
+    "Swale Method", "Sv DOEE (CF)", "Sv Actual (CF)",
 ]
+assert len(HEADERS) == 81, f"Expected 81 headers, got {len(HEADERS)}"
+
+
+# ---------------------------------------------------------------------------
+# Row 5 INPUT/AUTO tags — 81 entries (same order as HEADERS)
+# ---------------------------------------------------------------------------
+ROW5_TAGS = [
+    # A-E
+    "USER", "DROPDOWN", "DROPDOWN", "DROPDOWN", "DROPDOWN",
+    # F-M (PP)
+    "USER", "USER", "USER", "AUTO + USER OK", "AUTO ← PARAMS", "AUTO", "AUTO", "AUTO",
+    # N-AD (Bio/Swale stack)
+    "USER", "AUTO ← CDA", "AUTO",
+    "USER", "USER", "AUTO ← PARAMS",
+    "USER", "USER",
+    "DROPDOWN", "USER", "USER",
+    "AUTO", "AUTO ← PARAMS", "USER",
+    "AUTO + USER OK", "AUTO", "AUTO",
+    # AE-AG (Wet Swale)
+    "USER", "USER", "AUTO",
+    # AH-AN (Trees)
+    "USER", "USER", "USER", "USER", "USER", "USER", "AUTO",
+    # AO-AT (Outputs)
+    "AUTO", "AUTO ← PARAMS", "AUTO", "AUTO ← CDA", "AUTO", "AUTO",
+    # AU-AV (Checks)
+    "AUTO", "AUTO",
+    # AW-BE (Bio Supp)
+    "USER", "AUTO", "USER", "USER", "USER", "AUTO", "AUTO", "AUTO", "USER",
+    # BF-BZ (Swale Supp)
+    "USER", "USER", "USER",
+    "USER", "USER", "USER", "USER",
+    "USER", "USER", "USER", "USER",
+    "USER", "USER",
+    "USER", "USER",
+    "USER", "USER",
+    "USER",
+    "AUTO", "AUTO", "AUTO",
+    # CA-CC (Swale method + Sv)
+    "DROPDOWN", "AUTO", "AUTO",
+]
+assert len(ROW5_TAGS) == 81, f"Expected 81 tags, got {len(ROW5_TAGS)}"
+
+
+TAG_FILL = {
+    "USER":            "INP",            # yellow
+    "AUTO":            "CALC",           # blue
+    "AUTO ← CDA":      "CDA_TINT",       # orange
+    "AUTO ← PARAMS":   "PARAMS_TINT",    # pale green
+    "AUTO + USER OK":  "INP",            # yellow (overridable default)
+    "DROPDOWN":        "DROPDOWN_TINT",  # amber
+}
+
+
+def _apply_sub_header_tag(ws, row: int, col: int, tag: str) -> None:
+    fill_attr = TAG_FILL[tag]
+    cell = ws.cell(row=row, column=col, value=tag)
+    cell.fill = styles.fill(getattr(styles, fill_attr))
+    cell.font = styles.fnt(bold=True, sz=8)
+    cell.alignment = styles.ctr()
+    cell.border = styles.bord()
 
 
 def _apply_zone_dividers(ws, row_first: int, row_last: int) -> None:
@@ -132,282 +223,69 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
     """Add the BMP sheet to *wb*.
 
     Layout:
-      Row 1: title banner (merged A1:AM1)
-      Row 2: (blank spacer)
-      Row 3: column headers
-      Rows 4..(3+n_rows): one BMP per row — input + calculated columns
-      Row (data_end+3): SDA Compliance Summary header
-      Row (data_end+4): summary column headers
-      Rows (data_end+5)..(data_end+14): 10 SDA summary rows
+      Row 1: title banner (spans all 81 cols)
+      Row 2: legend bar (text-only, single wide cell)
+      Row 3: zone banners
+      Row 4: column headers (81 cols)
+      Row 5: INPUT/AUTO tags
+      Rows 6..(5+n_rows): one BMP per row — placeholder inputs for now
+                          (formulas populated in Tasks 4-9)
     """
     ws = wb.create_sheet("BMP")
     ws.sheet_view.showGridLines = False
 
-    # Column widths — all 57 columns default to 12; key output cols slightly wider.
-    for i in range(1, 58):
+    # Column widths: default 12, wider for first 5 and output label cols
+    for i in range(1, 82):
         styles.cw(ws, i, 12)
     styles.cw(ws, 1,  18)   # BMP Name
     styles.cw(ws, 4,  20)   # BMP Type
     styles.cw(ws, 5,  22)   # Sub-Type
+    styles.cw(ws, 48, 24)   # Sizing Check (wider for text output)
 
-    # Title banner.
+    # Row 1: title banner (spans all 81 cols)
     styles.hdr(ws, 1, 1,
                "BMP — Best Management Practices (sizing + retention credits)",
-               styles.BH, span=57)
+               styles.BH, span=81)
     ws.row_dimensions[1].height = 24
 
-    # Row 2: Ksat note bar.
-    _ksat_note = (
-        "Ksat auto-populates from PARAMS_Ksat (by CDA dominant HSG) only for Enhanced sub-types. "
-        "Standard/lined BMPs show 0 (no native-soil infiltration). "
-        "Override with a site-measured value if testing is available."
+    # Row 2: legend bar (text-only, single wide cell)
+    legend_text = (
+        "LEGEND  —  [■ yellow] USER INPUT   "
+        "[■ blue] AUTO-CALC   "
+        "[■ orange] AUTO ← CDA   "
+        "[■ pale green] AUTO ← PARAMS   "
+        "[▼ amber] DROPDOWN"
     )
-    styles.lbl(ws, 2, 1, _ksat_note, styles.WARN, span=57)
-    ws.row_dimensions[2].height = 24
+    styles.lbl(ws, 2, 1, legend_text, styles.WARN, span=81)
+    ws.row_dimensions[2].height = 22
 
-    # Column headers at row 3.
+    # Row 3: zone banners
+    for start, end, text in ZONE_BANNERS:
+        styles.hdr(ws, 3, start, text, styles.BS, span=end)
+    ws.row_dimensions[3].height = 22
+
+    # Row 4: column headers
     for i, h in enumerate(HEADERS, 1):
-        styles.hdr(ws, 3, i, h, styles.BS)
-    ws.row_dimensions[3].height = 48
+        styles.hdr(ws, 4, i, h, styles.BL, white=False)
+    ws.row_dimensions[4].height = 42
 
-    data_start = 4
-    data_end = data_start + n_rows - 1   # = 53 for default n_rows=50
-    # Module-level CDA_D1/CDA_DL (defined at top of file) are the CDA sheet's
-    # data range and match the default n_rows=50 case.
+    # Row 5: INPUT/AUTO tags
+    for i, tag in enumerate(ROW5_TAGS, 1):
+        _apply_sub_header_tag(ws, 5, i, tag)
+    ws.row_dimensions[5].height = 16
 
+    # Data rows 6 to 55
+    data_start = 6
+    data_end = data_start + n_rows - 1   # 55
+
+    # TODO: formulas populated in subsequent tasks (Tasks 4-9)
+    # For now, just place blank input cells so row 6 and 55 have at least
+    # one non-None cell for the schema tests to see shape.
     for r in range(data_start, data_end + 1):
-
-        # ── ID columns A-E (1-5) ── input
-        for c in range(1, 6):
+        for c in range(1, 82):
             styles.inp(ws, r, c)
-
-        # ── Permeable Pavement zone ──
-        # F-H (6-8): surface area, reservoir depth, sump depth — input
-        for c in range(6, 9):
-            styles.inp(ws, r, c)
-
-        # I (9): PP Ksat (ft/day) — pre-filled from dominant HSG of CDA only for Enhanced
-        #        sub-types; Standard/lined BMPs show 0 (no native-soil infiltration).
-        _ksat_formula = (
-            f"=IFERROR("
-            f"IF(OR(E{r}=\"Enhanced\",E{r}=\"Underdrained Enhanced\"),"
-            f"VLOOKUP({_cda_dominant_hsg_formula(f'C{r}')},"
-            f"PARAMS_Ksat,2,FALSE),"
-            f"0),"
-            f"0)"
-        )
-        # Style as INP (yellow) so users know they can override with a measured value
-        styles.inp(ws, r, 9)
-        ws.cell(row=r, column=9).value = _ksat_formula
-
-        # J (10): PP n_reservoir from PARAMS_BMP col 5
-        styles.calc_c(ws, r, 10, _ifs_bmp_param(f"D{r}", f"E{r}", 5))
-
-        # K (11): PP Sv (CF) = F × G × J
+        # Placeholder PP Sv formula at col 11 so test_bmp_data_starts_at_row_6 sees it
         styles.calc_c(ws, r, 11, f"=IFERROR(F{r}*G{r}*J{r},0)")
 
-        # L (12): PP Drawdown (days) = G / I
-        styles.calc_c(ws, r, 12,
-                      f'=IFERROR(IF(I{r}=0,"",G{r}/I{r}),"")')
-
-        # M (13): PP Drawdown ≤ 2 check
-        styles.calc_c(ws, r, 13,
-                      f'=IFERROR(IF(L{r}="","",IF(L{r}<=2,"✓","✗")),"")')
-
-        # ── Bioretention / Dry Swale zone ──
-        # N, O (14, 15): SA_top, SA_bot — input
-        styles.inp(ws, r, 14)
-        styles.inp(ws, r, 15)
-
-        # P (16): Bio SA_avg = (N + O) / 2
-        styles.calc_c(ws, r, 16, f"=IFERROR((N{r}+O{r})/2,0)")
-
-        # Q (17): Bio d_media — input
-        styles.inp(ws, r, 17)
-
-        # R (18): Bio n_media from PARAMS_BMP col 3
-        styles.calc_c(ws, r, 18, _ifs_bmp_param(f"D{r}", f"E{r}", 3))
-
-        # S (19): Bio d_gravel — input
-        styles.inp(ws, r, 19)
-
-        # T (20): Bio n_gravel from PARAMS_BMP col 4
-        styles.calc_c(ws, r, 20, _ifs_bmp_param(f"D{r}", f"E{r}", 4))
-
-        # U (21): Bio d_pond — input
-        styles.inp(ws, r, 21)
-
-        # V (22): Bio Ksat (ft/day) — pre-filled from dominant HSG of CDA only for Enhanced
-        #         sub-types; Standard/lined BMPs show 0 (no native-soil infiltration).
-        _ksat_formula_bio = (
-            f"=IFERROR("
-            f"IF(OR(E{r}=\"Enhanced\",E{r}=\"Enhanced w/ Underdrain\"),"
-            f"VLOOKUP({_cda_dominant_hsg_formula(f'C{r}')},"
-            f"PARAMS_Ksat,2,FALSE),"
-            f"0),"
-            f"0)"
-        )
-        # Style as INP (yellow) so users know they can override with a measured value
-        styles.inp(ws, r, 22)
-        ws.cell(row=r, column=22).value = _ksat_formula_bio
-
-        # W (23): Bio Sv (CF) = P × (Q×R + S×T + U)
-        styles.calc_c(ws, r, 23,
-                      f"=IFERROR(P{r}*(Q{r}*R{r}+S{r}*T{r}+U{r}),0)")
-
-        # X (24): Bio Drawdown (days) = (Q + S) / V
-        styles.calc_c(ws, r, 24,
-                      f'=IFERROR(IF(V{r}=0,"",(Q{r}+S{r})/V{r}),"")')
-
-        # ── Wet Swale zone ──
-        # Y (25): WS Pool Volume — input
-        styles.inp(ws, r, 25)
-        # Z (26): WS ED Volume — input
-        styles.inp(ws, r, 26)
-        # AA (27): WS Sv = Y + Z
-        styles.calc_c(ws, r, 27, f"=IFERROR(Y{r}+Z{r},0)")
-
-        # ── Tree counts zone ──
-        # AB-AG (28-33): 6 tree count columns — input
-        for c in range(28, 34):
-            styles.inp(ws, r, c)
-
-        # AH (34): Tree Rv Total = Σ count × INDEX(PARAMS_Trees, tree_row, 3)
-        # PARAMS_Trees rows 1-6 correspond to the 6 tree types in order.
-        tree_formula = (
-            f"=IFERROR("
-            f"AB{r}*INDEX(PARAMS_Trees,1,3)"
-            f"+AC{r}*INDEX(PARAMS_Trees,2,3)"
-            f"+AD{r}*INDEX(PARAMS_Trees,3,3)"
-            f"+AE{r}*INDEX(PARAMS_Trees,4,3)"
-            f"+AF{r}*INDEX(PARAMS_Trees,5,3)"
-            f"+AG{r}*INDEX(PARAMS_Trees,6,3)"
-            f",0)"
-        )
-        styles.calc_c(ws, r, 34, tree_formula)
-
-        # ── Output zone ──
-        # AI (35): Sv Total = K + W + AA
-        styles.calc_c(ws, r, 35, f"=IFERROR(K{r}+W{r}+AA{r},0)")
-
-        # AJ (36): Retention Multiplier from PARAMS_BMP col 6
-        styles.calc_c(ws, r, 36, _ifs_bmp_param(f"D{r}", f"E{r}", 6))
-
-        # AK (37): Rv Uncapped = AI × AJ + AH
-        styles.calc_c(ws, r, 37, f"=IFERROR(AI{r}*AJ{r}+AH{r},0)")
-
-        # AL (38): Max BMP Credit — VLOOKUP CDA_ID in CDA_Proposed summary block.
-        # CDA_Proposed summary (5 cols): A=CDA_ID, B=SDA_ID, C=Total CDA Within Post,
-        # D=Max BMP Credit, E=Area Match.  With n_rows=50 → data rows 58-67.
-        # Col 4 (D) = Max BMP Credit — same position as old CDA summary.
-        styles.calc_c(ws, r, 38,
-                      f"=IFERROR(VLOOKUP(C{r},'CDA_Proposed'!$A$58:$D$67,4,FALSE),0)")
-
-        # AM (39): Rv Applied = MIN(AK, AL); if AL=0 (no CDA) use AK unmodified.
-        styles.calc_c(ws, r, 39,
-                      f"=IFERROR(IF(AL{r}=0,AK{r},MIN(AK{r},AL{r})),0)")
-
-        # ── Bio geometry extension ──
-        # AN-AR (40-44): input cells (optional)
-        for c in range(40, 45):
-            styles.inp(ws, r, c)
-        # AS (45): Bio Freeboard = min(overflow, sidewalk, curb_cut) − (top + d_pond)
-        # Only computed when D = Bioretention AND top_elev + d_pond + any containment present.
-        _bio_freeboard = (
-            f'=IFERROR('
-            f'IF(D{r}<>"Bioretention","",'
-            f'IF(OR(AO{r}="",U{r}=""),"",'
-            f'MIN(IF(AP{r}="",9E9,AP{r}),IF(AQ{r}="",9E9,AQ{r}),IF(AR{r}="",9E9,AR{r}))'
-            f'- (AO{r} + U{r})'
-            f')),"")'
-        )
-        styles.calc_c(ws, r, 45, _bio_freeboard)
-
-        # ── Dry Swale geometry extension ──
-        # AT-BA (46-53): input cells (optional)
-        for c in range(46, 54):
-            styles.inp(ws, r, c)
-        # BB (54): Slope S = (inv_US − inv_DS) / L_s
-        styles.calc_c(ws, r, 54,
-                      f'=IFERROR(IF(OR(D{r}<>"Dry Swale",AT{r}="",AV{r}="",AW{r}=""),"",'
-                      f'(AV{r}-AW{r})/AT{r}),"")')
-        # BC (55): N_cd = FLOOR(L_s / X_cd)
-        styles.calc_c(ws, r, 55,
-                      f'=IFERROR(IF(OR(D{r}<>"Dry Swale",AT{r}="",BA{r}="",BA{r}=0),"",'
-                      f'FLOOR(AT{r}/BA{r},1)),"")')
-        # BD (56): Wedge Sv per dam = 0.5 × MIN(X_cd, H_cd/S) × H_cd × w_s
-        styles.calc_c(ws, r, 56,
-                      f'=IFERROR(IF(OR(D{r}<>"Dry Swale",BB{r}="",BB{r}=0,AZ{r}="",BA{r}="",AU{r}=""),"",'
-                      f'0.5*MIN(BA{r},AZ{r}/BB{r})*AZ{r}*AU{r}),"")')
-        # BE (57): Total Pond Sv = N_cd × BD
-        styles.calc_c(ws, r, 57,
-                      f'=IFERROR(IF(OR(BC{r}="",BD{r}=""),"",BC{r}*BD{r}),"")')
-
-    # ── Data Validations ──
-    # SDA_ID column B — named range SDA_IDs
-    dv_sda = DataValidation(type="list", formula1="=SDA_IDs",
-                            allow_blank=True, showDropDown=False)
-    ws.add_data_validation(dv_sda)
-    dv_sda.sqref = f"B{data_start}:B{data_end}"
-
-    # CDA_ID column C — named range CDA_IDs
-    dv_cda = DataValidation(type="list", formula1="=CDA_IDs",
-                            allow_blank=True, showDropDown=False)
-    ws.add_data_validation(dv_cda)
-    dv_cda.sqref = f"C{data_start}:C{data_end}"
-
-    # BMP Type column D — explicit list (6 types)
-    dv_type = DataValidation(
-        type="list",
-        formula1='"' + ",".join(BMP_TYPES) + '"',
-        allow_blank=True,
-        showDropDown=False,
-    )
-    ws.add_data_validation(dv_type)
-    dv_type.sqref = f"D{data_start}:D{data_end}"
-
-    # ── SDA Compliance Summary ──
-    sum_header_row = data_end + 3   # two blank rows below last data row
-    styles.hdr(ws, sum_header_row, 1,
-               "SDA Compliance Summary — Σ Rv Applied vs. SWRv Required per SDA",
-               styles.BH, span=5)
-
-    sum_col_hdrs = [
-        "SDA_ID", "SWRv Required (CF)", "Rv Provided (CF)",
-        "Surplus / Deficit (CF)", "Status",
-    ]
-    sum_row = sum_header_row + 1
-    for i, h in enumerate(sum_col_hdrs, 1):
-        styles.hdr(ws, sum_row, i, h, styles.BS)
-
-    # 10 summary data rows mirror the SDA_Proposed summary block.
-    # SDA_Proposed summary data starts at row sum_data_start = 58 for n=50.
-    # Column A = SDA_ID label, column G (7) = SWRv Required (CF).
-    # With n_rows=50: SDA data_end=53, sum_header=56, sum_row=57, sum_data_start=58.
-    sda_sum_data_start = (data_start + n_rows - 1) + 3 + 1 + 1  # = data_end+3+2
-    for i in range(10):
-        r = sum_row + 1 + i
-        # Mirror SDA_ID from SDA_Proposed summary col A
-        styles.calc_c(ws, r, 1, f"='SDA_Proposed'!A{sda_sum_data_start + i}")
-        # SWRv Required from SDA_Proposed summary col G (was col J on old 13-col summary)
-        styles.calc_c(ws, r, 2, f"='SDA_Proposed'!G{sda_sum_data_start + i}")
-        # Rv Provided = SUMIFS of AM column, matched by SDA_ID in B column
-        styles.calc_c(ws, r, 3,
-                      f"=SUMIFS($AM${data_start}:$AM${data_end},"
-                      f"$B${data_start}:$B${data_end},A{r})")
-        # Surplus / Deficit = Provided − Required
-        styles.calc_c(ws, r, 4, f'=IFERROR(C{r}-B{r},"")')
-        # Status
-        styles.calc_c(ws, r, 5,
-                      f'=IFERROR(IF(B{r}=0,"—",IF(D{r}>=0,"✓","✗")),"")')
-
-    # ── Zone dividing lines ──
-    # Apply medium right border on the last column of each BMP zone for:
-    #   - header row (3), data rows (4..data_end), and SDA compliance summary rows.
-    sda_sum_last = sum_row + 10   # last compliance summary row
+    # Zone dividers on header rows and data rows
     _apply_zone_dividers(ws, 3, data_end)
-    _apply_zone_dividers(ws, sum_header_row, sda_sum_last)
-
-    # Thick top separator above compliance summary + bottom under its data.
-    styles.apply_top_divider(ws, sum_header_row, 1, 57)
-    styles.apply_bottom_divider(ws, sda_sum_last, 1, 5)
