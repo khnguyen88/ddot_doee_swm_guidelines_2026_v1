@@ -2,7 +2,7 @@
 
 Pulls the first 10 drainage-area land-cover entries from the DDOT MEP
 Worksheet 90% Phase Sample (Minnesota Ave Great Street Test Case) and
-fills them into a fresh workbook so a reviewer can see all 12 sheets
+fills them into a fresh workbook so a reviewer can see all 18 sheets
 flowing with realistic numbers.
 
 Run with:

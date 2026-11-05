@@ -1,6 +1,6 @@
 """Entry point for the SWM compliance workbook generator.
 
-Builds a 12-sheet DOEE + EISA Section 438 compliance workbook at the project
+Builds an 18-sheet DOEE + EISA Section 438 compliance workbook at the project
 root. Run with:
 
     python -m workbook
@@ -27,7 +27,7 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "SW_Required_Provided_DOEE_EISA438.xlsx"
 
 
 def build_workbook() -> openpyxl.Workbook:
-    """Construct the full 12-sheet workbook and return it (unsaved)."""
+    """Construct the full 18-sheet workbook and return it (unsaved)."""
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 

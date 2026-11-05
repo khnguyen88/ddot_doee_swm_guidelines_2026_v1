@@ -176,8 +176,8 @@ def build_doee_bmp_data(wb: Workbook) -> None:
       G  CDA Compacted (SF)
       H  CDA Impervious (SF)
       I  CDA BMP (SF)
-      J  Sv (CF)     — BMP col AI (35)
-      K  Rv Applied (CF) — BMP col AM (39)
+      J  Sv (CF)     — BMP col AO (41) in new 81-col schema
+      K  Rv Applied (CF) — BMP col AS (45) in new 81-col schema
     """
     ws = wb.create_sheet("DOEE_BMP_DATA")
     ws.sheet_view.showGridLines = False
@@ -401,7 +401,7 @@ def build_doee_compliance(wb: Workbook) -> None:
     Columns A-F:
       A  SDA Number
       B  SWRv Required (CF)  — from DOEE_SDA col L
-      C  Rv Provided (CF)    — SUMIFS BMP AM by SDA_ID
+      C  Rv Provided (CF)    — SUMIFS BMP AS by SDA_ID
       D  % Met               — C / B
       E  Status              — "✓ PASS" or "✗ FAIL"
       F  Detention Req'd?    — Yes if 2-yr or 15-yr detention triggered
