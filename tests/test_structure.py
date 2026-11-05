@@ -6,11 +6,19 @@ from workbook.__main__ import build_workbook, main, DEFAULT_OUTPUT
 
 EXPECTED_ORDER = [
     "PROJECT", "PARAMS", "SDA_Existing", "SDA_Proposed", "CDA_Existing", "CDA_Proposed",
-    "BMP", "CORRECT_MEP_SUMMARY",
+    "BMP", "TC_PATH", "PEAK_DISCHARGE_SDA", "PEAK_DISCHARGE_CDA",
+    "CORRECT_MEP_SUMMARY",
     "EISA_DIRECT", "EISA_TR55",
     "DOEE_SDA", "DOEE_BMP_DATA", "DOEE_DETENTION", "DOEE_DETENTION_BMP",
     "DOEE_COMPLIANCE",
 ]
+
+
+def test_tc_path_and_peak_sheets_in_workbook():
+    """Confirm the three new builders are wired into build_workbook."""
+    wb = build_workbook()
+    for name in ["TC_PATH", "PEAK_DISCHARGE_SDA", "PEAK_DISCHARGE_CDA"]:
+        assert name in wb.sheetnames
 
 
 @pytest.fixture(scope="module")

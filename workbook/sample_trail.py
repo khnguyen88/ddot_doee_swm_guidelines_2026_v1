@@ -190,8 +190,9 @@ def _fill_cda_proposed(ws) -> None:
 
 
 def _fill_bmp(ws) -> None:
-    """Write Stone Stream's 6 BMPs with geometry fields where applicable."""
-    row = 4
+    """Write the trail's 6 BMPs using the new 81-col BMP schema.
+    Data rows start at row 6 (header rows are 1-5)."""
+    row = 6
     for sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees, geom, cda_id in BMPS:
         ws.cell(row=row, column=1).value = bmp_name
         ws.cell(row=row, column=2).value = f"SDA-{sda_num}"
@@ -199,52 +200,56 @@ def _fill_bmp(ws) -> None:
         ws.cell(row=row, column=4).value = bmp_type
         ws.cell(row=row, column=5).value = sub_type
 
-        # ── Permeable Pavement block (F-H = cols 6-8) ──
         if bmp_type == "Permeable Pavement":
-            ws.cell(row=row, column=6).value = surface_sf             # Ap
-            ws.cell(row=row, column=7).value = PP_D_RESERVOIR         # dp
-        # ── Bioretention block (N,O = cols 14-15; Q,S,U = cols 17,19,21) ──
-        if bmp_type == "Bioretention":
-            ws.cell(row=row, column=14).value = surface_sf            # SA_top
-            ws.cell(row=row, column=15).value = surface_sf            # SA_bot (planter — vertical walls)
-            ws.cell(row=row, column=17).value = BIO_D_MEDIA
-            ws.cell(row=row, column=19).value = BIO_D_GRAVEL
-            ws.cell(row=row, column=21).value = BIO_D_POND
-            # Bio geometry extension (AN-AR = cols 40-44)
-            if "sa_pond_top" in geom:
-                ws.cell(row=row, column=40).value = geom["sa_pond_top"]
+            ws.cell(row=row, column=6).value = surface_sf     # F — Aₚ
+            ws.cell(row=row, column=7).value = PP_D_RESERVOIR # G — dₚ
+            # I (Ksat) is AUTO.
+        elif bmp_type == "Bioretention":
+            ws.cell(row=row, column=14).value = surface_sf    # N — SA_top
+            # O (SA_bot) is AUTO ← CDA SUMIFS; do not overwrite.
+            ws.cell(row=row, column=17).value = 0.25          # Q — d_topsoil
+            ws.cell(row=row, column=18).value = BIO_D_MEDIA   # R — d_media
+            ws.cell(row=row, column=20).value = 0.25          # T — d_choker
+            ws.cell(row=row, column=21).value = BIO_D_GRAVEL  # U — d_gravel
+            ws.cell(row=row, column=22).value = "N"           # V — Underdrain (trail: no UD)
+            ws.cell(row=row, column=27).value = BIO_D_POND    # AA — d_pond
+            # AB (Bio Ksat) is AUTO.
+            # Bio supplemental (AW-BE):
             if "top_elev" in geom:
-                ws.cell(row=row, column=41).value = geom["top_elev"]
-            if "overflow_elev" in geom:
-                ws.cell(row=row, column=42).value = geom["overflow_elev"]
+                ws.cell(row=row, column=49).value = geom["top_elev"]      # AW
+            ws.cell(row=row, column=51).value = 0.25                      # AY — 15-yr head
             if "sidewalk_elev" in geom:
-                ws.cell(row=row, column=43).value = geom["sidewalk_elev"]
+                ws.cell(row=row, column=52).value = geom["sidewalk_elev"] # AZ
             if "curb_cut_elev" in geom:
-                ws.cell(row=row, column=44).value = geom["curb_cut_elev"]
-        # ── Dry Swale block ──
-        # Uses the same N/O/Q/S/U cells as Bio for subsurface + geometry at AT-BA (46-53).
-        if bmp_type == "Dry Swale":
-            ws.cell(row=row, column=14).value = geom.get("width", 4)                     # SA_top (narrow at surface)
-            ws.cell(row=row, column=15).value = geom["length"] * geom["width"]           # SA_bot = L × w
-            ws.cell(row=row, column=17).value = BIO_D_MEDIA
-            ws.cell(row=row, column=19).value = BIO_D_GRAVEL
-            ws.cell(row=row, column=21).value = geom["h_cd"]                             # d_pond fallback
-            ws.cell(row=row, column=46).value = geom["length"]
-            ws.cell(row=row, column=47).value = geom["width"]
-            ws.cell(row=row, column=48).value = geom["inv_us"]
-            ws.cell(row=row, column=49).value = geom["inv_ds"]
-            ws.cell(row=row, column=50).value = geom["top_us"]
-            ws.cell(row=row, column=51).value = geom["top_ds"]
-            ws.cell(row=row, column=52).value = geom["h_cd"]
-            ws.cell(row=row, column=53).value = geom["x_cd"]
-        # Tree BMPs — not used in Stone Stream.
+                ws.cell(row=row, column=53).value = geom["curb_cut_elev"] # BA
+            ws.cell(row=row, column=57).value = 1                         # BE — cleanouts
+        elif bmp_type == "Dry Swale":
+            ws.cell(row=row, column=14).value = geom.get("width", 4)      # N — SA_top
+            # O is AUTO; do not overwrite.
+            ws.cell(row=row, column=17).value = 0.167                     # Q — d_topsoil
+            ws.cell(row=row, column=18).value = BIO_D_MEDIA               # R — d_media
+            ws.cell(row=row, column=20).value = 0.25                      # T — d_choker
+            ws.cell(row=row, column=21).value = BIO_D_GRAVEL              # U — d_gravel
+            ws.cell(row=row, column=27).value = geom["h_cd"]              # AA — d_pond
+            # Swale supplemental (BF-BV):
+            ws.cell(row=row, column=58).value = geom["length"]   # BF — L_s
+            ws.cell(row=row, column=59).value = geom["width"]    # BG — w_s
+            ws.cell(row=row, column=60).value = 3                # BH — side slope 3:1
+            ws.cell(row=row, column=63).value = geom["top_us"]   # BK — grade US
+            ws.cell(row=row, column=64).value = geom["top_ds"]   # BL — grade DS
+            ws.cell(row=row, column=69).value = geom["inv_us"]   # BQ — inv US
+            ws.cell(row=row, column=70).value = geom["inv_ds"]   # BR — inv DS
+            ws.cell(row=row, column=73).value = geom["h_cd"]     # BU — H_cd
+            ws.cell(row=row, column=74).value = geom["x_cd"]     # BV — X_cd
+            ws.cell(row=row, column=75).value = 1                # BW — cleanouts
+        # Tree BMPs — not used in the Trail sample, but keep the mapping.
         if bmp_type in ("Planted Trees", "Preserve Trees"):
-            ws.cell(row=row, column=28).value = trees.get("plt_sm", 0)
-            ws.cell(row=row, column=29).value = trees.get("plt_lg", 0)
-            ws.cell(row=row, column=30).value = trees.get("pres_sm", 0)
-            ws.cell(row=row, column=31).value = trees.get("pres_lg", 0)
-            ws.cell(row=row, column=32).value = trees.get("pres_sp", 0)
-            ws.cell(row=row, column=33).value = trees.get("pres_hr", 0)
+            ws.cell(row=row, column=34).value = trees.get("plt_sm", 0)
+            ws.cell(row=row, column=35).value = trees.get("plt_lg", 0)
+            ws.cell(row=row, column=36).value = trees.get("pres_sm", 0)
+            ws.cell(row=row, column=37).value = trees.get("pres_lg", 0)
+            ws.cell(row=row, column=38).value = trees.get("pres_sp", 0)
+            ws.cell(row=row, column=39).value = trees.get("pres_hr", 0)
         row += 1
 
 
