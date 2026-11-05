@@ -464,6 +464,65 @@ def _populate_bio_supp(ws, r: int) -> None:
     styles.inp(ws, r, 57)
 
 
+def _populate_swale_supp(ws, r: int) -> None:
+    """Populate Supplemental Swale zone (BF-BZ)."""
+    # BF: L_s — USER
+    styles.inp(ws, r, 58)
+    # BG: w_s — USER
+    styles.inp(ws, r, 59)
+    # BH: side slope (H:V) — USER
+    styles.inp(ws, r, 60)
+    # BI-BJ: top-of-bank US/DS — USER
+    styles.inp(ws, r, 61)
+    styles.inp(ws, r, 62)
+    # BK-BL: top-of-grade US/DS — USER
+    styles.inp(ws, r, 63)
+    styles.inp(ws, r, 64)
+    # BM-BN: curb-cut US/DS — USER
+    styles.inp(ws, r, 65)
+    styles.inp(ws, r, 66)
+    # BO-BP: sidewalk US/DS — USER
+    styles.inp(ws, r, 67)
+    styles.inp(ws, r, 68)
+    # BQ-BR: invert US/DS — USER
+    styles.inp(ws, r, 69)
+    styles.inp(ws, r, 70)
+    # BS: UD invert — USER
+    styles.inp(ws, r, 71)
+    # BT: 15-yr head — USER
+    styles.inp(ws, r, 72)
+    # BU: H_cd — USER
+    styles.inp(ws, r, 73)
+    # BV: X_cd — USER
+    styles.inp(ws, r, 74)
+    # BW: # obs wells / cleanouts — USER
+    styles.inp(ws, r, 75)
+
+    # BX: Slope S = (inv_US - inv_DS) / L_s
+    styles.calc_c(ws, r, 76,
+        f'=IFERROR(IF(OR(D{r}<>"Dry Swale",BF{r}="",BQ{r}="",BR{r}=""),"",'
+        f'(BQ{r}-BR{r})/BF{r}),"")')
+
+    # BY: N_cd = FLOOR(L_s / X_cd, 1)
+    styles.calc_c(ws, r, 77,
+        f'=IFERROR(IF(OR(D{r}<>"Dry Swale",BF{r}="",BV{r}="",BV{r}=0),"",'
+        f'FLOOR(BF{r}/BV{r},1)),"")')
+
+    # BZ: Freeboard = MIN(all 8 top elevs) - (inv_US + H_cd + 15-yr head)
+    min_tops = (
+        f'MIN('
+        f'IF(BI{r}="",9E9,BI{r}),IF(BJ{r}="",9E9,BJ{r}),'
+        f'IF(BK{r}="",9E9,BK{r}),IF(BL{r}="",9E9,BL{r}),'
+        f'IF(BM{r}="",9E9,BM{r}),IF(BN{r}="",9E9,BN{r}),'
+        f'IF(BO{r}="",9E9,BO{r}),IF(BP{r}="",9E9,BP{r})'
+        f')'
+    )
+    styles.calc_c(ws, r, 78,
+        f'=IFERROR(IF(D{r}<>"Dry Swale","",'
+        f'{min_tops}-(BQ{r}+BU{r}+IF(BT{r}="",0,BT{r}))'
+        f'),"")')
+
+
 def _apply_zone_dividers(ws, row_first: int, row_last: int) -> None:
     """Apply a medium right border to zone-dividing columns for the given row range."""
     for col in _ZONE_DIVIDER_COLS:
@@ -565,8 +624,10 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         styles.calc_c(ws, r, 48, _sizing_check_formula(r))
         # AW-BE (49-57): Supplemental Bioretention
         _populate_bio_supp(ws, r)
-        # Cols BF..CC (58..81) still blank — populated in Tasks 8-9.
-        for c in range(58, 82):
+        # BF-BZ (58-78): Supplemental Swale
+        _populate_swale_supp(ws, r)
+        # Cols CA..CC (79..81) still blank — populated in Task 9.
+        for c in range(79, 82):
             styles.inp(ws, r, c)
 
     # ── Data Validations ──
