@@ -342,6 +342,89 @@ def _populate_outputs(ws, r: int) -> None:
     styles.calc_c(ws, r, 46, f"=IFERROR(Y{r}*Z{r}*O{r},0)")
 
 
+def _sa_cda_pct_formula(r: int) -> str:
+    """SA:CDA % = N (SA_top) / Total CDA (SF).
+    Total CDA pulled from CDA_Proposed summary col C via VLOOKUP by CDA_ID."""
+    return (
+        f"=IFERROR(N{r}/VLOOKUP(C{r},'CDA_Proposed'!$A$58:$C$67,3,FALSE),0)"
+    )
+
+
+def _sizing_check_formula(r: int) -> str:
+    """Build the sizing-check cascade for row r.
+
+    Returns first failing rule string, or '✓' if all pass.
+    Uses PARAMS_BMPSizingRules via sub-type INDEX lookups.
+    Nested IF cascade keeps Excel 2016 compat.
+    """
+    # Sub-type → PARAMS_BMPSizingRules row index (1-based within the named range)
+    # Row 1: Bio Standard, 2: Bio Enhanced, 3: Bio Enhanced w/ UD,
+    # Row 4: Dry Swale, 5: PP Enhanced, 6: PP Underdrained, 7: Wet Swale
+    row_lookup = (
+        f'IFERROR('
+        f'IF(AND(D{r}="Bioretention",E{r}="Standard"),1,'
+        f'IF(AND(D{r}="Bioretention",E{r}="Enhanced"),2,'
+        f'IF(AND(D{r}="Bioretention",E{r}="Enhanced w/ Underdrain"),3,'
+        f'IF(D{r}="Dry Swale",4,'
+        f'IF(AND(D{r}="Permeable Pavement",E{r}="Enhanced"),5,'
+        f'IF(AND(D{r}="Permeable Pavement",E{r}="Underdrained Enhanced"),6,'
+        f'IF(D{r}="Wet Swale",7,0)))))))'
+        f',0)'
+    )
+
+    def rule(col: int) -> str:
+        return f'INDEX(PARAMS_BMPSizingRules,{row_lookup},{col})'
+
+    sa_cda_min = rule(2)
+    sa_cda_max = rule(3)
+    min_pond   = rule(4)
+    min_media  = rule(5)
+    min_gravel = rule(6)
+    min_fb     = rule(7)
+    max_slope  = rule(8)
+    min_cln    = rule(9)
+
+    # Bio checks: SA:CDA, pond, media, gravel, freeboard (BD), cleanouts (BE)
+    bio_check = (
+        f'IF(AU{r}<{sa_cda_min},"✗ SA:CDA below min",'
+        f'IF(AU{r}>{sa_cda_max},"✗ SA:CDA above max",'
+        f'IF(AA{r}<{min_pond},"✗ d_pond < min",'
+        f'IF(R{r}<{min_media},"✗ d_media < min",'
+        f'IF(U{r}<{min_gravel},"✗ d_gravel < min",'
+        f'IF(BD{r}<{min_fb},"✗ Freeboard < 3 in",'
+        f'IF(BE{r}<{min_cln},"⚠ No cleanout/obs well","✓")))))))'
+    )
+
+    # Dry Swale: SA:CDA, H_cd≈d_pond, media, gravel, freeboard (BZ), cleanouts (BW), slope
+    swale_check = (
+        f'IF(AU{r}<{sa_cda_min},"✗ SA:CDA below min",'
+        f'IF(AU{r}>{sa_cda_max},"✗ SA:CDA above max",'
+        f'IF(ABS(BU{r}-AA{r})>0.01,"✗ H_cd ≠ d_pond",'
+        f'IF(R{r}<{min_media},"✗ d_media < min",'
+        f'IF(U{r}<{min_gravel},"✗ d_gravel < min",'
+        f'IF(BZ{r}<{min_fb},"✗ Freeboard < 3 in",'
+        f'IF(BW{r}<{min_cln},"⚠ No cleanout/obs well",'
+        f'IF(BX{r}>{max_slope},"⚠ Slope > max","✓"))))))))'
+    )
+
+    # PP: drawdown (L) and min gravel (U ≥ 1.0)
+    pp_check = (
+        f'IF(L{r}>2,"✗ Drawdown > 2 d",'
+        f'IF(U{r}<{min_gravel},"✗ d_gravel < 1 ft","✓"))'
+    )
+
+    # Top-level: pick branch by BMP Type; Wet Swale and Trees → "—"
+    top = (
+        f'=IFERROR('
+        f'IF(D{r}="","",'
+        f'IF(D{r}="Bioretention",{bio_check},'
+        f'IF(D{r}="Dry Swale",{swale_check},'
+        f'IF(D{r}="Permeable Pavement",{pp_check},"—"))))'
+        f',"—")'
+    )
+    return top
+
+
 def _apply_zone_dividers(ws, row_first: int, row_last: int) -> None:
     """Apply a medium right border to zone-dividing columns for the given row range."""
     for col in _ZONE_DIVIDER_COLS:
@@ -436,8 +519,13 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
     for r in range(data_start, data_end + 1):
         _populate_pp_bio_stack(ws, r)
         _populate_outputs(ws, r)
-        # Cols AU..CC (47..81) still blank — populated in Tasks 6-9.
-        for c in range(47, 82):
+        # AU (col 47): SA:CDA %
+        styles.calc_c(ws, r, 47, _sa_cda_pct_formula(r))
+        ws.cell(row=r, column=47).number_format = "0.0%"
+        # AV (col 48): Sizing Check
+        styles.calc_c(ws, r, 48, _sizing_check_formula(r))
+        # Cols AW..CC (49..81) still blank — populated in Tasks 7-9.
+        for c in range(49, 82):
             styles.inp(ws, r, c)
 
     # ── Data Validations ──
