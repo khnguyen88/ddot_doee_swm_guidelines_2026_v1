@@ -124,3 +124,10 @@ def test_hdr_span_equal_to_c_does_not_merge():
     merged = [str(mr) for mr in ws.merged_cells.ranges]
     assert "A1:A1" not in merged
     assert len(merged) == 0
+
+
+def test_new_color_tokens_defined():
+    # New tints for BMP row-5 sub-header tags
+    assert styles.CDA_TINT  == "FCE4D6"   # orange-ish, AUTO ← CDA
+    assert styles.PARAMS_TINT == "E2EFDA" # pale green, AUTO ← PARAMS (reuse GL)
+    assert styles.DROPDOWN_TINT == "FFE699"  # amber, DROPDOWN

@@ -22,6 +22,11 @@ LOCK = "D9D9D9"
 WARN = "FFF2CC"
 FAIL = "F8CBAD"
 
+# BMP row-5 sub-header tag tints (source-of-input markers)
+CDA_TINT      = "FCE4D6"   # AUTO ← CDA
+PARAMS_TINT   = "E2EFDA"   # AUTO ← PARAMS (same as GL)
+DROPDOWN_TINT = "FFE699"   # DROPDOWN cells
+
 
 def fill(color_hex: str) -> PatternFill:
     return PatternFill("solid", fgColor=color_hex)
