@@ -21,9 +21,9 @@ from workbook import styles
 SDA_D1 = 4
 SDA_DL = 53
 
-# BMP data table range
-BMP_D1 = 4
-BMP_DL = 53
+# BMP data table range — shifted to new 81-col schema (data rows 6-55).
+BMP_D1 = 6
+BMP_DL = 55
 
 # CDA data table range
 CDA_D1 = 4
@@ -546,40 +546,51 @@ def _write_da_rows(ws) -> None:
             f"SUMIFS('SDA_Proposed'!$F${D1}:$F${DL},'SDA_Proposed'!$A${D1}:$A${DL},{a},'SDA_Proposed'!$C${D1}:$C${DL},\"Natural (Woods)\")",
             a))
 
-        # L — Conservative-dominant HSG (D > C > B > A). Nested IF (not IFS)
-        # for compatibility with Excel 2016 and earlier.
+        # L — List of ALL HSGs present in this SDA (comma-separated).
+        # Uses nested IF + concatenation with LEFT(..., LEN-2) to trim the
+        # trailing ", " so e.g. "A, B, " becomes "A, B".
         def _sum_by_hsg(hsg: str) -> str:
             return (f"SUMIFS('SDA_Proposed'!$E${D1}:$E${DL},"
                     f"'SDA_Proposed'!$A${D1}:$A${DL},{a},"
                     f"'SDA_Proposed'!$D${D1}:$D${DL},\"{hsg}\")")
+        concat_expr = (
+            f'IF({_sum_by_hsg("A")}>0,"A, ","")'
+            f'&IF({_sum_by_hsg("B")}>0,"B, ","")'
+            f'&IF({_sum_by_hsg("C")}>0,"C, ","")'
+            f'&IF({_sum_by_hsg("D")}>0,"D, ","")'
+        )
         ws.cell(row=r, column=12, value=_guard(
+            f'IFERROR(LEFT({concat_expr},LEN({concat_expr})-2),"")',
+            a))
+
+        # O — Infiltration rate from the MOST CONSERVATIVE HSG present
+        # (D > C > B > A). Col L now shows the full list of present HSGs,
+        # so this column computes the dominant HSG independently instead of
+        # pattern-matching the concatenated list.
+        hsg_dom = (
             f'IF({_sum_by_hsg("D")}>0,"D",'
             f'IF({_sum_by_hsg("C")}>0,"C",'
             f'IF({_sum_by_hsg("B")}>0,"B",'
-            f'IF({_sum_by_hsg("A")}>0,"A",""))))',
-            a))
-
-        # O — Infiltration rate derived from HSG. Nested IF (not IFS) for
-        # compatibility with Excel versions older than 2019 — IFS triggers
-        # #NAME? on Excel 2016 and earlier.
+            f'IF({_sum_by_hsg("A")}>0,"A",""))))'
+        )
         ws.cell(row=r, column=15, value=_guard(
-            f"IF(L{r}=\"A\",2.5,"
-            f"IF(L{r}=\"B\",0.3,"
-            f"IF(L{r}=\"C\",0.1,"
-            f"IF(L{r}=\"D\",0.05,\"\"))))", a))
+            f'IF({hsg_dom}="A",2.5,'
+            f'IF({hsg_dom}="B",0.3,'
+            f'IF({hsg_dom}="C",0.1,'
+            f'IF({hsg_dom}="D",0.05,""))))', a))
 
-        # Q — # Preserved Small
+        # Q — # Preserved Small  (BMP col AJ in new 81-col schema)
         ws.cell(row=r, column=17, value=_guard(
-            f"SUMIFS('BMP'!$AD${BD1}:$AD${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
+            f"SUMIFS('BMP'!$AJ${BD1}:$AJ${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
-        # S — # Preserved Large
+        # S — # Preserved Large  (BMP col AK)
         ws.cell(row=r, column=19, value=_guard(
-            f"SUMIFS('BMP'!$AE${BD1}:$AE${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
+            f"SUMIFS('BMP'!$AK${BD1}:$AK${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
-        # U — # Preserved Special + Heritage (combined per DDOT MEP)
+        # U — # Preserved Special + Heritage combined (BMP cols AL + AM)
         ws.cell(row=r, column=21, value=_guard(
-            f"SUMIFS('BMP'!$AF${BD1}:$AF${BDL},'BMP'!$B${BD1}:$B${BDL},{a})"
-            f"+SUMIFS('BMP'!$AG${BD1}:$AG${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
+            f"SUMIFS('BMP'!$AL${BD1}:$AL${BDL},'BMP'!$B${BD1}:$B${BDL},{a})"
+            f"+SUMIFS('BMP'!$AM${BD1}:$AM${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
         # Y — Bioretention opp area within LOD (BMP SA_top for Bio + Dry Swale)
         ws.cell(row=r, column=25, value=_guard(
@@ -600,29 +611,29 @@ def _write_da_rows(ws) -> None:
         ws.cell(row=r, column=30, value=_guard(
             f"SUMIFS('CDA_Proposed'!$F${CD1}:$F${CDL},'CDA_Proposed'!$B${CD1}:$B${CDL},{a})", a))
 
-        # AG — Max Bioretention Sv (Bio + Dry Swale)
+        # AG — Max Bioretention Sv (Bio + Dry Swale). BMP Sv moved to col AC.
         ws.cell(row=r, column=33, value=_guard(
-            f"SUMIFS('BMP'!$W${BD1}:$W${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Bioretention\")"
-            f"+SUMIFS('BMP'!$W${BD1}:$W${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Dry Swale\")",
+            f"SUMIFS('BMP'!$AC${BD1}:$AC${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Bioretention\")"
+            f"+SUMIFS('BMP'!$AC${BD1}:$AC${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Dry Swale\")",
             a))
 
-        # AH — Max PP Sv
+        # AH — Max PP Sv (BMP col K unchanged in new schema)
         ws.cell(row=r, column=34, value=_guard(
             f"SUMIFS('BMP'!$K${BD1}:$K${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Permeable Pavement\")",
             a))
 
-        # AI — Max Other Sv (Wet Swale)
+        # AI — Max Other Sv (Wet Swale). BMP WS Sv moved to col AG.
         ws.cell(row=r, column=35, value=_guard(
-            f"SUMIFS('BMP'!$AA${BD1}:$AA${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Wet Swale\")",
+            f"SUMIFS('BMP'!$AG${BD1}:$AG${BDL},'BMP'!$B${BD1}:$B${BDL},{a},'BMP'!$D${BD1}:$D${BDL},\"Wet Swale\")",
             a))
 
-        # AJ — # Planted Small
+        # AJ — # Planted Small. BMP col AH in new schema.
         ws.cell(row=r, column=36, value=_guard(
-            f"SUMIFS('BMP'!$AB${BD1}:$AB${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
+            f"SUMIFS('BMP'!$AH${BD1}:$AH${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
-        # AK — # Planted Large
+        # AK — # Planted Large. BMP col AI in new schema.
         ws.cell(row=r, column=37, value=_guard(
-            f"SUMIFS('BMP'!$AC${BD1}:$AC${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
+            f"SUMIFS('BMP'!$AI${BD1}:$AI${BDL},'BMP'!$B${BD1}:$B${BDL},{a})", a))
 
         # Apply calc style to all formula cells; leave blank input cells unstyled
         _style_da_row(ws, r, is_auto=True)
