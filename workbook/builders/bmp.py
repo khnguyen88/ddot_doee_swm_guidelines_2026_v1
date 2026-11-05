@@ -425,6 +425,45 @@ def _sizing_check_formula(r: int) -> str:
     return top
 
 
+def _populate_bio_supp(ws, r: int) -> None:
+    """Populate Supplemental Bioretention zone (AW-BE)."""
+    # AW: surface elev — USER
+    styles.inp(ws, r, 49)
+
+    # AX: ponding elev = AW + d_pond(AA)
+    styles.calc_c(ws, r, 50, f'=IFERROR(AW{r}+AA{r},"")')
+
+    # AY: 15-yr head assumed — USER
+    styles.inp(ws, r, 51)
+
+    # AZ: min sidewalk elev — USER
+    styles.inp(ws, r, 52)
+
+    # BA: min curb-cut elev — USER
+    styles.inp(ws, r, 53)
+
+    # BB: UD invert = AW - Q - R - T - X - W/12 (only when underdrain present)
+    styles.calc_c(ws, r, 54,
+        f'=IFERROR(IF(V{r}="Y",AW{r}-Q{r}-R{r}-T{r}-X{r}-W{r}/12,""),"")')
+
+    # BC: bottom invert = AW - Q - R - T - U
+    styles.calc_c(ws, r, 55,
+        f'=IFERROR(AW{r}-Q{r}-R{r}-T{r}-U{r},"")')
+
+    # BD: Freeboard = MIN(sidewalk, curb-cut) - (pond_elev + 15-yr head)
+    # Only meaningful when Bioretention + containment present
+    styles.calc_c(ws, r, 56,
+        f'=IFERROR('
+        f'IF(D{r}<>"Bioretention","",'
+        f'IF(OR(AX{r}="",AW{r}=""),"",'
+        f'MIN(IF(AZ{r}="",9E9,AZ{r}),IF(BA{r}="",9E9,BA{r}))'
+        f'-(AX{r}+IF(AY{r}="",0,AY{r}))'
+        f')),"")')
+
+    # BE: # obs wells / cleanouts — USER
+    styles.inp(ws, r, 57)
+
+
 def _apply_zone_dividers(ws, row_first: int, row_last: int) -> None:
     """Apply a medium right border to zone-dividing columns for the given row range."""
     for col in _ZONE_DIVIDER_COLS:
@@ -524,8 +563,10 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         ws.cell(row=r, column=47).number_format = "0.0%"
         # AV (col 48): Sizing Check
         styles.calc_c(ws, r, 48, _sizing_check_formula(r))
-        # Cols AW..CC (49..81) still blank — populated in Tasks 7-9.
-        for c in range(49, 82):
+        # AW-BE (49-57): Supplemental Bioretention
+        _populate_bio_supp(ws, r)
+        # Cols BF..CC (58..81) still blank — populated in Tasks 8-9.
+        for c in range(58, 82):
             styles.inp(ws, r, c)
 
     # ── Data Validations ──
