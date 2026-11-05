@@ -1,7 +1,7 @@
 """Build the BMP sheet — one row per BMP, all parameter columns, auto outputs."""
 from openpyxl import Workbook
 from openpyxl.styles import Side, Border
-from openpyxl.worksheet.datavalidation import DataValidation  # noqa: F401 — restored in Task 4 for sub-type and underdrain dropdowns
+from openpyxl.worksheet.datavalidation import DataValidation
 
 from workbook import styles
 
@@ -187,6 +187,108 @@ def _apply_sub_header_tag(ws, row: int, col: int, tag: str) -> None:
     cell.border = styles.bord()
 
 
+def _populate_pp_bio_stack(ws, r: int) -> None:
+    """Populate PP (F-M) and Bio/Swale stack (N-AD) for row r."""
+    # ── A-E: ID input cells ──
+    for c in range(1, 6):
+        styles.inp(ws, r, c)
+
+    # ── F-H: PP SA, dp, sump — USER ──
+    for c in range(6, 9):
+        styles.inp(ws, r, c)
+
+    # ── I: PP Ksat — AUTO + USER OK (default from HSG, overridable) ──
+    pp_ksat = (
+        f"=IFERROR("
+        f"IF(OR(E{r}=\"Enhanced\",E{r}=\"Underdrained Enhanced\"),"
+        f"VLOOKUP({_cda_dominant_hsg_formula(f'C{r}')},PARAMS_Ksat,2,FALSE),"
+        f"0),0)"
+    )
+    styles.inp(ws, r, 9)
+    ws.cell(row=r, column=9).value = pp_ksat
+
+    # ── J: PP n_reservoir ← PARAMS_BMP col 5 ──
+    styles.calc_c(ws, r, 10, _ifs_bmp_param(f"D{r}", f"E{r}", 5))
+
+    # ── K: PP Sv = F*G*J ──
+    styles.calc_c(ws, r, 11, f"=IFERROR(F{r}*G{r}*J{r},0)")
+
+    # ── L: PP Drawdown = G/I ──
+    styles.calc_c(ws, r, 12, f'=IFERROR(IF(I{r}=0,"",G{r}/I{r}),"")')
+
+    # ── M: PP Drawdown ≤ 2? ──
+    styles.calc_c(ws, r, 13,
+        f'=IFERROR(IF(L{r}="","",IF(L{r}<=2,"✓","✗")),"")')
+
+    # ── N: SA top — USER ──
+    styles.inp(ws, r, 14)
+
+    # ── O: SA bot — AUTO ← CDA (SUMIFS by SDA + CDA + "BMP") ──
+    o_formula = (
+        f"=SUMIFS('CDA_Proposed'!$E${CDA_D1}:$E${CDA_DL},"
+        f"'CDA_Proposed'!$C${CDA_D1}:$C${CDA_DL},\"BMP\","
+        f"'CDA_Proposed'!$B${CDA_D1}:$B${CDA_DL},B{r},"
+        f"'CDA_Proposed'!$A${CDA_D1}:$A${CDA_DL},C{r})"
+    )
+    styles.calc_c(ws, r, 15, o_formula)
+    ws.cell(row=r, column=15).fill = styles.fill(styles.CDA_TINT)
+
+    # ── P: SA avg = (N+O)/2 ──
+    styles.calc_c(ws, r, 16, f"=IFERROR((N{r}+O{r})/2,0)")
+
+    # ── Q: d_topsoil — USER ──
+    styles.inp(ws, r, 17)
+
+    # ── R: d_media — USER ──
+    styles.inp(ws, r, 18)
+
+    # ── S: n_media ← PARAMS_BMP col 3 ──
+    styles.calc_c(ws, r, 19, _ifs_bmp_param(f"D{r}", f"E{r}", 3))
+
+    # ── T: d_choker — USER ──
+    styles.inp(ws, r, 20)
+
+    # ── U: d_gravel — USER ──
+    styles.inp(ws, r, 21)
+
+    # ── V: Underdrain (Y/N) — DROPDOWN (handled by data validation later) ──
+    styles.inp(ws, r, 22)
+
+    # ── W: UD size (in) — USER ──
+    styles.inp(ws, r, 23)
+
+    # ── X: UD headspace (ft) — USER ──
+    styles.inp(ws, r, 24)
+
+    # ── Y: Reservoir Portion of Gravel = IF(V="Y", MAX(0, U-X-W/12), U) ──
+    y_formula = f'=IF(V{r}="Y",MAX(0,U{r}-X{r}-W{r}/12),U{r})'
+    styles.calc_c(ws, r, 25, y_formula)
+
+    # ── Z: n_gravel ← PARAMS_BMP col 4 ──
+    styles.calc_c(ws, r, 26, _ifs_bmp_param(f"D{r}", f"E{r}", 4))
+
+    # ── AA: d_pond — USER ──
+    styles.inp(ws, r, 27)
+
+    # ── AB: Bio Ksat — AUTO + USER OK (Enhanced + Enhanced w/ UD → VLOOKUP) ──
+    bio_ksat = (
+        f"=IFERROR("
+        f"IF(OR(E{r}=\"Enhanced\",E{r}=\"Enhanced w/ Underdrain\"),"
+        f"VLOOKUP({_cda_dominant_hsg_formula(f'C{r}')},PARAMS_Ksat,2,FALSE),"
+        f"0),0)"
+    )
+    styles.inp(ws, r, 28)
+    ws.cell(row=r, column=28).value = bio_ksat
+
+    # ── AC: Bio Sv (WIP formula) = O*(R*S + U*Z) + P*AA ──
+    ac_formula = f"=IFERROR(O{r}*(R{r}*S{r}+U{r}*Z{r})+P{r}*AA{r},0)"
+    styles.calc_c(ws, r, 29, ac_formula)
+
+    # ── AD: Drawdown = (R + U) / AB ──
+    styles.calc_c(ws, r, 30,
+        f'=IFERROR(IF(AB{r}=0,"",(R{r}+U{r})/AB{r}),"")')
+
+
 def _apply_zone_dividers(ws, row_first: int, row_last: int) -> None:
     """Apply a medium right border to zone-dividing columns for the given row range."""
     for col in _ZONE_DIVIDER_COLS:
@@ -278,14 +380,54 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
     data_start = 6
     data_end = data_start + n_rows - 1   # 55
 
-    # TODO: formulas populated in subsequent tasks (Tasks 4-9)
-    # For now, just place blank input cells so row 6 and 55 have at least
-    # one non-None cell for the schema tests to see shape.
     for r in range(data_start, data_end + 1):
-        for c in range(1, 82):
+        _populate_pp_bio_stack(ws, r)
+        # For cols AE..CC (31..81), place blank inp cells for now; filled in Tasks 5-9.
+        for c in range(31, 82):
             styles.inp(ws, r, c)
-        # Placeholder PP Sv formula at col 11 so test_bmp_data_starts_at_row_6 sees it
-        styles.calc_c(ws, r, 11, f"=IFERROR(F{r}*G{r}*J{r},0)")
+
+    # ── Data Validations ──
+    # SDA_ID column B — named range SDA_IDs
+    dv_sda = DataValidation(type="list", formula1="=SDA_IDs",
+                            allow_blank=True, showDropDown=False)
+    ws.add_data_validation(dv_sda)
+    dv_sda.sqref = f"B{data_start}:B{data_end}"
+
+    # CDA_ID column C — named range CDA_IDs
+    dv_cda = DataValidation(type="list", formula1="=CDA_IDs",
+                            allow_blank=True, showDropDown=False)
+    ws.add_data_validation(dv_cda)
+    dv_cda.sqref = f"C{data_start}:C{data_end}"
+
+    # BMP Type column D — explicit list (6 types)
+    dv_type = DataValidation(
+        type="list",
+        formula1='"' + ",".join(BMP_TYPES) + '"',
+        allow_blank=True, showDropDown=False)
+    ws.add_data_validation(dv_type)
+    dv_type.sqref = f"D{data_start}:D{data_end}"
+
+    # Sub-Type column E — DROPDOWN (unique sub-types from PARAMS_BMP rows)
+    sub_types = [sub for (_t, sub, _idx) in BMP_PARAM_ROWS]
+    # Preserve order while deduping
+    seen = set()
+    unique_subs = []
+    for s in sub_types:
+        if s not in seen:
+            seen.add(s)
+            unique_subs.append(s)
+    dv_sub = DataValidation(
+        type="list",
+        formula1='"' + ",".join(unique_subs) + '"',
+        allow_blank=True, showDropDown=False)
+    ws.add_data_validation(dv_sub)
+    dv_sub.sqref = f"E{data_start}:E{data_end}"
+
+    # Underdrain Y/N — col V
+    dv_ud = DataValidation(type="list", formula1='"Y,N"',
+                            allow_blank=True, showDropDown=False)
+    ws.add_data_validation(dv_ud)
+    dv_ud.sqref = f"V{data_start}:V{data_end}"
 
     # Zone dividers on header rows and data rows
     _apply_zone_dividers(ws, 3, data_end)
