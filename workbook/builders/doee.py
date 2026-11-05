@@ -435,9 +435,10 @@ def build_doee_compliance(wb: Workbook) -> None:
         # Col B: SWRv Required (CF) — DOEE_SDA col L
         styles.calc_c(ws, r, 2, f"='DOEE_SDA'!L{sr}")
 
-        # Col C: Rv Provided — sum of BMP AM (Rv Applied) for this SDA
+        # Col C: Rv Provided — sum of BMP AS (Rv Applied) for this SDA.
+        # (AS in the new 81-col BMP schema; was AM in the old 39-col layout.)
         styles.calc_c(ws, r, 3,
-                      f"=SUMIFS('BMP'!$AM${BMP_FIRST}:$AM${BMP_LAST},"
+                      f"=SUMIFS('BMP'!$AS${BMP_FIRST}:$AS${BMP_LAST},"
                       f"'BMP'!$B${BMP_FIRST}:$B${BMP_LAST},A{r})")
 
         # Col D: % Met
@@ -448,10 +449,11 @@ def build_doee_compliance(wb: Workbook) -> None:
         styles.calc_c(ws, r, 5,
                       f'=IF(B{r}=0,"—",IF(C{r}>=B{r},"✓ PASS","✗ FAIL"))')
 
-        # Col F: Detention Required?
+        # Col F: Detention Required? — col K on DOEE_DETENTION is 2-yr trigger,
+        # col Q is 15-yr trigger in the new 22-col 2020 methodology layout.
         styles.calc_c(ws, r, 6,
-                      f'=IF(OR(\'DOEE_DETENTION\'!F{sr}="Yes",'
-                      f'\'DOEE_DETENTION\'!I{sr}="Yes"),"Yes","No")')
+                      f'=IF(OR(\'DOEE_DETENTION\'!K{sr}="Yes",'
+                      f'\'DOEE_DETENTION\'!Q{sr}="Yes"),"Yes","No")')
 
     # Site total row — styled as a prominent BH header-bar for closure.
     total_r = 15
@@ -485,40 +487,58 @@ def build_doee_compliance(wb: Workbook) -> None:
 
 
 def build_doee_detention_bmp(wb: Workbook) -> None:
-    """Add DOEE_DETENTION_BMP — BMP/CDA-level detention compliance (one row per CDA).
+    """Add DOEE_DETENTION_BMP — 2020 methodology at CDA level (24 cols).
 
-    Fully auto-populated: col A is the hard-coded CDA-N label, every other
-    column is a formula pulling from the CDA, BMP, and PARAMS sheets.
+    Columns A-X:
+      A  CDA Number (label)
+      B  BMP Name (reverse-lookup by CDA_ID)
+      C  SDA Number (from CDA_Proposed summary)
+      D  Pre CN  (area-weighted from CDA_Existing)
+      E  Post CN (area-weighted from CDA_Proposed)
+      F  DA (SF)  (from CDA_Proposed summary col C)
+      G  BMP Sv (CF) (SUMIFS BMP AO by CDA_ID)
+      H-M  2-yr block (Rain, Pre Q, Post Q, Adj Q, Adj CN, Det Req'd?)
+      N-S  15-yr block (Rain, Pre Q, Post Q, Adj Q, Adj CN, Det Req'd?)
+      T-X  100-yr block (Rain, Pre Q, Post Q, Adj Q, Adj CN — no Det flag)
+
+    Adj Q = MAX(0, Post Q − BMP_Sv × 12 / DA_SF); Adj CN via closed-form
+    inverse (see _adjusted_cn_formula).  2-yr trigger when Adj CN > 70;
+    15-yr trigger when Adj CN > Pre CN.
     """
     ws = wb.create_sheet("DOEE_DETENTION_BMP")
     ws.sheet_view.showGridLines = False
 
-    widths = [12, 18, 12, 10, 10, 14, 14, 14, 14, 14, 14]
+    widths = [12, 18, 12, 10, 10, 12, 14,
+              10, 12, 12, 12, 10, 12,     # 2-yr block (H-M)
+              10, 12, 12, 12, 10, 12,     # 15-yr block (N-S)
+              10, 12, 12, 12, 10]         # 100-yr block (T-X)
     for i, w in enumerate(widths, 1):
         styles.cw(ws, i, w)
 
     styles.hdr(ws, 1, 1,
-               "DOEE_DETENTION_BMP — BMP/CDA-level detention compliance",
-               styles.BH, span=11)
+               "DOEE_DETENTION_BMP — 2020 Compliance Calc Methodology (per CDA)",
+               styles.BH, span=24)
     ws.row_dimensions[1].height = 24
 
-    # User note on row 2 (spans A-K).
     styles.lbl(ws, 2, 1, DETENTION_USER_NOTE, styles.BL, bold=False)
     ws.cell(row=2, column=1).alignment = openpyxl.styles.Alignment(
-        wrap_text=True, vertical="top"
-    )
-    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=11)
+        wrap_text=True, vertical="top")
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=24)
     ws.row_dimensions[2].height = 48
 
     headers = [
         "CDA Number", "BMP Name", "SDA Number",
-        "Pre CN", "Post CN",
-        "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Det Req'd?",
-        "15-yr Pre Q (in)", "15-yr Post Q (in)", "15-yr Det Req'd?",
+        "Pre CN", "Post CN", "DA (SF)", "BMP Sv (CF)",
+        "2-yr Rain (in)", "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Adj Q (in)",
+        "2-yr Adj CN", "2-yr Det Req'd?",
+        "15-yr Rain (in)", "15-yr Pre Q (in)", "15-yr Post Q (in)", "15-yr Adj Q (in)",
+        "15-yr Adj CN", "15-yr Det Req'd?",
+        "100-yr Rain (in)", "100-yr Pre Q (in)", "100-yr Post Q (in)", "100-yr Adj Q (in)",
+        "100-yr Adj CN",
     ]
     for i, h in enumerate(headers, 1):
         styles.hdr(ws, 3, i, h, styles.BS)
-    ws.row_dimensions[3].height = 36
+    ws.row_dimensions[3].height = 42
 
     cda_summary_last = CDA_SUMMARY_FIRST + 10 - 1  # row 67
 
@@ -531,7 +551,7 @@ def build_doee_detention_bmp(wb: Workbook) -> None:
         )
 
     def _cn_composite(area_col: str, cda_cell: str, sheet: str = "CDA_Proposed") -> str:
-        """Area-weighted CN composite formula for the given CDA sheet and area column."""
+        """Area-weighted CN composite for the given CDA sheet/area column."""
         nat  = _sumifs_cda_landuse(area_col, cda_cell, "Natural (Woods)", sheet)
         comp = _sumifs_cda_landuse(area_col, cda_cell, "Compacted (Open Space)", sheet)
         imp  = (_sumifs_cda_landuse(area_col, cda_cell, "Impervious Vehicular", sheet)
@@ -548,51 +568,78 @@ def build_doee_detention_bmp(wb: Workbook) -> None:
         r = 4 + i
         cda_cell = f"A{r}"
 
-        # Col A: hard-coded CDA label.
+        # A: hard-coded CDA label.
         styles.lbl(ws, r, 1, f"CDA-{i+1}", styles.BL, bold=True)
 
-        # Col B: BMP Name — reverse lookup by CDA_ID into BMP col A.
+        # B: BMP Name — reverse lookup by CDA_ID into BMP col A (data rows 6-55).
         styles.calc_c(ws, r, 2,
-                      f"=IFERROR(INDEX('BMP'!$A$4:$A$53,"
-                      f"MATCH({cda_cell},'BMP'!$C$4:$C$53,0)),\"\")")
+                      f"=IFERROR(INDEX('BMP'!$A${BMP_FIRST}:$A${BMP_LAST},"
+                      f"MATCH({cda_cell},'BMP'!$C${BMP_FIRST}:$C${BMP_LAST},0)),\"\")")
 
-        # Col C: SDA Number — from CDA_Proposed summary block col B.
+        # C: SDA Number — from CDA_Proposed summary block col B.
         styles.calc_c(ws, r, 3,
                       f"=IFERROR(INDEX('CDA_Proposed'!$B${CDA_SUMMARY_FIRST}:$B${cda_summary_last},"
                       f"MATCH({cda_cell},'CDA_Proposed'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),\"\")")
 
-        # Col D: Pre CN composite — CDA_Existing col E (Area Within LOD, pre-development).
+        # D: Pre CN composite — CDA_Existing col E (Area Within LOD).
         styles.calc_c(ws, r, 4, _cn_composite("E", cda_cell, "CDA_Existing"))
 
-        # Col E: Post CN composite — CDA_Proposed col E (Area Within LOD, proposed).
+        # E: Post CN composite — CDA_Proposed col E (Area Within LOD).
         styles.calc_c(ws, r, 5, _cn_composite("E", cda_cell, "CDA_Proposed"))
 
-        p2  = "INDEX(PARAMS_Detention,1,2)"
-        p15 = "INDEX(PARAMS_Detention,2,2)"
+        # F: DA total SF — from CDA_Proposed summary col C.
+        styles.calc_c(ws, r, 6,
+                      f"=IFERROR(INDEX('CDA_Proposed'!$C${CDA_SUMMARY_FIRST}:$C${cda_summary_last},"
+                      f"MATCH({cda_cell},'CDA_Proposed'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),0)")
+
+        # G: BMP Sv total — SUMIFS BMP AO by CDA_ID (BMP col C).
+        styles.calc_c(ws, r, 7,
+                      f"=SUMIFS('BMP'!$AO${BMP_FIRST}:$AO${BMP_LAST},"
+                      f"'BMP'!$C${BMP_FIRST}:$C${BMP_LAST},{cda_cell})")
+
         s_pre  = f"(1000/D{r}-10)"
         s_post = f"(1000/E{r}-10)"
 
-        # F, G: 2-yr Pre Q, Post Q.
-        styles.calc_c(ws, r, 6,
-                      f"=IFERROR(IF({p2}>0.2*{s_pre},"
-                      f"({p2}-0.2*{s_pre})^2/({p2}+0.8*{s_pre}),0),0)")
-        styles.calc_c(ws, r, 7,
-                      f"=IFERROR(IF({p2}>0.2*{s_post},"
-                      f"({p2}-0.2*{s_post})^2/({p2}+0.8*{s_post}),0),0)")
-        # H: 2-yr Det Req'd?
-        styles.calc_c(ws, r, 8, f'=IF(G{r}>F{r},"Yes","No")')
+        # Per-storm blocks: (rain_col, pre_q_col, post_q_col, adj_q_col,
+        #                    adj_cn_col, req_col, params_row)
+        for storm_idx, (rain_col, pre_q_col, post_q_col, adj_q_col,
+                        adj_cn_col, req_col, params_row) in enumerate([
+            (8,  9,  10, 11, 12, 13, 1),    # 2-yr   (H-M)
+            (14, 15, 16, 17, 18, 19, 2),    # 15-yr  (N-S)
+            (20, 21, 22, 23, 24, None, 3),  # 100-yr (T-X)
+        ]):
+            p_expr = f"INDEX(PARAMS_Detention,{params_row},2)"
+            styles.calc_c(ws, r, rain_col, f"={p_expr}")
+            p_ref = f"{styles.cl(rain_col)}{r}"
 
-        # I, J: 15-yr Pre Q, Post Q.
-        styles.calc_c(ws, r, 9,
-                      f"=IFERROR(IF({p15}>0.2*{s_pre},"
-                      f"({p15}-0.2*{s_pre})^2/({p15}+0.8*{s_pre}),0),0)")
-        styles.calc_c(ws, r, 10,
-                      f"=IFERROR(IF({p15}>0.2*{s_post},"
-                      f"({p15}-0.2*{s_post})^2/({p15}+0.8*{s_post}),0),0)")
-        # K: 15-yr Det Req'd?
-        styles.calc_c(ws, r, 11, f'=IF(J{r}>I{r},"Yes","No")')
+            # Pre Q
+            styles.calc_c(ws, r, pre_q_col,
+                f"=IFERROR({_scs_runoff_formula(p_ref, s_pre)},0)")
+            # Post Q (no BMP)
+            styles.calc_c(ws, r, post_q_col,
+                f"=IFERROR({_scs_runoff_formula(p_ref, s_post)},0)")
+            # Adj Q = MAX(0, Post Q − BMP_Sv × 12 / DA_SF)
+            post_q_ref = f"{styles.cl(post_q_col)}{r}"
+            styles.calc_c(ws, r, adj_q_col,
+                f"=IFERROR(MAX(0,{post_q_ref}-G{r}*12/F{r}),{post_q_ref})")
+            # Adj CN (closed-form)
+            adj_q_ref = f"{styles.cl(adj_q_col)}{r}"
+            styles.calc_c(ws, r, adj_cn_col,
+                f"=IFERROR({_adjusted_cn_formula(adj_q_ref, p_ref)},0)")
 
+            if req_col is None:
+                continue
+            adj_cn_ref = f"{styles.cl(adj_cn_col)}{r}"
+            if storm_idx == 0:   # 2-yr: Adj CN > 70
+                styles.calc_c(ws, r, req_col,
+                    f'=IF({adj_cn_ref}>70,"Yes","No")')
+            else:                # 15-yr: Adj CN > Pre CN
+                styles.calc_c(ws, r, req_col,
+                    f'=IF({adj_cn_ref}>D{r},"Yes","No")')
+
+    # Column-group dividers.
     last_row = 4 + 10 - 1
-    styles.apply_right_divider(ws, 3, 3, last_row)   # right of col C (ID block)
-    styles.apply_right_divider(ws, 5, 3, last_row)   # right of col E (CN block)
-    styles.apply_right_divider(ws, 8, 3, last_row)   # right of col H (2-yr block)
+    styles.apply_right_divider(ws, 3,  3, last_row)   # end of ID block
+    styles.apply_right_divider(ws, 7,  3, last_row)   # end of CN+DA+Sv
+    styles.apply_right_divider(ws, 13, 3, last_row)   # end of 2-yr block
+    styles.apply_right_divider(ws, 19, 3, last_row)   # end of 15-yr block
