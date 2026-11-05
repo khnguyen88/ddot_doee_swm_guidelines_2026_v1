@@ -5,8 +5,9 @@ from workbook import styles
 
 SDA_FIRST = 4
 SDA_LAST = 53
-BMP_FIRST = 4
-BMP_LAST = 53
+# BMP data range shifted to new 81-col schema (data rows 6-55).
+BMP_FIRST = 6
+BMP_LAST = 55
 
 # (label, hsg, land_use_filter, hsg_filter, cn_formula)
 # CN formulas:
@@ -147,7 +148,15 @@ def build_eisa_tr55(wb: Workbook) -> None:
     r += 1
 
     styles.lbl(ws, r, 1, "Volume Infiltrated in BMPs (CF)", styles.GRY)
-    styles.calc_c(ws, r, 2, f"=SUM('BMP'!$AM${BMP_FIRST}:$AM${BMP_LAST})")
+    # Underdrain-aware swap: V=Y rows credit AT (Rv Reservoir); V=N rows
+    # credit AS (Rv Applied).  EISA 438 is infiltration-only.
+    bmp_formula = (
+        f"=SUMPRODUCT("
+        f"('BMP'!$V${BMP_FIRST}:$V${BMP_LAST}=\"Y\")*'BMP'!$AT${BMP_FIRST}:$AT${BMP_LAST}"
+        f"+('BMP'!$V${BMP_FIRST}:$V${BMP_LAST}<>\"Y\")*'BMP'!$AS${BMP_FIRST}:$AS${BMP_LAST}"
+        f")"
+    )
+    styles.calc_c(ws, r, 2, bmp_formula)
     bmp_vol_row = r
     r += 1
 

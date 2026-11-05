@@ -122,11 +122,11 @@ def test_row12_col_o_infiltration_cascade(ws):
 
 
 def test_row12_col_q_preserved_small_sumifs(ws):
-    # Q12 — # Preserved Small — SUMIFS over BMP $AD column
+    # Q12 — # Preserved Small — SUMIFS over BMP $AJ column (new 81-col schema)
     v = ws.cell(row=12, column=17).value
     assert isinstance(v, str)
     assert "SUMIFS" in v
-    assert "$AD$" in v
+    assert "$AJ$" in v
     assert "'BMP'" in v
 
 

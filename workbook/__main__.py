@@ -1,6 +1,6 @@
 """Entry point for the SWM compliance workbook generator.
 
-Builds a 12-sheet DOEE + EISA Section 438 compliance workbook at the project
+Builds an 18-sheet DOEE + EISA Section 438 compliance workbook at the project
 root. Run with:
 
     python -m workbook
@@ -16,7 +16,7 @@ import openpyxl
 
 from workbook.builders import (
     params, project, sda, cda, bmp, correct_mep_summary,
-    eisa_direct, eisa_tr55, doee,
+    eisa_direct, eisa_tr55, doee, tc_path, peak_discharge,
 )
 from workbook.formats import apply_number_formats
 
@@ -27,7 +27,7 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "SW_Required_Provided_DOEE_EISA438.xlsx"
 
 
 def build_workbook() -> openpyxl.Workbook:
-    """Construct the full 12-sheet workbook and return it (unsaved)."""
+    """Construct the full 18-sheet workbook and return it (unsaved)."""
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
@@ -39,6 +39,9 @@ def build_workbook() -> openpyxl.Workbook:
     cda.build_cda_existing_sheet(wb, n_rows=50)
     cda.build_cda_proposed_sheet(wb, n_rows=50)
     bmp.build_bmp_sheet(wb, n_rows=50)
+    tc_path.build_tc_path_sheet(wb, n_rows=20)
+    peak_discharge.build_peak_discharge_sda(wb)
+    peak_discharge.build_peak_discharge_cda(wb)
     correct_mep_summary.build_correct_mep_summary(wb)
     eisa_direct.build_eisa_direct(wb)
     eisa_tr55.build_eisa_tr55(wb)

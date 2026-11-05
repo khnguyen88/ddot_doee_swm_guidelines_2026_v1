@@ -116,8 +116,9 @@ def test_doee_bmp_data_cda_sumifs_reads_post_within_column():
     assert saw_e_proposed, "no CDA_Proposed post-within $E SUMIFS emitted on DOEE_BMP_DATA"
 
 
-def test_doee_detention_bmp_sheet_exists_with_11_cols():
-    """New BMP/CDA-level detention sheet is emitted with the expected headers."""
+def test_doee_detention_bmp_sheet_exists_with_24_cols():
+    """DOEE_DETENTION_BMP: 2020 Compliance Calc methodology at CDA level, 24 cols
+    (adds DA, BMP Sv, Adj Q, Adj CN per storm, plus a 100-yr block)."""
     w = openpyxl.Workbook()
     w.remove(w.active)
     params.build_params_sheet(w)
@@ -134,9 +135,13 @@ def test_doee_detention_bmp_sheet_exists_with_11_cols():
     ws = w["DOEE_DETENTION_BMP"]
     expected = [
         "CDA Number", "BMP Name", "SDA Number",
-        "Pre CN", "Post CN",
-        "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Det Req'd?",
-        "15-yr Pre Q (in)", "15-yr Post Q (in)", "15-yr Det Req'd?",
+        "Pre CN", "Post CN", "DA (SF)", "BMP Sv (CF)",
+        "2-yr Rain (in)", "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Adj Q (in)",
+        "2-yr Adj CN", "2-yr Det Req'd?",
+        "15-yr Rain (in)", "15-yr Pre Q (in)", "15-yr Post Q (in)", "15-yr Adj Q (in)",
+        "15-yr Adj CN", "15-yr Det Req'd?",
+        "100-yr Rain (in)", "100-yr Pre Q (in)", "100-yr Post Q (in)", "100-yr Adj Q (in)",
+        "100-yr Adj CN",
     ]
     for i, h in enumerate(expected, 1):
         assert ws.cell(row=3, column=i).value == h, f"header col {i}"

@@ -2,7 +2,7 @@
 
 Pulls the first 10 drainage-area land-cover entries from the DDOT MEP
 Worksheet 90% Phase Sample (Minnesota Ave Great Street Test Case) and
-fills them into a fresh workbook so a reviewer can see all 12 sheets
+fills them into a fresh workbook so a reviewer can see all 18 sheets
 flowing with realistic numbers.
 
 Run with:
@@ -232,9 +232,10 @@ def _fill_cda_proposed(ws) -> None:
 
 
 def _fill_bmp(ws) -> None:
-    """Write BMP rows (names, types, dimensions, tree counts).
+    """Write BMP rows (names, types, dimensions, tree counts) using the new
+    81-col schema.  Data rows start at row 6 (header is rows 1-5).
 
-    Columns per BMP sheet layout:
+    Columns:
         A  BMP Name
         B  SDA_ID
         C  CDA_ID
@@ -243,35 +244,35 @@ def _fill_bmp(ws) -> None:
         F  PP Surface Area
         G  PP Reservoir Depth
         I  PP Ksat (auto-formula — don't overwrite)
-        N  Bio SA_top
-        O  Bio SA_bot
-        Q  Bio d_media
-        S  Bio d_gravel
-        U  Bio d_pond
-        V  Bio Ksat (auto-formula — don't overwrite)
-        AB # Planted Small
-        AC # Planted Large
-        AD # Preserved Small
-        AE # Preserved Large
-        AF # Preserved Special
-        AG # Preserved Heritage
+        N  Bio SA_top (user)
+        O  Bio SA_bot (AUTO ← CDA SUMIFS — don't overwrite)
+        Q  Bio d_topsoil
+        R  Bio d_media
+        T  Bio d_choker
+        U  Bio d_gravel
+        V  Bio Underdrain Y/N
+        AA Bio d_pond
+        AB Bio Ksat (auto-formula — don't overwrite)
+        AH-AM # Planted/Preserved trees (6 cols)
+        AW Bio surface elev, AY 15-yr head, AZ sidewalk, BA curb-cut, BE cleanouts
+        BF-BV Swale supplemental geometry
     """
-    row = 4
-    structural_count = {}  # sda_num → running count of structural BMPs
+    row = 6                          # new data range starts at row 6
+    structural_count = {}
     for sda_num, bmp_name, bmp_type, sub_type, surface_sf, trees, geom in BMPS:
         ws.cell(row=row, column=1).value = bmp_name
         ws.cell(row=row, column=2).value = f"SDA-{sda_num}"
 
         if bmp_type in ("Planted Trees", "Preserve Trees"):
-            # Trees — no CDA required; leave col C blank
             ws.cell(row=row, column=4).value = bmp_type
             ws.cell(row=row, column=5).value = "—"
-            ws.cell(row=row, column=28).value = trees.get("plt_sm", 0)
-            ws.cell(row=row, column=29).value = trees.get("plt_lg", 0)
-            ws.cell(row=row, column=30).value = trees.get("pres_sm", 0)
-            ws.cell(row=row, column=31).value = trees.get("pres_lg", 0)
-            ws.cell(row=row, column=32).value = trees.get("pres_sp", 0)
-            ws.cell(row=row, column=33).value = trees.get("pres_hr", 0)
+            # Tree counts in new schema: AH-AM = cols 34-39
+            ws.cell(row=row, column=34).value = trees.get("plt_sm", 0)
+            ws.cell(row=row, column=35).value = trees.get("plt_lg", 0)
+            ws.cell(row=row, column=36).value = trees.get("pres_sm", 0)
+            ws.cell(row=row, column=37).value = trees.get("pres_lg", 0)
+            ws.cell(row=row, column=38).value = trees.get("pres_sp", 0)
+            ws.cell(row=row, column=39).value = trees.get("pres_hr", 0)
             row += 1
             continue
 
@@ -281,52 +282,60 @@ def _fill_bmp(ws) -> None:
             1 for b in BMPS
             if b[0] == sda_num and b[2] not in ("Planted Trees", "Preserve Trees")
         )
-        if n_structural_in_sda == 1:
-            cda_id = f"CDA-{sda_num}"
-        else:
-            cda_id = f"CDA-{sda_num}-{structural_count[sda_num]}"
+        cda_id = (f"CDA-{sda_num}" if n_structural_in_sda == 1
+                  else f"CDA-{sda_num}-{structural_count[sda_num]}")
         ws.cell(row=row, column=3).value = cda_id
         ws.cell(row=row, column=4).value = bmp_type
         ws.cell(row=row, column=5).value = sub_type
 
         if bmp_type == "Permeable Pavement":
-            ws.cell(row=row, column=6).value = surface_sf      # Aₚ
-            ws.cell(row=row, column=7).value = PP_D_RESERVOIR  # dₚ
-            # Col I (Ksat) is an auto-formula per Task 32 — do NOT overwrite
+            ws.cell(row=row, column=6).value = surface_sf      # F — Aₚ
+            ws.cell(row=row, column=7).value = PP_D_RESERVOIR  # G — dₚ
+            # Col I (Ksat): auto-formula, do not overwrite.
         elif bmp_type == "Bioretention":
-            ws.cell(row=row, column=14).value = surface_sf     # SA_top (N)
-            ws.cell(row=row, column=15).value = surface_sf     # SA_bot (O) — simple default
-            ws.cell(row=row, column=17).value = BIO_D_MEDIA    # d_media (Q)
-            ws.cell(row=row, column=19).value = BIO_D_GRAVEL   # d_gravel (S)
-            ws.cell(row=row, column=21).value = BIO_D_POND     # d_pond (U)
-            # Col V (Ksat) is an auto-formula per Task 32 — do NOT overwrite
+            ws.cell(row=row, column=14).value = surface_sf     # N — SA_top
+            # O (SA_bot) is AUTO ← CDA SUMIFS — do not overwrite.
+            ws.cell(row=row, column=17).value = 0.25           # Q — d_topsoil
+            ws.cell(row=row, column=18).value = BIO_D_MEDIA    # R — d_media
+            ws.cell(row=row, column=20).value = 0.25           # T — d_choker
+            ws.cell(row=row, column=21).value = BIO_D_GRAVEL   # U — d_gravel
+            ws.cell(row=row, column=22).value = "N"            # V — Underdrain
+            ws.cell(row=row, column=27).value = BIO_D_POND     # AA — d_pond
+            # AB (Ksat): auto-formula, do not overwrite.
         elif bmp_type == "Dry Swale":
-            ws.cell(row=row, column=14).value = geom.get("width", 4) * 1  # SA_top approx = w × 1 ft (per cross-section)
-            ws.cell(row=row, column=15).value = geom.get("length", 100) * geom.get("width", 4)  # SA_bot = L × w
-            ws.cell(row=row, column=17).value = BIO_D_MEDIA    # d_media (Q)
-            ws.cell(row=row, column=19).value = BIO_D_GRAVEL   # d_gravel (S)
-            ws.cell(row=row, column=21).value = geom.get("h_cd", 1.0)  # d_pond fallback
-            ws.cell(row=row, column=46).value = geom["length"]
-            ws.cell(row=row, column=47).value = geom["width"]
-            ws.cell(row=row, column=48).value = geom["inv_us"]
-            ws.cell(row=row, column=49).value = geom["inv_ds"]
-            ws.cell(row=row, column=50).value = geom["top_us"]
-            ws.cell(row=row, column=51).value = geom["top_ds"]
-            ws.cell(row=row, column=52).value = geom["h_cd"]
-            ws.cell(row=row, column=53).value = geom["x_cd"]
+            ws.cell(row=row, column=14).value = geom.get("width", 4) * 1  # N — SA_top
+            # O (SA_bot) is AUTO ← CDA SUMIFS — do not overwrite.
+            ws.cell(row=row, column=17).value = 0.167          # Q — d_topsoil
+            ws.cell(row=row, column=18).value = BIO_D_MEDIA    # R — d_media
+            ws.cell(row=row, column=20).value = 0.25           # T — d_choker
+            ws.cell(row=row, column=21).value = BIO_D_GRAVEL   # U — d_gravel
+            ws.cell(row=row, column=27).value = geom.get("h_cd", 1.0)  # AA — d_pond
+            # Swale supplemental geometry (BF-BV area, cols 58-74)
+            ws.cell(row=row, column=58).value = geom["length"]   # BF — L_s
+            ws.cell(row=row, column=59).value = geom["width"]    # BG — w_s
+            ws.cell(row=row, column=60).value = 3                # BH — side slope 3:1
+            ws.cell(row=row, column=69).value = geom["inv_us"]   # BQ — inv US
+            ws.cell(row=row, column=70).value = geom["inv_ds"]   # BR — inv DS
+            # BK-BL top-of-grade US/DS:
+            ws.cell(row=row, column=63).value = geom["top_us"]
+            ws.cell(row=row, column=64).value = geom["top_ds"]
+            ws.cell(row=row, column=73).value = geom["h_cd"]     # BU — H_cd
+            ws.cell(row=row, column=74).value = geom["x_cd"]     # BV — X_cd
+            ws.cell(row=row, column=75).value = 1                # BW — cleanouts
 
-        # ── Bio geometry (AN-AR, columns 40-44) ──
+        # Bio supplemental geometry (AW-BE area, cols 49-57).
         if bmp_type == "Bioretention" and geom:
-            if "sa_pond_top" in geom:
-                ws.cell(row=row, column=40).value = geom["sa_pond_top"]
             if "top_elev" in geom:
-                ws.cell(row=row, column=41).value = geom["top_elev"]
+                ws.cell(row=row, column=49).value = geom["top_elev"]      # AW — surface elev
             if "overflow_elev" in geom:
-                ws.cell(row=row, column=42).value = geom["overflow_elev"]
+                # ponding elev is AUTO (AX = AW + d_pond) — but we expose the
+                # user-intended 15-yr head of 0.25 ft here as a default:
+                ws.cell(row=row, column=51).value = 0.25                   # AY — 15-yr head
             if "sidewalk_elev" in geom:
-                ws.cell(row=row, column=43).value = geom["sidewalk_elev"]
+                ws.cell(row=row, column=52).value = geom["sidewalk_elev"]  # AZ — sidewalk
             if "curb_cut_elev" in geom:
-                ws.cell(row=row, column=44).value = geom["curb_cut_elev"]
+                ws.cell(row=row, column=53).value = geom["curb_cut_elev"]  # BA — curb-cut
+            ws.cell(row=row, column=57).value = 1                          # BE — cleanouts
 
         row += 1
 
