@@ -17,11 +17,37 @@ from openpyxl import Workbook
 
 from workbook import styles
 
-# Data range constants matching the defaults in sda.py / cda.py / bmp.py
+# Data range constants matching the defaults in sda.py / cda.py / bmp.py.
+# BMP range shifted to 6-55 per the new 81-col BMP schema.
 SDA_FIRST = 4
 SDA_LAST = 53
-BMP_FIRST = 4
-BMP_LAST = 53
+BMP_FIRST = 6
+BMP_LAST = 55
+
+
+# ── 2020 DOEE detention helpers ──
+#
+# SCS runoff eq:   Q = (P - 0.2S)² / (P + 0.8S)
+# Closed-form inverse (positive root, used for adjusted CN after BMP storage):
+#   S_adj = 5·(P + 2Q − √(Q·(4Q + 5P)))
+#   CN_adj = 1000 / (S_adj + 10)
+
+
+def _scs_runoff_formula(p_expr: str, s_expr: str) -> str:
+    """Return Excel formula body for SCS runoff Q(P,S)."""
+    return (f"IF({p_expr}>0.2*{s_expr},"
+            f"({p_expr}-0.2*{s_expr})^2/({p_expr}+0.8*{s_expr}),0)")
+
+
+def _adjusted_cn_formula(q_expr: str, p_expr: str) -> str:
+    """Return Excel formula body for CN back-computed from adjusted runoff Q.
+
+    S_adj = 5·(P + 2Q − √(Q·(4Q + 5P)))
+    CN_adj = 1000 / (S_adj + 10)
+    Returns 0 when Q=0 (sufficient storage — no runoff, no CN needed).
+    """
+    s_adj = f"5*({p_expr}+2*{q_expr}-SQRT({q_expr}*(4*{q_expr}+5*{p_expr})))"
+    return f"IF({q_expr}<=0,0,1000/({s_adj}+10))"
 
 # SDA summary data starts at row 58 when n_rows=50:
 #   data_end = 53, summary_header_row = 56, sum_row = 57, sum_data_start = 58
@@ -219,79 +245,76 @@ def build_doee_bmp_data(wb: Workbook) -> None:
                       f"'CDA_Proposed'!$A${CDA_FIRST}:$A${CDA_LAST},{cda_cell},"
                       f"'CDA_Proposed'!$C${CDA_FIRST}:$C${CDA_LAST},\"BMP\")")
 
-        # Col J: Sv Total — BMP col AI (35)
-        styles.calc_c(ws, r, 10, f"='BMP'!AI{src}")
+        # Col J: Sv Total — BMP col AO (41) in new 81-col schema.
+        styles.calc_c(ws, r, 10, f"='BMP'!AO{src}")
 
-        # Col K: Rv Applied — BMP col AM (39)
-        styles.calc_c(ws, r, 11, f"='BMP'!AM{src}")
+        # Col K: Rv Applied — BMP col AS (45) in new 81-col schema.
+        styles.calc_c(ws, r, 11, f"='BMP'!AS{src}")
 
 
 def build_doee_detention(wb: Workbook) -> None:
-    """Add DOEE_DETENTION — Compliance Calc Sheet 3 mirror (one row per SDA).
+    """Add DOEE_DETENTION — 2020 Compliance Calc methodology, one row per SDA.
 
-    Columns A-I:
+    Columns A-V (22 cols):
       A  SDA Number
-      B  Pre CN (composite, area-weighted)
-      C  Post CN (composite, area-weighted)
-      D  2-yr Pre Runoff Depth (in)  — SCS CN method
-      E  2-yr Post Runoff Depth (in)
-      F  2-yr Detention Required?    — Yes if Post > Pre
-      G  15-yr Pre Runoff Depth (in)
-      H  15-yr Post Runoff Depth (in)
-      I  15-yr Detention Required?
+      B  Pre CN (composite)
+      C  Post CN (no BMP) (composite)
+      D  DA total (SF)
+      E  BMP Sv total (CF)
+      F  2-yr rain (in)
+      G  2-yr Pre Q (in)
+      H  2-yr Post Q no BMP (in)
+      I  2-yr Adj Q (in)
+      J  2-yr Adj CN
+      K  2-yr Det Req'd?    (trigger: Adj CN > 70)
+      L  15-yr rain (in)
+      M-Q 15-yr block (Pre Q, Post Q, Adj Q, Adj CN, Det Req'd?)  (trigger: Adj CN > Pre CN)
+      R  100-yr rain (in)
+      S-V 100-yr block (Pre Q, Post Q, Adj Q, Adj CN)             (reported only)
 
-    CN values pulled from PARAMS_DetentionCN:
-      Row 1 = Natural   (CN 70)
-      Row 2 = Compacted (CN 74)
-      Row 3 = Impervious (CN 98)
-      Row 4 = BMP       (CN 98)
-
-    Land-cover areas from DOEE_SDA:
-      C = Pre Natural, D = Pre Compacted, E = Pre Impervious, F = Pre BMP
-      G = Post Natural, H = Post Compacted, I = Post Impervious, J = Post BMP
-
-    Storm depths from PARAMS_Detention:
-      Row 1 col 2 = 3.14 in (2-year)
-      Row 2 col 2 = 5.23 in (15-year)
+    Adjusted runoff Q_adj = MAX(0, Q_post − Sv*12/DA_SF); adjusted CN via
+    closed-form inverse of the SCS runoff equation (see _adjusted_cn_formula).
     """
     ws = wb.create_sheet("DOEE_DETENTION")
     ws.sheet_view.showGridLines = False
 
-    widths = [12, 12, 12, 16, 16, 14, 16, 16, 14]
+    widths = [12, 10, 10, 12, 14, 10, 12, 12, 12, 10, 12,
+              10, 12, 12, 12, 10, 12,
+              10, 12, 12, 12, 10]
     for i, w in enumerate(widths, 1):
         styles.cw(ws, i, w)
 
-    styles.hdr(ws, 1, 1, "DOEE_DETENTION — Compliance Calc Sheet 3 mirror",
-               styles.BH, span=9)
+    styles.hdr(ws, 1, 1, "DOEE_DETENTION — 2020 Compliance Calc Methodology",
+               styles.BH, span=22)
     ws.row_dimensions[1].height = 24
 
-    # User note on row 2 (spans A-I).
     styles.lbl(ws, 2, 1, DETENTION_USER_NOTE, styles.BL, bold=False)
     ws.cell(row=2, column=1).alignment = openpyxl.styles.Alignment(
-        wrap_text=True, vertical="top"
-    )
-    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=9)
+        wrap_text=True, vertical="top")
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=22)
     ws.row_dimensions[2].height = 48
 
     headers = [
-        "SDA Number", "Pre CN", "Post CN",
-        "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Det Req'd?",
-        "15-yr Pre Q (in)", "15-yr Post Q (in)", "15-yr Det Req'd?",
+        "SDA Number", "Pre CN", "Post CN (no BMP)", "DA (SF)", "BMP Sv (CF)",
+        "2-yr Rain (in)", "2-yr Pre Q (in)", "2-yr Post Q (in)", "2-yr Adj Q (in)",
+        "2-yr Adj CN", "2-yr Det Req'd?",
+        "15-yr Rain (in)", "15-yr Pre Q (in)", "15-yr Post Q (in)", "15-yr Adj Q (in)",
+        "15-yr Adj CN", "15-yr Det Req'd?",
+        "100-yr Rain (in)", "100-yr Pre Q (in)", "100-yr Post Q (in)", "100-yr Adj Q (in)",
+        "100-yr Adj CN",
     ]
     for i, h in enumerate(headers, 1):
         styles.hdr(ws, 3, i, h, styles.BS)
-    ws.row_dimensions[3].height = 36
+    ws.row_dimensions[3].height = 42
 
     for i in range(10):
         r = 4 + i
-        sr = 4 + i          # same row in DOEE_SDA (data starts at row 4)
+        sr = r   # DOEE_SDA row is 4+i too
 
-        # Col A: SDA Number (mirror from DOEE_SDA)
+        # A: SDA Number
         styles.calc_c(ws, r, 1, f"='DOEE_SDA'!A{sr}")
 
-        # Pre CN = weighted average:
-        #   (Nat × CN_nat + Comp × CN_comp + Imp × CN_imp + BMP × CN_bmp) / total_area
-        # DOEE_SDA cols: C=Pre Nat, D=Pre Comp, E=Pre Imp, F=Pre BMP
+        # B: Pre CN composite (DOEE_SDA cols C-F)
         pre_nat  = f"'DOEE_SDA'!C{sr}"
         pre_comp = f"'DOEE_SDA'!D{sr}"
         pre_imp  = f"'DOEE_SDA'!E{sr}"
@@ -303,7 +326,7 @@ def build_doee_detention(wb: Workbook) -> None:
                     f"+{pre_bmp}*INDEX(PARAMS_DetentionCN,4,2))")
         styles.calc_c(ws, r, 2, f"=IFERROR({pre_num}/{pre_area},0)")
 
-        # Post CN — DOEE_SDA cols: G=Post Nat, H=Post Comp, I=Post Imp, J=Post BMP
+        # C: Post CN composite (DOEE_SDA cols G-J)
         post_nat  = f"'DOEE_SDA'!G{sr}"
         post_comp = f"'DOEE_SDA'!H{sr}"
         post_imp  = f"'DOEE_SDA'!I{sr}"
@@ -315,43 +338,61 @@ def build_doee_detention(wb: Workbook) -> None:
                      f"+{post_bmp}*INDEX(PARAMS_DetentionCN,4,2))")
         styles.calc_c(ws, r, 3, f"=IFERROR({post_num}/{post_area},0)")
 
-        # SCS CN runoff equation:  Q = (P - 0.2S)^2 / (P - 0.2S + S)   where S = 1000/CN - 10
-        # Storm depths via named range INDEX:
-        p2  = "INDEX(PARAMS_Detention,1,2)"    # 3.14 in
-        p15 = "INDEX(PARAMS_Detention,2,2)"    # 5.23 in
+        # D: DA total SF = post_area (within-LOD total)
+        styles.calc_c(ws, r, 4, f"={post_area}")
 
-        # S values as functions of CN (cols B and C of this sheet)
+        # E: BMP Sv total — SUMIFS BMP AO (Sv Total) by SDA_ID (BMP col B)
+        styles.calc_c(ws, r, 5,
+            f"=SUMIFS('BMP'!$AO${BMP_FIRST}:$AO${BMP_LAST},"
+            f"'BMP'!$B${BMP_FIRST}:$B${BMP_LAST},A{r})")
+
         s_pre  = f"(1000/B{r}-10)"
         s_post = f"(1000/C{r}-10)"
 
-        # 2-yr Pre
-        styles.calc_c(ws, r, 4,
-                      f"=IFERROR(IF({p2}>0.2*{s_pre},"
-                      f"({p2}-0.2*{s_pre})^2/({p2}+0.8*{s_pre}),0),0)")
-        # 2-yr Post
-        styles.calc_c(ws, r, 5,
-                      f"=IFERROR(IF({p2}>0.2*{s_post},"
-                      f"({p2}-0.2*{s_post})^2/({p2}+0.8*{s_post}),0),0)")
-        # 2-yr Required?
-        styles.calc_c(ws, r, 6, f'=IF(E{r}>D{r},"Yes","No")')
+        # Per-storm blocks: (rain_col, pre_q_col, post_q_col, adj_q_col,
+        #                    adj_cn_col, req_col, params_row)
+        for storm_idx, (rain_col, pre_q_col, post_q_col, adj_q_col,
+                        adj_cn_col, req_col, params_row) in enumerate([
+            (6, 7, 8, 9, 10, 11, 1),      # 2-yr
+            (12, 13, 14, 15, 16, 17, 2),  # 15-yr
+            (18, 19, 20, 21, 22, None, 3),  # 100-yr (no Det Req'd?)
+        ]):
+            # Rain depth from PARAMS_Detention row params_row col 2
+            p_expr = f"INDEX(PARAMS_Detention,{params_row},2)"
+            styles.calc_c(ws, r, rain_col, f"={p_expr}")
+            p_ref = f"{styles.cl(rain_col)}{r}"
 
-        # 15-yr Pre
-        styles.calc_c(ws, r, 7,
-                      f"=IFERROR(IF({p15}>0.2*{s_pre},"
-                      f"({p15}-0.2*{s_pre})^2/({p15}+0.8*{s_pre}),0),0)")
-        # 15-yr Post
-        styles.calc_c(ws, r, 8,
-                      f"=IFERROR(IF({p15}>0.2*{s_post},"
-                      f"({p15}-0.2*{s_post})^2/({p15}+0.8*{s_post}),0),0)")
-        # 15-yr Required?
-        styles.calc_c(ws, r, 9, f'=IF(H{r}>G{r},"Yes","No")')
+            # Pre Q
+            styles.calc_c(ws, r, pre_q_col,
+                f"=IFERROR({_scs_runoff_formula(p_ref, s_pre)},0)")
+            # Post Q (no BMP)
+            styles.calc_c(ws, r, post_q_col,
+                f"=IFERROR({_scs_runoff_formula(p_ref, s_post)},0)")
+            # Adj Q = MAX(0, Post Q − BMP_Sv × 12 / DA_SF)
+            post_q_ref = f"{styles.cl(post_q_col)}{r}"
+            styles.calc_c(ws, r, adj_q_col,
+                f"=IFERROR(MAX(0,{post_q_ref}-E{r}*12/D{r}),{post_q_ref})")
+            # Adj CN (closed-form back-compute)
+            adj_q_ref = f"{styles.cl(adj_q_col)}{r}"
+            styles.calc_c(ws, r, adj_cn_col,
+                f"=IFERROR({_adjusted_cn_formula(adj_q_ref, p_ref)},0)")
 
-    # Column-group dividers:
-    #   • between CN pair (B, C) and 2-yr storm block (D, E, F) — right border on C
-    #   • between 2-yr block and 15-yr block — right border on F
-    last_row = 4 + 10 - 1   # 13
-    styles.apply_right_divider(ws, 3, 3, last_row)   # right side of col C (Pre/Post CN)
-    styles.apply_right_divider(ws, 6, 3, last_row)   # right side of col F (end of 2-yr block)
+            # Det Req'd? (skipped for 100-yr)
+            if req_col is None:
+                continue
+            adj_cn_ref = f"{styles.cl(adj_cn_col)}{r}"
+            if storm_idx == 0:   # 2-yr: trigger when Adj CN > 70 (Natural baseline)
+                styles.calc_c(ws, r, req_col,
+                    f'=IF({adj_cn_ref}>70,"Yes","No")')
+            else:                # 15-yr: trigger when Adj CN > Pre CN
+                styles.calc_c(ws, r, req_col,
+                    f'=IF({adj_cn_ref}>B{r},"Yes","No")')
+
+    # Column-group dividers
+    last_row = 4 + 10 - 1
+    styles.apply_right_divider(ws, 5, 3, last_row)    # end of ID+CN+DA+Sv
+    styles.apply_right_divider(ws, 11, 3, last_row)   # end of 2-yr block
+    styles.apply_right_divider(ws, 17, 3, last_row)   # end of 15-yr block
 
 
 def build_doee_compliance(wb: Workbook) -> None:
