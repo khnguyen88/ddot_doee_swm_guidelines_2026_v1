@@ -160,12 +160,55 @@ def build_params_sheet(wb: Workbook) -> None:
         styles.lbl(ws, r, 1, hsg, styles.GRY, bold=True)
         styles.lbl(ws, r, 2, ksat, styles.GRY)
 
+    # ── Section 10: TR-55 Type II Unit Peak Discharge Coefficients ──
+    styles.hdr(ws, 74, 1, "TR-55 Type II qu Coefficients (log10 eq)", styles.BS, span=7)
+    for i, h in enumerate(["Ia/P", "C0", "C1", "C2"], 1):
+        styles.lbl(ws, 75, i, h, styles.BL, bold=True)
+    tr55_rows = [
+        (0.10, 2.55323, -0.61512, -0.16403),
+        (0.30, 2.46532, -0.62257, -0.11657),
+        (0.35, 2.41896, -0.61594, -0.08820),
+        (0.40, 2.36409, -0.59857, -0.05621),
+        (0.45, 2.29238, -0.57005, -0.02281),
+        (0.50, 2.20282, -0.51599, -0.01259),
+    ]
+    for i, row in enumerate(tr55_rows):
+        r = 76 + i
+        for j, v in enumerate(row):
+            styles.lbl(ws, r, j + 1, v, styles.GRY)
+
+    # ── Section 11: BMP Sizing Rules ──
+    styles.hdr(ws, 83, 1, "BMP Sizing Rules (SA:CDA, min depths, freeboard, slope)",
+               styles.BS, span=9)
+    for i, h in enumerate([
+        "Sub-type", "SA:CDA min", "SA:CDA max", "Min pond (ft)",
+        "Min media (ft)", "Min gravel (ft)", "Min freeboard (ft)",
+        "Max slope", "Min cleanouts",
+    ], 1):
+        styles.lbl(ws, 84, i, h, styles.BL, bold=True)
+    sizing_rows = [
+        ("Bio Standard",               0.03, 0.10, 0.5,   1.5, 1.0, 0.25, None, 1),
+        ("Bio Enhanced",               0.03, 0.10, 0.5,   2.0, 1.0, 0.25, None, 1),
+        ("Bio Enhanced w/ Underdrain", 0.03, 0.10, 0.5,   2.0, 1.0, 0.25, None, 1),
+        ("Dry Swale",                  0.03, 0.10, 0.167, 1.5, 1.0, 0.25, 0.04, 1),
+        ("PP Enhanced",                None, None, None,  None, 1.0, None, None, None),
+        ("PP Underdrained",            None, None, None,  None, 1.0, None, None, None),
+        ("Wet Swale",                  None, None, None,  None, None, None, None, None),
+    ]
+    for i, row in enumerate(sizing_rows):
+        r = 85 + i
+        for j, v in enumerate(row):
+            if v is None:
+                styles.locked(ws, r, j + 1, "—")
+            else:
+                styles.lbl(ws, r, j + 1, v, styles.GRY)
+
     # ── Named ranges ──
     _add_named_ranges(wb)
 
     # ── Section separator borders ──
     # Thick top border above each section header so sections are visually distinct.
-    section_header_rows = (5, 13, 20, 28, 34, 44, 53, 59, 66)
+    section_header_rows = (5, 13, 20, 28, 34, 44, 53, 59, 66, 74, 83)
     for r in section_header_rows:
         styles.apply_top_divider(ws, r, 1, 7)
 
@@ -182,7 +225,9 @@ def _add_named_ranges(wb: Workbook) -> None:
         "PARAMS_DetentionCN":  "'PARAMS'!$A$61:$B$64",
         "PARAMS_HortonLossB":  "'PARAMS'!$B$26",
         "PARAMS_HortonLossC":  "'PARAMS'!$C$26",
-        "PARAMS_Ksat":         "'PARAMS'!$A$68:$B$71",
+        "PARAMS_Ksat":            "'PARAMS'!$A$68:$B$71",
+        "PARAMS_TR55":            "'PARAMS'!$A$76:$D$81",
+        "PARAMS_BMPSizingRules":  "'PARAMS'!$A$85:$I$91",
     }
     for name, addr in ranges.items():
         wb.defined_names.add(DefinedName(name, attr_text=addr))

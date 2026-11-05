@@ -155,17 +155,19 @@ def test_ksat_table_values(wb):
 
 def test_named_ranges_defined(wb):
     expected_names = {
-        "PARAMS_Rv":           "'PARAMS'!$A$7:$B$11",
-        "PARAMS_CN":           "'PARAMS'!$A$15:$E$18",
-        "PARAMS_Horton":       "'PARAMS'!$A$22:$C$25",
-        "PARAMS_Depression":   "'PARAMS'!$A$30:$B$32",
-        "PARAMS_BMP":          "'PARAMS'!$A$36:$G$42",
-        "PARAMS_Trees":        "'PARAMS'!$A$46:$C$51",
-        "PARAMS_Detention":    "'PARAMS'!$A$55:$B$57",
-        "PARAMS_DetentionCN":  "'PARAMS'!$A$61:$B$64",
-        "PARAMS_HortonLossB":  "'PARAMS'!$B$26",
-        "PARAMS_HortonLossC":  "'PARAMS'!$C$26",
-        "PARAMS_Ksat":         "'PARAMS'!$A$68:$B$71",
+        "PARAMS_Rv":              "'PARAMS'!$A$7:$B$11",
+        "PARAMS_CN":              "'PARAMS'!$A$15:$E$18",
+        "PARAMS_Horton":          "'PARAMS'!$A$22:$C$25",
+        "PARAMS_Depression":      "'PARAMS'!$A$30:$B$32",
+        "PARAMS_BMP":             "'PARAMS'!$A$36:$G$42",
+        "PARAMS_Trees":           "'PARAMS'!$A$46:$C$51",
+        "PARAMS_Detention":       "'PARAMS'!$A$55:$B$57",
+        "PARAMS_DetentionCN":     "'PARAMS'!$A$61:$B$64",
+        "PARAMS_HortonLossB":     "'PARAMS'!$B$26",
+        "PARAMS_HortonLossC":     "'PARAMS'!$C$26",
+        "PARAMS_Ksat":            "'PARAMS'!$A$68:$B$71",
+        "PARAMS_TR55":            "'PARAMS'!$A$76:$D$81",
+        "PARAMS_BMPSizingRules":  "'PARAMS'!$A$85:$I$91",
     }
     actual_names = {dn.name for dn in wb.defined_names.values()}
     for name in expected_names:
@@ -173,3 +175,39 @@ def test_named_ranges_defined(wb):
     for name, addr in expected_names.items():
         dn = wb.defined_names[name]
         assert dn.attr_text == addr, f"{name}: {dn.attr_text!r} != {addr!r}"
+
+
+def test_params_tr55_named_range_defined(wb):
+    assert "PARAMS_TR55" in {n.name for n in wb.defined_names.values()}
+
+
+def test_params_tr55_has_six_iap_rows(wb):
+    ws = wb["PARAMS"]
+    # TR-55 block at rows 74-81: header row 74, col headers 75, data 76-81
+    iap_values = [ws.cell(row=76 + i, column=1).value for i in range(6)]
+    assert iap_values == [0.10, 0.30, 0.35, 0.40, 0.45, 0.50]
+
+
+def test_params_tr55_coefficients_at_iap_0_30(wb):
+    ws = wb["PARAMS"]
+    # Row 77 = Ia/P 0.30; C0 col 2, C1 col 3, C2 col 4
+    assert ws.cell(row=77, column=2).value == pytest.approx(2.46532, abs=1e-5)
+    assert ws.cell(row=77, column=3).value == pytest.approx(-0.62257, abs=1e-5)
+    assert ws.cell(row=77, column=4).value == pytest.approx(-0.11657, abs=1e-5)
+
+
+def test_params_bmp_sizing_rules_named_range_defined(wb):
+    assert "PARAMS_BMPSizingRules" in {n.name for n in wb.defined_names.values()}
+
+
+def test_params_bmp_sizing_rules_rows(wb):
+    ws = wb["PARAMS"]
+    # Sizing rules block at rows 83-91: header row 83, col headers 84, data 85-91 (7 sub-types)
+    subtype_labels = [ws.cell(row=85 + i, column=1).value for i in range(7)]
+    assert "Bio Standard" in subtype_labels
+    assert "Dry Swale" in subtype_labels
+    bio_std_row = 85
+    assert ws.cell(row=bio_std_row, column=2).value == 0.03  # SA:CDA min
+    assert ws.cell(row=bio_std_row, column=3).value == 0.10  # SA:CDA max
+    assert ws.cell(row=bio_std_row, column=4).value == 0.5   # min ponding
+    assert ws.cell(row=bio_std_row, column=5).value == 1.5   # min media
