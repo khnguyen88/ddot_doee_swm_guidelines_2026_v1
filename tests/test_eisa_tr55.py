@@ -69,11 +69,17 @@ def test_compliance_check_exists(wb):
 
 
 def test_bmp_total_referenced(wb):
+    """BMP credit uses SUMPRODUCT swapping AT (Rv Reservoir) for V=Y rows
+    against AS (Rv Applied) for V=N rows."""
     ws = wb["EISA_TR55"]
     found = False
     for row in ws.iter_rows():
         for cell in row:
             v = cell.value
-            if isinstance(v, str) and "'BMP'" in v and "AM" in v:
+            if (isinstance(v, str)
+                    and "'BMP'" in v
+                    and "$AS" in v
+                    and "$AT" in v
+                    and "SUMPRODUCT" in v):
                 found = True
     assert found

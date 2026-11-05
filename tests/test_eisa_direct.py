@@ -96,11 +96,17 @@ def test_compliance_check_formulas(wb):
 
 
 def test_bmp_total_lookup(wb):
+    """BMP credit uses SUMPRODUCT swapping AT (Rv Reservoir) for V=Y rows
+    against AS (Rv Applied) for V=N rows, per EISA infiltration-only."""
     ws = wb["EISA_DIRECT"]
     found = False
     for row in ws.iter_rows():
         for cell in row:
             v = cell.value
-            if isinstance(v, str) and "'BMP'" in v and "$AM" in v:
+            if (isinstance(v, str)
+                    and "'BMP'" in v
+                    and "$AS" in v
+                    and "$AT" in v
+                    and "SUMPRODUCT" in v):
                 found = True
-    assert found, "No reference to BMP sheet AM column (Rv Applied)"
+    assert found, "No SUMPRODUCT-based reference to BMP AS/AT columns"
