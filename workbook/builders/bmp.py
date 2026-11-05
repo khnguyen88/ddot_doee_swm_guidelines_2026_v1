@@ -1,7 +1,7 @@
 """Build the BMP sheet — one row per BMP, all parameter columns, auto outputs."""
 from openpyxl import Workbook
 from openpyxl.styles import Side, Border
-from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.datavalidation import DataValidation  # noqa: F401 — restored in Task 4 for sub-type and underdrain dropdowns
 
 from workbook import styles
 
