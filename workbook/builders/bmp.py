@@ -289,6 +289,59 @@ def _populate_pp_bio_stack(ws, r: int) -> None:
         f'=IFERROR(IF(AB{r}=0,"",(R{r}+U{r})/AB{r}),"")')
 
 
+def _populate_outputs(ws, r: int) -> None:
+    """Populate Wet Swale (AE-AG), Trees (AH-AN), Outputs (AO-AT) for row r."""
+    # ── AE-AF: WS Pool, ED — USER ──
+    styles.inp(ws, r, 31)
+    styles.inp(ws, r, 32)
+
+    # ── AG: WS Sv = AE + AF ──
+    styles.calc_c(ws, r, 33, f"=IFERROR(AE{r}+AF{r},0)")
+
+    # ── AH-AM: Tree counts — USER ──
+    for c in range(34, 40):
+        styles.inp(ws, r, c)
+
+    # ── AN: Tree Rv Total = Σ count × PARAMS_Trees credit ──
+    tree_formula = (
+        f"=IFERROR("
+        f"AH{r}*INDEX(PARAMS_Trees,1,3)"
+        f"+AI{r}*INDEX(PARAMS_Trees,2,3)"
+        f"+AJ{r}*INDEX(PARAMS_Trees,3,3)"
+        f"+AK{r}*INDEX(PARAMS_Trees,4,3)"
+        f"+AL{r}*INDEX(PARAMS_Trees,5,3)"
+        f"+AM{r}*INDEX(PARAMS_Trees,6,3),0)"
+    )
+    styles.calc_c(ws, r, 40, tree_formula)
+
+    # ── AO: Sv Total = K + AC + AG + IF(D="Dry Swale", IF(CA="Actual", CC, CB), 0) ──
+    ao_formula = (
+        f'=IFERROR(K{r}+AC{r}+AG{r}'
+        f'+IF(D{r}="Dry Swale",IF(CA{r}="Actual",CC{r},CB{r}),0),0)'
+    )
+    styles.calc_c(ws, r, 41, ao_formula)
+
+    # ── AP: Retention Multiplier ← PARAMS_BMP col 6 ──
+    styles.calc_c(ws, r, 42, _ifs_bmp_param(f"D{r}", f"E{r}", 6))
+    ws.cell(row=r, column=42).fill = styles.fill(styles.PARAMS_TINT)
+
+    # ── AQ: Rv Uncapped = AO*AP + AN ──
+    styles.calc_c(ws, r, 43, f"=IFERROR(AO{r}*AP{r}+AN{r},0)")
+
+    # ── AR: Max BMP Credit — VLOOKUP into CDA_Proposed summary col D ──
+    # CDA_Proposed summary rows 58-67 (10 CDAs max)
+    styles.calc_c(ws, r, 44,
+        f"=IFERROR(VLOOKUP(C{r},'CDA_Proposed'!$A$58:$D$67,4,FALSE),0)")
+    ws.cell(row=r, column=44).fill = styles.fill(styles.CDA_TINT)
+
+    # ── AS: Rv Applied = IF(AR=0, AQ, MIN(AQ, AR)) ──
+    styles.calc_c(ws, r, 45,
+        f"=IFERROR(IF(AR{r}=0,AQ{r},MIN(AQ{r},AR{r})),0)")
+
+    # ── AT: Rv Reservoir = Y * Z * O (EISA-only credit) ──
+    styles.calc_c(ws, r, 46, f"=IFERROR(Y{r}*Z{r}*O{r},0)")
+
+
 def _apply_zone_dividers(ws, row_first: int, row_last: int) -> None:
     """Apply a medium right border to zone-dividing columns for the given row range."""
     for col in _ZONE_DIVIDER_COLS:
@@ -382,8 +435,9 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
 
     for r in range(data_start, data_end + 1):
         _populate_pp_bio_stack(ws, r)
-        # For cols AE..CC (31..81), place blank inp cells for now; filled in Tasks 5-9.
-        for c in range(31, 82):
+        _populate_outputs(ws, r)
+        # Cols AU..CC (47..81) still blank — populated in Tasks 6-9.
+        for c in range(47, 82):
             styles.inp(ws, r, c)
 
     # ── Data Validations ──

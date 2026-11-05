@@ -58,7 +58,6 @@ def test_bio_sv_formula(wb):
         assert sub in f_val
 
 
-@pytest.mark.skip(reason="Tree Rv Total formula (col 40) populated in a later task")
 def test_tree_rv_total_formula(wb):
     ws = wb["BMP"]
     # AN6 (col 40) = sum of (count × credit) — expect references to tree count cols
@@ -68,7 +67,6 @@ def test_tree_rv_total_formula(wb):
         assert col_letter in f_val
 
 
-@pytest.mark.skip(reason="Retention multiplier lookup (col 42) populated in a later task")
 def test_retention_multiplier_lookup(wb):
     ws = wb["BMP"]
     # AP6 (col 42) — retention multiplier from PARAMS by BMP Type + Sub-Type
@@ -78,7 +76,6 @@ def test_retention_multiplier_lookup(wb):
     assert "IFS" in f_val or "VLOOKUP" in f_val or "INDEX" in f_val
 
 
-@pytest.mark.skip(reason="Rv Applied MIN-cap (col 45) populated in a later task")
 def test_rv_applied_is_min_capped(wb):
     ws = wb["BMP"]
     # AS6 (col 45) = MIN(AQ6, AR6)
@@ -88,7 +85,6 @@ def test_rv_applied_is_min_capped(wb):
     assert "AR6" in f_val
 
 
-@pytest.mark.skip(reason="Max BMP Credit lookup (col 44) populated in a later task")
 def test_max_bmp_credit_lookup_from_cda(wb):
     ws = wb["BMP"]
     # AR6 (col 44) — lookup CDA_ID in CDA_Proposed summary to get Max BMP Credit
