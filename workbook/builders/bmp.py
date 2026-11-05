@@ -523,6 +523,30 @@ def _populate_swale_supp(ws, r: int) -> None:
         f'),"")')
 
 
+def _populate_swale_method(ws, r: int) -> None:
+    """Populate Swale Method + Sv DOEE + Sv Actual (CA-CC).
+
+    CA defaults to "DOEE" (capped wedge, conservative per DOEE spec); setting
+    it to "Actual" uses CC's uncapped wedge instead.  CB and CC are both
+    always computed; the Sv Total formula in col AO picks between them.
+    """
+    # CA: Swale Method — DROPDOWN, default "DOEE"
+    styles.inp(ws, r, 79, val="DOEE")
+    ws.cell(row=r, column=79).fill = styles.fill(styles.DROPDOWN_TINT)
+
+    # CB: Sv DOEE (capped wedge) = N_cd × 0.5 × MIN(X_cd, H_cd/S) × H_cd × w_s
+    styles.calc_c(ws, r, 80,
+        f'=IFERROR(IF(D{r}<>"Dry Swale","",'
+        f'IF(OR(BY{r}="",BX{r}="",BX{r}=0,BU{r}="",BV{r}="",BG{r}=""),"",'
+        f'BY{r}*0.5*MIN(BV{r},BU{r}/BX{r})*BU{r}*BG{r})),"")')
+
+    # CC: Sv Actual (uncapped wedge) = N_cd × 0.5 × (H_cd/S) × H_cd × w_s
+    styles.calc_c(ws, r, 81,
+        f'=IFERROR(IF(D{r}<>"Dry Swale","",'
+        f'IF(OR(BY{r}="",BX{r}="",BX{r}=0,BU{r}="",BG{r}=""),"",'
+        f'BY{r}*0.5*(BU{r}/BX{r})*BU{r}*BG{r})),"")')
+
+
 def _apply_zone_dividers(ws, row_first: int, row_last: int) -> None:
     """Apply a medium right border to zone-dividing columns for the given row range."""
     for col in _ZONE_DIVIDER_COLS:
@@ -626,9 +650,8 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
         _populate_bio_supp(ws, r)
         # BF-BZ (58-78): Supplemental Swale
         _populate_swale_supp(ws, r)
-        # Cols CA..CC (79..81) still blank — populated in Task 9.
-        for c in range(79, 82):
-            styles.inp(ws, r, c)
+        # CA-CC (79-81): Swale Method + Sv DOEE + Sv Actual
+        _populate_swale_method(ws, r)
 
     # ── Data Validations ──
     # SDA_ID column B — named range SDA_IDs
@@ -672,6 +695,12 @@ def build_bmp_sheet(wb: Workbook, n_rows: int = 50) -> None:
                             allow_blank=True, showDropDown=False)
     ws.add_data_validation(dv_ud)
     dv_ud.sqref = f"V{data_start}:V{data_end}"
+
+    # Swale Method — col CA
+    dv_method = DataValidation(type="list", formula1='"DOEE,Actual"',
+                                allow_blank=False, showDropDown=False)
+    ws.add_data_validation(dv_method)
+    dv_method.sqref = f"CA{data_start}:CA{data_end}"
 
     # Zone dividers on header rows and data rows
     _apply_zone_dividers(ws, 3, data_end)
