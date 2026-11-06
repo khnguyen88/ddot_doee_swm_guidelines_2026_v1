@@ -16,15 +16,19 @@ from workbook import styles
 
 
 SDA_FIRST = 4
-SDA_LAST = 53
+SDA_LAST = 103
 CDA_FIRST = 4
-CDA_LAST = 53
+CDA_LAST = 103
 BMP_FIRST = 6
 BMP_LAST = 55
 
 _TR55_N_BINS = 6
-_SDA_SUMMARY_FIRST = 58
-_CDA_SUMMARY_FIRST = 58
+
+# Summary lives on Area_Summary (post Area_Summary refactor).
+from workbook.builders import area_summary as _as
+_AREA_SHEET = "Area_Summary"
+_SDA_SUMMARY_FIRST = _as.SDA_FIRST_DATA_ROW   # 5
+_CDA_SUMMARY_FIRST = _as.CDA_FIRST_DATA_ROW   # 28
 
 
 def _qu_formula(tc_ref: str, iap_ref: str) -> str:
@@ -215,7 +219,7 @@ def build_peak_discharge_sda(wb: Workbook) -> None:
         sda_cell = f"A{r}"
 
         _write_peak_row(ws, r,
-            id_ref_formula=f"'SDA_Proposed'!A{sda_sum_row}",
+            id_ref_formula=f"'{_AREA_SHEET}'!A{sda_sum_row}",
             da_sf_formula=(
                 f"=IFERROR("
                 f"{_area_sumifs('E', sda_cell, 'Natural (Woods)', 'SDA_Proposed', SDA_FIRST, SDA_LAST)}"
@@ -249,7 +253,7 @@ def build_peak_discharge_cda(wb: Workbook) -> None:
         cda_cell = f"A{r}"
 
         _write_peak_row(ws, r,
-            id_ref_formula=f"'CDA_Proposed'!A{cda_sum_row}",
+            id_ref_formula=f"'{_AREA_SHEET}'!A{cda_sum_row}",
             da_sf_formula=(
                 f"=IFERROR("
                 f"{_area_sumifs('E', cda_cell, 'Natural (Woods)', 'CDA_Proposed', CDA_FIRST, CDA_LAST)}"
