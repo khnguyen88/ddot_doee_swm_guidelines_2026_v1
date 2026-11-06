@@ -6,6 +6,7 @@ from workbook.__main__ import build_workbook, main, DEFAULT_OUTPUT
 
 EXPECTED_ORDER = [
     "PROJECT", "PARAMS", "SDA_Existing", "SDA_Proposed", "CDA_Existing", "CDA_Proposed",
+    "Area_Summary",
     "BMP", "TC_PATH", "PEAK_DISCHARGE_SDA", "PEAK_DISCHARGE_CDA",
     "CORRECT_MEP_SUMMARY",
     "EISA_DIRECT", "EISA_TR55",

@@ -17,9 +17,9 @@ from openpyxl import Workbook
 
 from workbook import styles
 
-# SDA data table range (with n_rows=50)
+# SDA data table range (with DEFAULT_N_ROWS=100 in sda.py)
 SDA_D1 = 4
-SDA_DL = 53
+SDA_DL = 103
 
 # BMP data table range — shifted to new 81-col schema (data rows 6-55).
 BMP_D1 = 6
@@ -27,18 +27,21 @@ BMP_DL = 55
 
 # CDA data table range
 CDA_D1 = 4
-CDA_DL = 53
+CDA_DL = 103
 
-# SDA summary rows (header at 57, data starts at 58)
-SDA_SUM1 = 58
+# Summary lives on Area_Summary. SDA section starts at row 5 (SDA-1 label).
+from workbook.builders import area_summary as _as
+AREA_SHEET = "Area_Summary"
+SDA_SUM1 = _as.SDA_FIRST_DATA_ROW   # 5
 
-# Data rows in CORRECT_MEP_SUMMARY
+# Data rows in CORRECT_MEP_SUMMARY — capped at Area_Summary's SDA section
+# size (N_SUMMARY_ROWS = 20), since each DA row mirrors one SDA summary row.
 DATA_FIRST = 12
-DATA_LAST = 44
-TOTAL_ROW = 45
+DATA_LAST = DATA_FIRST + _as.N_SUMMARY_ROWS - 1   # 31
+TOTAL_ROW = DATA_LAST + 1                          # 32
 
 # All DA rows now auto-populate (IFERROR returns "" / 0 for blank SDA rows)
-AUTO_ROWS = DATA_LAST - DATA_FIRST + 1  # = 33
+AUTO_ROWS = DATA_LAST - DATA_FIRST + 1  # = 20
 
 
 # ---------------------------------------------------------------------------
@@ -501,14 +504,15 @@ def _write_da_rows(ws) -> None:
         s = SDA_SUM1 + i         # Matching SDA summary row
         a = f"A{r}"
 
-        # ---- A: SDA_ID — uses direct = compare (NOT IFERROR, since blank refs are not errors) ----
-        ws.cell(row=r, column=1, value=f"=IF('SDA_Proposed'!A{s}=\"\",\"\",'SDA_Proposed'!A{s})")
+        # ---- A: SDA_ID — direct cross-sheet ref into Area_Summary SDA section col A ----
+        ws.cell(row=r, column=1,
+                value=f"=IF('{AREA_SHEET}'!A{s}=\"\",\"\",'{AREA_SHEET}'!A{s})")
 
-        # ---- B/C/D: SDA_Proposed summary direct references, guarded on A ----
-        # SDA_Proposed summary cols: A=ID, B=Imp, C=Comp, D=Nat
-        ws.cell(row=r, column=2, value=_guard(f"'SDA_Proposed'!B{s}", a))  # B — Imp Within
-        ws.cell(row=r, column=3, value=_guard(f"'SDA_Proposed'!C{s}", a))  # C — Comp Within
-        ws.cell(row=r, column=4, value=_guard(f"'SDA_Proposed'!D{s}", a))  # D — Nat Within
+        # ---- B/C/D: Post Imp/Comp/Nat from Area_Summary SDA section ----
+        # Area_Summary SDA section cols: A=ID, F=Post Imp, G=Post Comp, H=Post Nat.
+        ws.cell(row=r, column=2, value=_guard(f"'{AREA_SHEET}'!F{s}", a))  # B — Imp Within
+        ws.cell(row=r, column=3, value=_guard(f"'{AREA_SHEET}'!G{s}", a))  # C — Comp Within
+        ws.cell(row=r, column=4, value=_guard(f"'{AREA_SHEET}'!H{s}", a))  # D — Nat Within
 
         # ---- User-preserved calculated columns, each guarded on A ----
         ws.cell(row=r, column=5,  value=_guard(f"SUM(B{r}:D{r})", a))  # E

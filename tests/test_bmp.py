@@ -85,14 +85,15 @@ def test_rv_applied_is_min_capped(wb):
     assert "AR6" in f_val
 
 
-def test_max_bmp_credit_lookup_from_cda(wb):
+def test_max_bmp_credit_lookup_from_area_summary(wb):
     ws = wb["BMP"]
-    # AR6 (col 44) — lookup CDA_ID in CDA_Proposed summary to get Max BMP Credit
+    # AR6 (col 44) — VLOOKUP CDA_ID into Area_Summary CDA section to pull
+    # Max BMP Credit (section col E).
     f_val = ws.cell(row=6, column=44).value
     assert "C6" in f_val
-    # References CDA_Proposed sheet column D (Max BMP Credit) via VLOOKUP
-    assert "CDA_Proposed" in f_val
+    assert "Area_Summary" in f_val
     assert "VLOOKUP" in f_val
+    assert ",5,FALSE" in f_val  # 5th column in section A:E = Max BMP Credit
 
 
 @pytest.mark.skip(reason="SDA compliance summary rebuild deferred to later task")
@@ -182,9 +183,10 @@ from workbook.builders.bmp import _cda_dominant_hsg_formula
 
 
 def test_cda_dominant_hsg_sumifs_reads_post_within_column():
-    """Ksat HSG lookup must SUMIFS CDA_Proposed's within column (E)."""
+    """Ksat HSG lookup must SUMIFS CDA_Proposed's within column (E).
+    Range is bumped to 4..103 after DEFAULT_N_ROWS = 100 in sda.py."""
     formula = _cda_dominant_hsg_formula("C4")
-    assert "'CDA_Proposed'!$E$4:$E$53" in formula
+    assert "'CDA_Proposed'!$E$4:$E$103" in formula
     assert "'CDA'!" not in formula
 
 

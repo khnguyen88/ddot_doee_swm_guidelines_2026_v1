@@ -15,7 +15,7 @@ from pathlib import Path
 import openpyxl
 
 from workbook.builders import (
-    params, project, sda, cda, bmp, correct_mep_summary,
+    params, project, sda, cda, area_summary, bmp, correct_mep_summary,
     eisa_direct, eisa_tr55, doee, tc_path, peak_discharge,
 )
 from workbook.formats import apply_number_formats
@@ -34,10 +34,11 @@ def build_workbook() -> openpyxl.Workbook:
     # Order of construction = order shown in Excel.
     project.build_project_sheet(wb)
     params.build_params_sheet(wb)
-    sda.build_sda_existing_sheet(wb, n_rows=50)
-    sda.build_sda_proposed_sheet(wb, n_rows=50)
-    cda.build_cda_existing_sheet(wb, n_rows=50)
-    cda.build_cda_proposed_sheet(wb, n_rows=50)
+    sda.build_sda_existing_sheet(wb)
+    sda.build_sda_proposed_sheet(wb)
+    cda.build_cda_existing_sheet(wb)
+    cda.build_cda_proposed_sheet(wb)
+    area_summary.build_area_summary(wb)
     bmp.build_bmp_sheet(wb, n_rows=50)
     tc_path.build_tc_path_sheet(wb, n_rows=20)
     peak_discharge.build_peak_discharge_sda(wb)

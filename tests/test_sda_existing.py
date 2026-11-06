@@ -61,13 +61,13 @@ def test_land_use_dropdown_excludes_bmp(wb):
     assert "BMP" not in formula
 
 
-def test_summary_block(wb):
+def test_sheet_has_no_summary_block(wb):
+    """SDA_Existing is now pure-input. Summary rollups moved to Area_Summary.
+    Guard: no "Summary" label anywhere on this sheet."""
     ws = wb["SDA_Existing"]
-    # Summary header at row 56 for n_rows=50 (data_end=53 + 3).
-    assert ws.cell(row=57, column=1).value == "SDA_ID"
-    assert ws.cell(row=57, column=2).value == "Imp Total (SF)"
-    assert ws.cell(row=57, column=3).value == "Comp Total (SF)"
-    assert ws.cell(row=57, column=4).value == "Nat Total (SF)"
-    assert ws.cell(row=57, column=5).value == "Pre Total Within (SF)"
-    # First summary data row.
-    assert ws.cell(row=58, column=1).value == "SDA-1"
+    for row in ws.iter_rows():
+        for cell in row:
+            v = cell.value
+            assert not (isinstance(v, str) and "Summary" in v), (
+                f"Unexpected summary content at {cell.coordinate}: {v!r} "
+                f"— SDA_Existing should be pure-input now.")

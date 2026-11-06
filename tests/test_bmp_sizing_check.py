@@ -21,7 +21,8 @@ def test_sa_cda_pct_formula(wb):
     f = wb["BMP"].cell(row=6, column=47).value
     assert f.startswith("=")
     assert "N6" in f
-    assert "CDA_Proposed" in f
+    # SA:CDA% now pulls Post Total from Area_Summary CDA section col D.
+    assert "Area_Summary" in f
     assert "C6" in f
 
 

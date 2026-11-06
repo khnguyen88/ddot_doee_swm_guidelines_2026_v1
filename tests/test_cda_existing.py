@@ -51,8 +51,11 @@ def test_land_use_dropdown_excludes_bmp(wb):
     assert "BMP" not in lu_dvs[0].formula1
 
 
-def test_summary_block(wb):
+def test_sheet_has_no_summary_block(wb):
+    """CDA_Existing is now pure-input. Pre-total rollups live on Area_Summary."""
     ws = wb["CDA_Existing"]
-    assert ws.cell(row=57, column=1).value == "CDA_ID"
-    assert ws.cell(row=57, column=2).value == "Pre Total Within LOD (SF)"
-    assert ws.cell(row=58, column=1).value == "CDA-1"
+    for row in ws.iter_rows():
+        for cell in row:
+            v = cell.value
+            assert not (isinstance(v, str) and "Summary" in v), (
+                f"Unexpected summary content at {cell.coordinate}: {v!r}")

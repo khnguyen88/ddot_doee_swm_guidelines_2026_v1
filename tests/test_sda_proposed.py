@@ -44,32 +44,15 @@ def test_land_use_dropdown_includes_bmp(wb):
     assert "BMP" in lu_dvs[0].formula1
 
 
-def test_summary_block_has_bmp_column(wb):
+def test_sheet_has_no_summary_block(wb):
+    """SDA_Proposed is now pure-input. Summary rollups live on Area_Summary."""
     ws = wb["SDA_Proposed"]
-    assert ws.cell(row=57, column=1).value == "SDA_ID"
-    assert ws.cell(row=57, column=2).value == "Imp Total (SF)"
-    assert ws.cell(row=57, column=3).value == "Comp Total (SF)"
-    assert ws.cell(row=57, column=4).value == "Nat Total (SF)"
-    assert ws.cell(row=57, column=5).value == "BMP Total (SF)"
-    assert ws.cell(row=57, column=6).value == "Post Total Within (SF)"
-    assert ws.cell(row=57, column=7).value == "SWRv Required (CF)"
-    assert ws.cell(row=57, column=8).value == "Area Match?"
+    for row in ws.iter_rows():
+        for cell in row:
+            v = cell.value
+            assert not (isinstance(v, str) and "Summary" in v), (
+                f"Unexpected summary content at {cell.coordinate}: {v!r}")
 
 
-def test_swrv_required_sumifs_on_within(wb):
-    ws = wb["SDA_Proposed"]
-    f = ws.cell(row=58, column=7).value
-    assert "SUMIFS" in f and "$I$4:$I$53" in f and "A58" in f
-
-
-def test_area_match_cross_sheet(wb):
-    ws = wb["SDA_Proposed"]
-    f = ws.cell(row=58, column=8).value
-    assert "SDA_Existing" in f
-    assert "MISMATCH" in f
-
-
-def test_sda_ids_named_range_points_to_proposed(wb):
-    names = {dn.name: dn.attr_text for dn in wb.defined_names.values()}
-    assert "SDA_IDs" in names
-    assert "SDA_Proposed" in names["SDA_IDs"]
+# SDA_IDs named range + area match live on Area_Summary now — see
+# tests/test_area_summary.py.

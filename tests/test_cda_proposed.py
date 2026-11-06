@@ -33,24 +33,12 @@ def test_land_use_includes_bmp(wb):
     assert "BMP" in lu_dvs[0].formula1
 
 
-def test_summary_has_max_bmp_credit_hardcoded_17(wb):
+def test_sheet_has_no_summary_block(wb):
+    """CDA_Proposed is now pure-input. Max BMP Credit and Area Match live on
+    Area_Summary — see tests/test_area_summary.py."""
     ws = wb["CDA_Proposed"]
-    assert ws.cell(row=57, column=1).value == "CDA_ID"
-    assert ws.cell(row=57, column=2).value == "SDA_ID"
-    assert ws.cell(row=57, column=3).value == "Total CDA Within LOD (SF) (post)"
-    assert ws.cell(row=57, column=4).value == "Max BMP Credit (CF)"
-    assert ws.cell(row=57, column=5).value == "Area Match?"
-    # Max BMP Credit must stay hardcoded 1.7 (DOEE ceiling).
-    assert ws.cell(row=58, column=4).value == "=C58*1.7/12"
-
-
-def test_area_match_cross_sheet(wb):
-    ws = wb["CDA_Proposed"]
-    f = ws.cell(row=58, column=5).value
-    assert "CDA_Existing" in f and "MISMATCH" in f
-
-
-def test_cda_ids_named_range_points_to_proposed(wb):
-    names = {dn.name: dn.attr_text for dn in wb.defined_names.values()}
-    assert "CDA_IDs" in names
-    assert "CDA_Proposed" in names["CDA_IDs"]
+    for row in ws.iter_rows():
+        for cell in row:
+            v = cell.value
+            assert not (isinstance(v, str) and "Summary" in v), (
+                f"Unexpected summary content at {cell.coordinate}: {v!r}")

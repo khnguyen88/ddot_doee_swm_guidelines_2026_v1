@@ -16,7 +16,15 @@ _MEDIUM_RIGHT = Side(style="medium", color="000000")
 
 # CDA data table range (used by Ksat HSG lookup formulas)
 CDA_D1 = 4
-CDA_DL = 53
+CDA_DL = 103   # must match DEFAULT_N_ROWS in sda.py (data rows 4..n_rows+3)
+
+# Area_Summary CDA section anchors — kept in sync with
+# workbook.builders.area_summary module constants. BMP's Max-BMP-Credit and
+# SA:CDA% formulas look up by CDA_ID into this range.
+from workbook.builders import area_summary as _as
+AREA_SHEET      = "Area_Summary"
+AREA_CDA_FIRST  = _as.CDA_FIRST_DATA_ROW   # 28
+AREA_CDA_LAST   = _as.CDA_LAST_DATA_ROW    # 47
 
 
 def _cda_dominant_hsg_formula(cda_cell: str) -> str:
@@ -328,10 +336,12 @@ def _populate_outputs(ws, r: int) -> None:
     # ── AQ: Rv Uncapped = AO*AP + AN ──
     styles.calc_c(ws, r, 43, f"=IFERROR(AO{r}*AP{r}+AN{r},0)")
 
-    # ── AR: Max BMP Credit — VLOOKUP into CDA_Proposed summary col D ──
-    # CDA_Proposed summary rows 58-67 (10 CDAs max)
+    # ── AR: Max BMP Credit — VLOOKUP into Area_Summary CDA section col E ──
+    # Area_Summary CDA section: A=CDA_ID … E=Max BMP Credit (CF).
+    # Rows CDA_FIRST_DATA_ROW..CDA_LAST_DATA_ROW = 28..47 (N_SUMMARY_ROWS=20).
     styles.calc_c(ws, r, 44,
-        f"=IFERROR(VLOOKUP(C{r},'CDA_Proposed'!$A$58:$D$67,4,FALSE),0)")
+        f"=IFERROR(VLOOKUP(C{r},"
+        f"'{AREA_SHEET}'!$A${AREA_CDA_FIRST}:$E${AREA_CDA_LAST},5,FALSE),0)")
     ws.cell(row=r, column=44).fill = styles.fill(styles.CDA_TINT)
 
     # ── AS: Rv Applied = IF(AR=0, AQ, MIN(AQ, AR)) ──
@@ -343,10 +353,11 @@ def _populate_outputs(ws, r: int) -> None:
 
 
 def _sa_cda_pct_formula(r: int) -> str:
-    """SA:CDA % = N (SA_top) / Total CDA (SF).
-    Total CDA pulled from CDA_Proposed summary col C via VLOOKUP by CDA_ID."""
+    """SA:CDA % = N (SA_top) / Total CDA Post (SF).
+    Pulls the Post Total from Area_Summary CDA section col D via VLOOKUP."""
     return (
-        f"=IFERROR(N{r}/VLOOKUP(C{r},'CDA_Proposed'!$A$58:$C$67,3,FALSE),0)"
+        f"=IFERROR(N{r}/VLOOKUP(C{r},"
+        f"'{AREA_SHEET}'!$A${AREA_CDA_FIRST}:$D${AREA_CDA_LAST},4,FALSE),0)"
     )
 
 

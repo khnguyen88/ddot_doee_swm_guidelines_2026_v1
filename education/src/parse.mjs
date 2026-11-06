@@ -5,11 +5,17 @@ const REQUIRED_SHEETS = ['PROJECT', 'SDA_Existing', 'SDA_Proposed',
 
 const LEGACY_SHEETS = ['SDA', 'CDA'];
 
-// Data input region matches workbook n_rows=50 (data rows 4-53). Keep in sync
-// with workbook/__main__.py; the SUMIFS summary blocks that start at row ~56
-// use labels like "SDA-1" that would otherwise be mistaken for data rows.
+// Data scan starts at row 4. Rather than a hard-coded last row, we scan
+// until EMPTY_ROW_SENTINEL consecutive fully-empty input rows have been
+// seen AFTER at least one data row, allowing users to add arbitrary rows
+// beyond the template's n_rows. Summary rollups moved off these sheets
+// onto Area_Summary (see workbook/builders/area_summary.py), so there is
+// no risk of colliding with an "SDA-1"/"CDA-1" summary label.
 const DATA_FIRST_ROW = 4;
-const DATA_LAST_ROW = 53;
+const EMPTY_ROW_SENTINEL = 5;
+// Hard safety ceiling in case someone leaves styled-but-empty cells way
+// below the data. Practically no real project reaches this.
+const DATA_MAX_ROW = 10000;
 
 function rejectLegacySchema(wb) {
   for (const name of LEGACY_SHEETS) {
@@ -86,14 +92,44 @@ function parseSdaRow(sheet, row) {
   };
 }
 
-function parseSdaSheet(sheet) {
+function _isEmptyInputRow(row) {
+  // An "empty" input row has NO value across all 6 user-input cols.
+  // Checking all 6 (vs. just A/C) tolerates users who type areas before
+  // picking a dropdown, and vice versa.
+  return row.sdaId == null && row.inProw == null && row.landUse == null
+      && row.hsg == null && row.areaIn == null && row.areaOut == null;
+}
+
+function _isEmptyCdaInputRow(row) {
+  return row.cdaId == null && row.sdaId == null && row.landUse == null
+      && row.hsg == null && row.areaIn == null && row.areaOut == null;
+}
+
+function _scanInputRows(sheet, parseRow, isEmpty) {
+  // Scan from DATA_FIRST_ROW; stop after EMPTY_ROW_SENTINEL consecutive
+  // empty rows seen AFTER at least one data row. Keeps non-empty rows
+  // even if interleaved with 1-4 blank separator rows.
   const rows = [];
-  for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
-    const row = parseSdaRow(sheet, r);
-    if (row.sdaId == null && row.landUse == null) continue;
+  let seenData = false;
+  let emptyStreak = 0;
+  for (let r = DATA_FIRST_ROW; r <= DATA_MAX_ROW; r++) {
+    const row = parseRow(sheet, r);
+    if (isEmpty(row)) {
+      if (seenData) {
+        emptyStreak++;
+        if (emptyStreak >= EMPTY_ROW_SENTINEL) break;
+      }
+      continue;
+    }
+    seenData = true;
+    emptyStreak = 0;
     rows.push(row);
   }
   return rows;
+}
+
+function parseSdaSheet(sheet) {
+  return _scanInputRows(sheet, parseSdaRow, _isEmptyInputRow);
 }
 
 // CDA layout (10 cols A-J per split sheet):
@@ -112,25 +148,35 @@ function parseCdaRow(sheet, row) {
 }
 
 function parseCdaSheet(sheet) {
-  const rows = [];
-  for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
-    const row = parseCdaRow(sheet, r);
-    if (row.cdaId == null && row.landUse == null) continue;
-    rows.push(row);
-  }
-  return rows;
+  return _scanInputRows(sheet, parseCdaRow, _isEmptyCdaInputRow);
 }
 
-// BMP layout (from workbook/builders/bmp.py):
-//   data rows DATA_FIRST_ROW..DATA_LAST_ROW; conditional cols by BMP type:
+// BMP layout:
+//   Old 66-col schema: headers row 3, data starts row 4.
+//   New 81-col schema (commit 2a950f3): banners row 3, column labels row 4,
+//     USER/AUTO/DROPDOWN legend row 5, data starts row 6.
+//   Auto-detect by checking whether row 4 col A looks like a header label.
+//   Conditional cols by BMP type (unchanged between schemas for parsed fields):
 //     Permeable Pavement:   F=sa, G=dReservoir
 //     Bioretention/DrySwale: N=saTop, O=saBot, Q=dMedia, S=dGravel, U=dPond
 //     Planted/Preserve Trees: AB..AG = plantedSmall..preservedHeritage
 //   Wet Swale (cols Y, Z) is not currently parsed — add here when needed.
+function _detectBmpFirstRow(sheet) {
+  // Row 4 col A is the BMP Name header on the new schema, or the first BMP
+  // name on the old schema. Treat a string that looks like a label as the
+  // header signal.
+  const row4A = cell(sheet, 4, 1);
+  if (typeof row4A === 'string' && row4A.trim().toLowerCase() === 'bmp name') {
+    return 6;
+  }
+  return 4;
+}
 function parseBmp(sheet) {
   const rows = [];
-  for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
+  const firstRow = _detectBmpFirstRow(sheet);
+  for (let r = firstRow; r <= DATA_MAX_ROW; r++) {
     const name = cell(sheet, r, 1);
+    // BMPs are contiguous; first empty name = end of list.
     if (!name) break;
     const type = cell(sheet, r, 4);
     const row = {

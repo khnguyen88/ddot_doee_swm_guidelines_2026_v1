@@ -75,18 +75,18 @@ def test_row11_sf_units_b_through_h(ws):
 # Row 12 — first DA row auto-population
 # ---------------------------------------------------------------------------
 def test_row12_col_a_sda_formula(ws):
-    # A12 should use IF(...="","",...) pattern so blank SDA cells render as "" (not 0)
+    # A12 pulls SDA label from Area_Summary SDA section (first row = 5).
     v = ws.cell(row=12, column=1).value
     assert isinstance(v, str)
-    assert "'SDA_Proposed'!A58" in v
+    assert "'Area_Summary'!A5" in v
     assert "=\"\",\"\"" in v or '="",""' in v  # the blank-check pattern
 
 
 def test_row12_col_b_sda_formula(ws):
-    # B12 should be guarded by IF(A12="","",'SDA_Proposed'!B58)
+    # B12: Post Imp Within — Area_Summary SDA section col F.
     v = ws.cell(row=12, column=2).value
     assert isinstance(v, str)
-    assert "'SDA_Proposed'!B58" in v
+    assert "'Area_Summary'!F5" in v
     assert 'IF(A12="",""' in v
 
 
@@ -142,20 +142,22 @@ def test_row12_col_ac_cda_sumifs(ws):
 # ---------------------------------------------------------------------------
 # Row 45 — DATOTAL
 # ---------------------------------------------------------------------------
-def test_row45_e_sum_formula(ws):
-    v = ws.cell(row=45, column=5).value
-    assert isinstance(v, str) and "SUM(E12:E44)" in v
+# TOTAL_ROW shifted from 45 → 32, DATA_LAST shifted from 44 → 31 after the
+# Area_Summary refactor (DA block capped at N_SUMMARY_ROWS=20 rows: 12..31).
+def test_total_row_e_sum_formula(ws):
+    v = ws.cell(row=32, column=5).value
+    assert isinstance(v, str) and "SUM(E12:E31)" in v
 
 
-def test_row45_j_sum_formula(ws):
-    v = ws.cell(row=45, column=10).value
-    assert isinstance(v, str) and "SUM(J12:J44)" in v
+def test_total_row_j_sum_formula(ws):
+    v = ws.cell(row=32, column=10).value
+    assert isinstance(v, str) and "SUM(J12:J31)" in v
 
 
-def test_row45_al_sum_formula(ws):
-    # AL45 is column 38
-    v = ws.cell(row=45, column=38).value
-    assert isinstance(v, str) and "SUM(AL12:AL44)" in v
+def test_total_row_al_sum_formula(ws):
+    # AL is column 38
+    v = ws.cell(row=32, column=38).value
+    assert isinstance(v, str) and "SUM(AL12:AL31)" in v
 
 
 # ---------------------------------------------------------------------------
@@ -185,27 +187,28 @@ def test_row12_ap_rv_formula(ws):
 # ---------------------------------------------------------------------------
 # Rows 22-44 now have IFERROR autopop formulas on all 33 DA rows
 # ---------------------------------------------------------------------------
-def test_row44_col_a_sda_formula(ws):
-    # A44 = =IF('SDA_Proposed'!A90="","",'SDA_Proposed'!A90)  — row 44 maps to SDA summary row 58+(44-12)=90
-    v = ws.cell(row=44, column=1).value
-    assert isinstance(v, str), f"Expected formula string at A44, got {repr(v)}"
-    assert "'SDA_Proposed'!A90" in v, f"Expected 'SDA_Proposed'!A90 in A44 formula, got {repr(v)}"
-    assert '="",""' in v, f"Expected blank-check pattern in A44 formula, got {repr(v)}"
+def test_last_data_row_col_a_sda_formula(ws):
+    # Last DA row is now 31 (DATA_FIRST=12 + N_SUMMARY_ROWS 20 - 1).
+    # It maps to Area_Summary row 5 + (31-12) = 24 (last SDA summary row).
+    v = ws.cell(row=31, column=1).value
+    assert isinstance(v, str), f"Expected formula string at A31, got {repr(v)}"
+    assert "'Area_Summary'!A24" in v, f"Expected Area_Summary!A24 in A31 formula, got {repr(v)}"
+    assert '="",""' in v
 
 
-def test_row44_col_b_guarded_formula(ws):
-    # B44 = =IF(A44="","",'SDA_Proposed'!B90)
-    v = ws.cell(row=44, column=2).value
-    assert isinstance(v, str), f"Expected formula string at B44, got {repr(v)}"
-    assert 'IF(A44="",""' in v, f"Expected A44 guard in B44 formula, got {repr(v)}"
-    assert "'SDA_Proposed'!B90" in v, f"Expected 'SDA_Proposed'!B90 in B44 formula, got {repr(v)}"
+def test_last_data_row_col_b_guarded_formula(ws):
+    v = ws.cell(row=31, column=2).value
+    assert isinstance(v, str)
+    assert 'IF(A31="",""' in v
+    # B column = Post Imp, pulled from Area_Summary SDA col F.
+    assert "'Area_Summary'!F24" in v
 
 
-def test_row22_col_a_sda_formula(ws):
-    # A22 maps to SDA summary row 58+(22-12)=68
+def test_middle_data_row_col_a_sda_formula(ws):
+    # Row 22 maps to Area_Summary row 5 + (22-12) = 15.
     v = ws.cell(row=22, column=1).value
-    assert isinstance(v, str), f"Expected formula string at A22, got {repr(v)}"
-    assert "'SDA_Proposed'!A68" in v
+    assert isinstance(v, str)
+    assert "'Area_Summary'!A15" in v
     assert '="",""' in v
 
 

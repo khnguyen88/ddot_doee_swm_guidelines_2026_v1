@@ -5,11 +5,14 @@ const REQUIRED_SHEETS = ['PROJECT', 'SDA_Existing', 'SDA_Proposed',
 
 const LEGACY_SHEETS = ['SDA', 'CDA'];
 
-// Data input region matches workbook n_rows=50 (data rows 4-53). Keep in sync
-// with workbook/__main__.py; the SUMIFS summary blocks that start at row ~56
-// use labels like "SDA-1" that would otherwise be mistaken for data rows.
+// Data scan starts at row 4. Rather than a hard-coded last row, we scan
+// until EMPTY_ROW_SENTINEL consecutive fully-empty input rows have been
+// seen AFTER at least one data row. Summary rollups moved off these
+// sheets onto Area_Summary (see workbook/builders/area_summary.py), so
+// there is no risk of colliding with an "SDA-1"/"CDA-1" summary label.
 const DATA_FIRST_ROW = 4;
-const DATA_LAST_ROW = 53;
+const EMPTY_ROW_SENTINEL = 5;
+const DATA_MAX_ROW = 10000;
 
 function rejectLegacySchema(wb) {
   for (const name of LEGACY_SHEETS) {
@@ -86,14 +89,38 @@ function parseSdaRow(sheet, row) {
   };
 }
 
-function parseSdaSheet(sheet) {
+function _isEmptySdaInputRow(row) {
+  return row.sdaId == null && row.inProw == null && row.landUse == null
+      && row.hsg == null && row.areaIn == null && row.areaOut == null;
+}
+
+function _isEmptyCdaInputRow(row) {
+  return row.cdaId == null && row.sdaId == null && row.landUse == null
+      && row.hsg == null && row.areaIn == null && row.areaOut == null;
+}
+
+function _scanInputRows(sheet, parseRow, isEmpty) {
   const rows = [];
-  for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
-    const row = parseSdaRow(sheet, r);
-    if (row.sdaId == null && row.landUse == null) continue;
+  let seenData = false;
+  let emptyStreak = 0;
+  for (let r = DATA_FIRST_ROW; r <= DATA_MAX_ROW; r++) {
+    const row = parseRow(sheet, r);
+    if (isEmpty(row)) {
+      if (seenData) {
+        emptyStreak++;
+        if (emptyStreak >= EMPTY_ROW_SENTINEL) break;
+      }
+      continue;
+    }
+    seenData = true;
+    emptyStreak = 0;
     rows.push(row);
   }
   return rows;
+}
+
+function parseSdaSheet(sheet) {
+  return _scanInputRows(sheet, parseSdaRow, _isEmptySdaInputRow);
 }
 
 // CDA layout (10 cols A-J per split sheet):
@@ -112,13 +139,7 @@ function parseCdaRow(sheet, row) {
 }
 
 function parseCdaSheet(sheet) {
-  const rows = [];
-  for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
-    const row = parseCdaRow(sheet, r);
-    if (row.cdaId == null && row.landUse == null) continue;
-    rows.push(row);
-  }
-  return rows;
+  return _scanInputRows(sheet, parseCdaRow, _isEmptyCdaInputRow);
 }
 
 // Build a compatibility merged array for downstream consumers that still use
@@ -205,16 +226,23 @@ function _mergeCdaCompat(existing, proposed) {
   return Array.from(map.values());
 }
 
-// BMP layout (from workbook/builders/bmp.py):
-//   data rows DATA_FIRST_ROW..DATA_LAST_ROW; conditional cols by BMP type:
-//     Permeable Pavement:   F=sa, G=dReservoir
-//     Bioretention/DrySwale: N=saTop, O=saBot, Q=dMedia, S=dGravel, U=dPond
-//     Planted/Preserve Trees: AB..AG = plantedSmall..preservedHeritage
-//   Wet Swale (cols Y, Z) is not currently parsed — add here when needed.
+// BMP layout:
+//   Old 66-col schema: headers row 3, data starts row 4.
+//   New 81-col schema: banners row 3, labels row 4, legend row 5, data row 6.
+//   Auto-detect by checking whether row 4 col A looks like a header label.
+function _detectBmpFirstRow(sheet) {
+  const row4A = cell(sheet, 4, 1);
+  if (typeof row4A === 'string' && row4A.trim().toLowerCase() === 'bmp name') {
+    return 6;
+  }
+  return 4;
+}
 function parseBmp(sheet) {
   const rows = [];
-  for (let r = DATA_FIRST_ROW; r <= DATA_LAST_ROW; r++) {
+  const firstRow = _detectBmpFirstRow(sheet);
+  for (let r = firstRow; r <= DATA_MAX_ROW; r++) {
     const name = cell(sheet, r, 1);
+    // BMPs are contiguous; first empty name = end of list.
     if (!name) break;
     const type = cell(sheet, r, 4);
     const row = {

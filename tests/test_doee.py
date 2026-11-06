@@ -30,13 +30,14 @@ def test_all_four_doee_sheets_exist(wb):
 
 def test_doee_sda_rows(wb):
     ws = wb["DOEE_SDA"]
-    # Ten SDA rows auto-pulled from SDA_Proposed summary via ='SDA_Proposed'!A58
-    sda_ids = []
+    # Ten SDA rows auto-pulled from Area_Summary SDA section via ='Area_Summary'!A5
+    sda_refs = []
     for r in range(1, 50):
         v = ws.cell(row=r, column=1).value
-        if isinstance(v, str) and ("SDA" in v or "'SDA_Proposed'" in v):
-            sda_ids.append(v)
-    assert len(sda_ids) >= 10 or any("'SDA_Proposed'" in s for s in sda_ids)
+        if isinstance(v, str) and ("SDA" in v or "Area_Summary" in v):
+            sda_refs.append(v)
+    assert any("Area_Summary" in s for s in sda_refs), (
+        f"DOEE_SDA col A should pull labels from Area_Summary; got: {sda_refs[:5]}")
 
 
 def test_doee_sda_swrv_formula(wb):
@@ -190,10 +191,11 @@ def test_doee_detention_bmp_pre_cn_uses_cda_existing_col_e():
     doee.build_doee_detention_bmp(w)
     ws = w["DOEE_DETENTION_BMP"]
     pre_cn = ws.cell(row=4, column=4).value  # Pre CN first row
-    assert "'CDA_Existing'!$E$4:$E$53" in pre_cn, f"pre CN wrong: {pre_cn}"
+    # Input range is now 4..103 (DEFAULT_N_ROWS=100 in sda.py).
+    assert "'CDA_Existing'!$E$4:$E$103" in pre_cn, f"pre CN wrong: {pre_cn}"
     assert "'CDA_Proposed'" not in pre_cn, f"pre CN must not ref CDA_Proposed: {pre_cn}"
     post_cn = ws.cell(row=4, column=5).value
-    assert "'CDA_Proposed'!$E$4:$E$53" in post_cn, f"post CN wrong: {post_cn}"
+    assert "'CDA_Proposed'!$E$4:$E$103" in post_cn, f"post CN wrong: {post_cn}"
     assert "'CDA_Existing'" not in post_cn, f"post CN must not ref CDA_Existing: {post_cn}"
 
 

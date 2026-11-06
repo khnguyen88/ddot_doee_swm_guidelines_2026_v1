@@ -19,10 +19,19 @@ from workbook import styles
 
 # Data range constants matching the defaults in sda.py / cda.py / bmp.py.
 # BMP range shifted to 6-55 per the new 81-col BMP schema.
+# SDA/CDA input ranges bumped to 4..103 (DEFAULT_N_ROWS=100 in sda.py).
 SDA_FIRST = 4
-SDA_LAST = 53
+SDA_LAST = 103
 BMP_FIRST = 6
 BMP_LAST = 55
+
+# Area_Summary section anchors (mirrors workbook.builders.area_summary).
+from workbook.builders import area_summary as _as
+AREA_SHEET          = "Area_Summary"
+AREA_SDA_FIRST      = _as.SDA_FIRST_DATA_ROW   # 5
+AREA_SDA_LAST       = _as.SDA_LAST_DATA_ROW    # 24
+AREA_CDA_FIRST      = _as.CDA_FIRST_DATA_ROW   # 28
+AREA_CDA_LAST       = _as.CDA_LAST_DATA_ROW    # 47
 
 
 # ── 2020 DOEE detention helpers ──
@@ -49,15 +58,14 @@ def _adjusted_cn_formula(q_expr: str, p_expr: str) -> str:
     s_adj = f"5*({p_expr}+2*{q_expr}-SQRT({q_expr}*(4*{q_expr}+5*{p_expr})))"
     return f"IF({q_expr}<=0,0,1000/({s_adj}+10))"
 
-# SDA summary data starts at row 58 when n_rows=50:
-#   data_end = 53, summary_header_row = 56, sum_row = 57, sum_data_start = 58
-SDA_SUMMARY_FIRST = 58   # row of SDA-1 in SDA summary block
+# Summary now lives on Area_Summary. Keep legacy names pointing to the
+# Area_Summary rows so DOEE_SDA and DOEE_DETENTION_BMP iterate correctly.
+SDA_SUMMARY_FIRST = AREA_SDA_FIRST   # row of SDA-1 on Area_Summary
 
 # CDA data table range (used by DOEE_DETENTION_BMP SUMIFS).
 CDA_FIRST = 4
-CDA_LAST = 53
-# CDA summary data starts at row 58 when n_rows=50 (mirrors SDA_SUMMARY_FIRST layout).
-CDA_SUMMARY_FIRST = 58
+CDA_LAST = 103
+CDA_SUMMARY_FIRST = AREA_CDA_FIRST   # row of CDA-1 on Area_Summary
 
 DETENTION_USER_NOTE = (
     "Note: Pre/Post CN composites and runoff depths use land cover "
@@ -120,9 +128,9 @@ def build_doee_sda(wb: Workbook) -> None:
     for i in range(10):
         r = 4 + i
         sda_summary_row = SDA_SUMMARY_FIRST + i
-        sda_cell = f"'SDA_Proposed'!A{sda_summary_row}"
+        sda_cell = f"'{AREA_SHEET}'!A{sda_summary_row}"
 
-        # Col A: SDA Number (label from SDA_Proposed summary)
+        # Col A: SDA Number (label from Area_Summary SDA section)
         styles.calc_c(ws, r, 1, f"={sda_cell}")
 
         # Col B: In PROW? — first "Yes/No" value in SDA_Proposed data rows for this SDA
@@ -156,8 +164,8 @@ def build_doee_sda(wb: Workbook) -> None:
         styles.calc_c(ws, r, 11,
                       "=" + _area_sumifs("E", f"A{r}", "Impervious Vehicular"))
 
-        # Col L: SWRv Required (CF) — from SDA_Proposed summary col G (7)
-        styles.calc_c(ws, r, 12, f"='SDA_Proposed'!G{sda_summary_row}")
+        # Col L: SWRv Required (CF) — from Area_Summary SDA section col K (11)
+        styles.calc_c(ws, r, 12, f"='{AREA_SHEET}'!K{sda_summary_row}")
 
         # Col M: WQTv flag
         styles.calc_c(ws, r, 13, f'=IF(K{r}>0,"Yes","No")')
@@ -540,7 +548,9 @@ def build_doee_detention_bmp(wb: Workbook) -> None:
         styles.hdr(ws, 3, i, h, styles.BS)
     ws.row_dimensions[3].height = 42
 
-    cda_summary_last = CDA_SUMMARY_FIRST + 10 - 1  # row 67
+    # DOEE_DETENTION_BMP mirrors the official sheet's 10-row capacity,
+    # so iterate over the first 10 Area_Summary CDA rows.
+    cda_summary_last = CDA_SUMMARY_FIRST + 10 - 1
 
     def _sumifs_cda_landuse(area_col: str, cda_cell: str, land_use: str,
                             sheet: str = "CDA_Proposed") -> str:
@@ -576,10 +586,10 @@ def build_doee_detention_bmp(wb: Workbook) -> None:
                       f"=IFERROR(INDEX('BMP'!$A${BMP_FIRST}:$A${BMP_LAST},"
                       f"MATCH({cda_cell},'BMP'!$C${BMP_FIRST}:$C${BMP_LAST},0)),\"\")")
 
-        # C: SDA Number — from CDA_Proposed summary block col B.
+        # C: SDA Number — from Area_Summary CDA section col B.
         styles.calc_c(ws, r, 3,
-                      f"=IFERROR(INDEX('CDA_Proposed'!$B${CDA_SUMMARY_FIRST}:$B${cda_summary_last},"
-                      f"MATCH({cda_cell},'CDA_Proposed'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),\"\")")
+                      f"=IFERROR(INDEX('{AREA_SHEET}'!$B${CDA_SUMMARY_FIRST}:$B${cda_summary_last},"
+                      f"MATCH({cda_cell},'{AREA_SHEET}'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),\"\")")
 
         # D: Pre CN composite — CDA_Existing col E (Area Within LOD).
         styles.calc_c(ws, r, 4, _cn_composite("E", cda_cell, "CDA_Existing"))
@@ -587,10 +597,10 @@ def build_doee_detention_bmp(wb: Workbook) -> None:
         # E: Post CN composite — CDA_Proposed col E (Area Within LOD).
         styles.calc_c(ws, r, 5, _cn_composite("E", cda_cell, "CDA_Proposed"))
 
-        # F: DA total SF — from CDA_Proposed summary col C.
+        # F: DA total SF — from Area_Summary CDA section col D (Post Total Within).
         styles.calc_c(ws, r, 6,
-                      f"=IFERROR(INDEX('CDA_Proposed'!$C${CDA_SUMMARY_FIRST}:$C${cda_summary_last},"
-                      f"MATCH({cda_cell},'CDA_Proposed'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),0)")
+                      f"=IFERROR(INDEX('{AREA_SHEET}'!$D${CDA_SUMMARY_FIRST}:$D${cda_summary_last},"
+                      f"MATCH({cda_cell},'{AREA_SHEET}'!$A${CDA_SUMMARY_FIRST}:$A${cda_summary_last},0)),0)")
 
         # G: BMP Sv total — SUMIFS BMP AO by CDA_ID (BMP col C).
         styles.calc_c(ws, r, 7,
