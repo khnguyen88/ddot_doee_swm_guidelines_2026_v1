@@ -83,6 +83,17 @@ def build_params_sheet(wb: Workbook) -> None:
         styles.lbl(ws, r, 2, d, styles.GRY)
 
     # ── Section 5: BMP design parameters ──
+    # Values match the official DOEE SWMP-BMP Calc Spreadsheet (2020-11-30):
+    #   docs/doee_spreadsheet_calculators/2020 SWMP-BMP Calc Spreadsheet 11-30-2020.xlsm
+    #   • Sheet 3.6 Bioretention: C62 ηmedia=0.25, C65 ηgravel=0.40,
+    #       C74 Rv = IF(Type="Standard", 0.6*Sv, Sv) → Standard=0.6, Enhanced=1.0,
+    #       Enhanced w/ Underdrain=1.0 (treated same as Enhanced).
+    #   • Sheet 3.9 O-2 Dry Swale: C33 ηmedia=0.25, C35 ηgravel=0.40,
+    #       C38 Rv = 0.6*Sv.
+    #   • Sheet 3.9 O-3 Wet Swale: Rv = 0.1*Sv.
+    #   • Sheet 3.5 Permeable Pavement: n_reservoir=0.40.
+    # Any edit here must keep parity with the Calc (locked in by
+    # tests/test_params.py::test_params_bmp_matches_doee_calc_2020).
     styles.hdr(ws, 34, 1, "BMP Design Parameters", styles.BS, span=7)
     for i, h in enumerate([
         "BMP Type", "Sub-Type", "n_media", "n_gravel", "n_reservoir",
@@ -92,10 +103,10 @@ def build_params_sheet(wb: Workbook) -> None:
     bmp_rows = [
         ("Permeable Pavement", "Enhanced",               None, None, 0.40, 1.0, 2),
         ("Permeable Pavement", "Underdrained Enhanced",  None, None, 0.40, 0.6, 2),
-        ("Bioretention",       "Standard",               0.40, 0.40, None, 0.6, 3),
-        ("Bioretention",       "Enhanced",               0.40, 0.40, None, 1.0, 3),
-        ("Bioretention",       "Enhanced w/ Underdrain", 0.40, 0.40, None, 0.6, 3),
-        ("Dry Swale",          "—",                      0.40, 0.40, None, 0.6, 3),
+        ("Bioretention",       "Standard",               0.25, 0.40, None, 0.6, 3),
+        ("Bioretention",       "Enhanced",               0.25, 0.40, None, 1.0, 3),
+        ("Bioretention",       "Enhanced w/ Underdrain", 0.25, 0.40, None, 1.0, 3),
+        ("Dry Swale",          "—",                      0.25, 0.40, None, 0.6, 3),
         ("Wet Swale",          "—",                      None, None, None, 0.1, None),
     ]
     for i, row in enumerate(bmp_rows):

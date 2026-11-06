@@ -92,8 +92,10 @@ def test_bmp_parameters_rows(wb):
     assert ws.cell(row=38, column=6).value == pytest.approx(0.6)
     # Row 39 Bioretention Enhanced — mult 1.0
     assert ws.cell(row=39, column=6).value == pytest.approx(1.0)
-    # Row 40 Bioretention Enhanced w/ Underdrain — mult 0.6
-    assert ws.cell(row=40, column=6).value == pytest.approx(0.6)
+    # Row 40 Bioretention Enhanced w/ Underdrain — mult 1.0
+    # (DOEE Calc sheet 3.6 cell C74: =IF(Type="Standard", 0.6*Sv, Sv) —
+    # Enhanced w/ Underdrain is treated the same as Enhanced.)
+    assert ws.cell(row=40, column=6).value == pytest.approx(1.0)
     # Row 41 Dry Swale — mult 0.6
     assert ws.cell(row=41, column=1).value == "Dry Swale"
     assert ws.cell(row=41, column=6).value == pytest.approx(0.6)
@@ -211,3 +213,53 @@ def test_params_bmp_sizing_rules_rows(wb):
     assert ws.cell(row=bio_std_row, column=3).value == 0.10  # SA:CDA max
     assert ws.cell(row=bio_std_row, column=4).value == 0.5   # min ponding
     assert ws.cell(row=bio_std_row, column=5).value == 1.5   # min media
+
+
+def test_params_bmp_matches_doee_calc_2020(wb):
+    """Lock PARAMS_BMP to the official DOEE SWMP-BMP Calculator (2020-11-30).
+
+    Source of truth:
+      docs/doee_spreadsheet_calculators/2020 SWMP-BMP Calc Spreadsheet 11-30-2020.xlsm
+        • Sheet 3.6 Bioretention:      C62 ηmedia=0.25, C65 ηgravel=0.40,
+                                       C74 Rv = IF(Type="Standard", 0.6*Sv, Sv)
+                                       → Standard mult=0.6, Enhanced=1.0,
+                                         Enhanced w/ Underdrain=1.0
+        • Sheet 3.9 O-2 Dry Swale:     C33 ηmedia=0.25, C35 ηgravel=0.40,
+                                       C38 Rv = 0.6*Sv
+        • Sheet 3.9 O-3 Wet Swale:     Rv = 0.1*Sv
+        • Sheet 3.5 Permeable Pavement: n_reservoir=0.40
+
+    PARAMS_BMP layout: rows 36-42, columns A..G:
+        A=BMP Type, B=Sub-Type, C=n_media, D=n_gravel, E=n_reservoir,
+        F=Ret. Multiplier, G=Max Drawdown (days)
+    """
+    ws = wb["PARAMS"]
+    expected = [
+        # (type, sub-type, n_media, n_gravel, n_reservoir, Ret.Mult, Drawdown)
+        ("Permeable Pavement", "Enhanced",               None, None, 0.40, 1.0, 2),
+        ("Permeable Pavement", "Underdrained Enhanced",  None, None, 0.40, 0.6, 2),
+        ("Bioretention",       "Standard",               0.25, 0.40, None, 0.6, 3),
+        ("Bioretention",       "Enhanced",               0.25, 0.40, None, 1.0, 3),
+        ("Bioretention",       "Enhanced w/ Underdrain", 0.25, 0.40, None, 1.0, 3),
+        ("Dry Swale",          "—",                      0.25, 0.40, None, 0.6, 3),
+        ("Wet Swale",          "—",                      None, None, None, 0.1, None),
+    ]
+    for i, (bmp_type, sub_type, n_media, n_gravel, n_reservoir, mult, drawdown) in enumerate(expected):
+        r = 36 + i
+        # Col A: BMP Type
+        assert ws.cell(row=r, column=1).value == bmp_type, f"Row {r} BMP Type"
+        # Col B: Sub-Type (may legitimately be the em-dash string "—")
+        assert ws.cell(row=r, column=2).value == sub_type, f"Row {r} Sub-Type"
+        # Cols C-G: numerics (None in `expected` means an em-dash placeholder cell)
+        for col, want in [(3, n_media), (4, n_gravel), (5, n_reservoir),
+                          (6, mult), (7, drawdown)]:
+            got = ws.cell(row=r, column=col).value
+            if want is None:
+                assert got == "—", (
+                    f"PARAMS_BMP row {r} col {col}: expected em-dash placeholder, "
+                    f"got {got!r}. {bmp_type}/{sub_type} must match DOEE Calc 2020.")
+            else:
+                assert got == want, (
+                    f"PARAMS_BMP row {r} col {col}: expected {want}, got {got}. "
+                    f"{bmp_type}/{sub_type} must match DOEE Calc 2020 — see "
+                    f"workbook/builders/params.py bmp_rows comment for cell citations.")

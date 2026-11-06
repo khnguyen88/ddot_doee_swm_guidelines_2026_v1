@@ -112,22 +112,23 @@ td (drawdown) = dp / Ksat                             [days — must be ≤ 48 h
 | SAbottom | ft² | Bottom surface area |
 | SAaverage | ft² | Auto-calculated: (SAtop + SAbottom) / 2 |
 | dmedia | ft | Depth of engineered growing media |
-| n_media | — | Media porosity — assumed 0.40 |
+| ηmedia (n_media) | — | Media porosity — **0.25** (file cell C62: "Typically 0.25") |
 | dgravel | ft | Depth of gravel/stone layer |
 | dsump | ft | Depth of stone below underdrain — Enhanced w/ Underdrain only |
+| ηgravel (n_gravel) | — | Gravel porosity — **0.40** (file cell C65: "Typically 0.40") |
 | dponding | ft | Ponding depth — min 0.25 ft, max 1.5 ft |
 | Ksat | ft/day | Must exceed 0.1 ft/day |
 
-**Formulas:**
+**Formulas (file cells C67, C72):**
 ```
-Sv = SAaverage × (dmedia × n_media + dgravel × n_gravel + dponding)    [ft³]
-td = (dmedia + dgravel) / Ksat                                           [days — must be ≤ 3 days]
-Svinfiltrate = SAaverage × Ksat × td                                     [ft³ — must be ≥ Sv]
+Sv = SAbottom × (dmedia × ηmedia + (dgravel + dsump) × ηgravel) + SAaverage × dponding    [ft³]
+td = (dmedia + dgravel) / Ksat                                                              [days — must be ≤ 3 days]
+Svinfiltrate = SAbottom × Ksat × td                                                         [ft³ — must be ≥ Sv]
 ```
 
-**Rv by type:**
+**Rv by type (file cell C74: `=IF(Type="Standard", 0.6*Sv, Sv)`):**
 - Enhanced (no underdrain): Rv = Sv (multiplier 1.0)
-- Enhanced w/ Underdrain: Rv = Sv × 0.6
+- Enhanced w/ Underdrain: Rv = Sv (multiplier 1.0 — the Calculator treats it the same as Enhanced)
 - Standard: Rv = Sv × 0.6
 
 ---
