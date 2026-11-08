@@ -17,6 +17,10 @@ import {
   tcChannelFlow,
   timeOfConcentration,
   tcFinalMin,
+  SCS_TYPE_II_CURVE,
+  scsType2Hyetograph,
+  hortonInfilRate,
+  eisaTimestepTrace,
 } from '../src/calc.mjs';
 
 const approx = (a, b, tol = 1e-6) =>
@@ -513,4 +517,50 @@ test('detentionBmpRequired: strict > boundary at the trigger threshold', () => {
   // 15-yr trigger is Adj CN > Pre CN — equality must NOT trigger.
   assert.equal(detentionBmpRequired(70, 70, '15-yr'), 'No');
   assert.equal(detentionBmpRequired(70.0001, 70, '15-yr'), 'Yes');
+});
+
+// ─── EISA §438 Direct Determination timestep engine ─────────────────────────
+
+test('SCS_TYPE_II_CURVE: length 240, ends at 1.0, midpoint ~0.5', () => {
+  assert.equal(SCS_TYPE_II_CURVE.length, 240);
+  const last = SCS_TYPE_II_CURVE[SCS_TYPE_II_CURVE.length - 1];
+  assert.ok(Math.abs(last - 1.0) < 1e-6, `last value should be 1.0, got ${last}`);
+  // Midpoint of the 24-hr Type II curve (t = 12 hr) is index 119 → ~0.5
+  assert.ok(Math.abs(SCS_TYPE_II_CURVE[119] - 0.5) < 0.05);
+});
+
+test('scsType2Hyetograph: 240 steps, cumulative ends at totalDepth', () => {
+  const h = scsType2Hyetograph(1.7, 6);
+  assert.equal(h.length, 240);
+  assert.equal(h[0].tMin, 0);
+  assert.ok(Math.abs(h[h.length - 1].pCumIn - 1.7) < 1e-6);
+});
+
+test('hortonInfilRate: f(0) = fMax, f(24) ≈ fMin', () => {
+  assert.ok(Math.abs(hortonInfilRate(5.0, 0.5, 2, 0) - 5.0) < 1e-6);
+  assert.ok(Math.abs(hortonInfilRate(5.0, 0.5, 2, 24) - 0.5) < 0.001);
+});
+
+test('eisaTimestepTrace: 2-SDA, 1-BMP fixture produces 240 steps + peaks', () => {
+  const sdas = [
+    { sdaId: 'SDA-1', hsg: 'C', preIn: 10000, postIn: 10000,
+      landUse: 'Impervious Vehicular' },
+    { sdaId: 'SDA-2', hsg: 'B', preIn:  5000, postIn:  5000,
+      landUse: 'Compacted (Open Space)' },
+  ];
+  const bmps = [{ name: 'BMP-1', type: 'Bioretention', rvApplied: 500 }];
+  const params = { horton: { B: { fMax: 5, fMin: 0.3, k: 2 }, C: { fMax: 3, fMin: 0.1, k: 3.5 } } };
+  const trace = eisaTimestepTrace({ sdas, bmps, params, P: 1.7, lossModel: 'horton' });
+  assert.equal(trace.timeSteps.length, 240);
+  assert.ok(trace.totals.postCf > 0);
+  assert.ok(trace.totals.netPostCf >= 0);
+  assert.ok(trace.totals.netPostCf <= trace.totals.postCf);
+  assert.ok(trace.peaks.post > 0);
+});
+
+test('eisaTimestepTrace: Horton params missing → fallback scs-cn', () => {
+  const sdas = [{ sdaId: 'SDA-1', hsg: 'C', preIn: 1000, postIn: 1000,
+                  landUse: 'Impervious Vehicular' }];
+  const t1 = eisaTimestepTrace({ sdas, bmps: [], params: { horton: null }, P: 1.7 });
+  assert.equal(t1.lossModelUsed, 'scs-cn');
 });

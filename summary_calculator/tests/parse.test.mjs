@@ -93,6 +93,13 @@ test('parse: PARAMS lookup tables', () => {
   assert.equal(params.detentionCn.Impervious, 98);
   assert.equal(params.bmpDesign['Bioretention / Enhanced'].retMultiplier, 1.0);
   assert.equal(params.treeCredits['T-1 Large'], 10);
+  // Horton table (PARAMS rows 22-24, HSG B/C columns)
+  assert.equal(params.horton.B.fMax, 5);
+  assert.equal(params.horton.B.fMin, 0.3);
+  assert.equal(params.horton.B.k, 2);
+  assert.equal(params.horton.C.fMax, 3);
+  assert.equal(params.horton.C.fMin, 0.1);
+  assert.equal(params.horton.C.k, 3.5);
 });
 
 test('parse: SDA loop does not read SUMIFS summary rows', () => {

@@ -320,7 +320,18 @@ function parseParams(sheet) {
     tr55.push([iap, cell(sheet, r, 2), cell(sheet, r, 3), cell(sheet, r, 4)]);
   }
 
-  return { rv, cn, bmpDesign, treeCredits, detention, detentionCn, tr55 };
+  // Horton infiltration parameters: rows 22-24, cols B/C = HSG B/C. The
+  // template only defines HSGs B and C (no A/D columns). Row 26 holds the
+  // pre-computed 24-hr loss integrals, NOT a k scalar — do not read it here.
+  const horton = {};
+  for (const [col, hsg] of [[2, 'B'], [3, 'C']]) {
+    const fMax = cell(sheet, 22, col);
+    const fMin = cell(sheet, 23, col);
+    const k    = cell(sheet, 24, col);
+    if (fMax != null && fMin != null && k != null) horton[hsg] = { fMax, fMin, k };
+  }
+
+  return { rv, cn, bmpDesign, treeCredits, detention, detentionCn, tr55, horton };
 }
 
 /**
