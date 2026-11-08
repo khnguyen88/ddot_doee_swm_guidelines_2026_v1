@@ -803,3 +803,24 @@ function _asBadge(status) {
   if (status === 'MISMATCH') return '⚠ MISMATCH';
   return '—';
 }
+
+export function renderTcPathSheet(project, tcPaths) {
+  if (!tcPaths || tcPaths.length === 0) return '';
+  const headers = ['Path ID', 'Name', 'Method', 'Segments', 'Tc direct (min)', 'Tc total (min)'];
+  const rows = tcPaths.map(p => {
+    const method = p.tcDirectMin != null ? 'Direct' :
+      p.segments.map(s => s.type).join(' + ') || '—';
+    const segs = p.segments.length === 0 ? '—' :
+      p.segments.map(s => `${s.type}:${s.length}ft`).join(', ');
+    const tcDirect = p.tcDirectMin != null ? p.tcDirectMin.toFixed(1) : '—';
+    const tcTotal  = p.tcMin != null ? p.tcMin.toFixed(1) : '—';
+    return [p.pathId, p.name || '—', method, segs, tcDirect, tcTotal];
+  });
+  return renderSheetShell({
+    title: 'TC_PATH — Time of Concentration',
+    sub:   `${project.name || ''} · ${project.number || ''}`,
+    body:  renderBlock('Flow paths', renderDataTable(headers, rows)),
+    footer: 'NRCS TR-55 Sheet / Shallow / Channel; floor Tc ≥ 6 min',
+    landscape: true,
+  });
+}

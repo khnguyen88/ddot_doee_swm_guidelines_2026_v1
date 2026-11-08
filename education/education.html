@@ -658,6 +658,44 @@ function eisaDirectVolumeTraceCf(rows, P) {
     ],
   };
 }
+
+// ─── Time of Concentration (NRCS TR-55) ─────────────────────────────────────
+
+// Shallow-concentrated flow velocity coefficient k = ft/s per sqrt(slope).
+// Per NRCS TR-55 Figure 3-1 (subset most commonly used in DC projects).
+const SHALLOW_FLOW_K = {
+  'Paved':                20.3282,
+  'Unpaved':              16.1345,
+  'Grassed waterway':     15.0,
+  'Nearly bare & untilled': 10.0,
+};
+function tcSheetFlow({ length, slope, n, P2 }) {
+  if (!(length > 0 && slope > 0 && n > 0 && P2 > 0)) return null;
+  const Tt_hr = 0.007 * Math.pow(n * length, 0.8)
+              / (Math.pow(P2, 0.5) * Math.pow(slope, 0.4));
+  return Tt_hr * 60;
+}
+function tcShallowFlow({ length, slope, surface }) {
+  const k = SHALLOW_FLOW_K[surface];
+  if (!(length > 0 && slope > 0 && k > 0)) return null;
+  const V = k * Math.sqrt(slope);
+  return length / (V * 60);
+}
+function tcChannelFlow({ length, velocity }) {
+  if (!(length > 0 && velocity > 0)) return null;
+  return length / (velocity * 60);
+}
+function timeOfConcentration(segments) {
+  const perSegment = segments.map(s => {
+    if (s.type === 'sheet')   return tcSheetFlow(s);
+    if (s.type === 'shallow') return tcShallowFlow(s);
+    if (s.type === 'channel') return tcChannelFlow(s);
+    return null;
+  });
+  const total = perSegment.reduce((a, t) => a + (t || 0), 0);
+  // TR-55 / DOEE floor: Tc_final >= 0.1 hr (6 min).
+  return Math.max(total, 6);
+}
 function tr55VolumeTraceCf(rows, P) {
   const perRow = rows.map(r => {
     const cnRow = CN[r.landUse];
@@ -1080,6 +1118,43 @@ function _mergeCdaCompat(existing, proposed) {
   }
   return [...byKey.values()];
 }
+
+// TC_PATH layout (from workbook/builders/tc_path.py):
+//   Header row 3; data rows 4+ (20 paths max).
+//   A=ID, B=Name, C=Tc direct (min),
+//   D=Sheet n, E=Sheet L, F=Sheet P2, G=Sheet S,
+//   I=Shallow surface, J=Shallow L, K=Shallow S,
+//   M=Channel 1 L, N=Channel 1 V,
+//   P=Channel 2 L, Q=Channel 2 V.
+function parseTcPath(sheet) {
+  if (!sheet) return [];
+  const rows = [];
+  for (let r = 4; r <= DATA_MAX_ROW; r++) {
+    const pathId = cell(sheet, r, 1);
+    const name   = cell(sheet, r, 2);
+    const tcDirectMin = cell(sheet, r, 3);
+    const sheetN = cell(sheet, r, 4);
+    const sheetL = cell(sheet, r, 5);
+    const sheetP = cell(sheet, r, 6);
+    const sheetS = cell(sheet, r, 7);
+    const shSurf = cell(sheet, r, 9);
+    const shL    = cell(sheet, r, 10);
+    const shS    = cell(sheet, r, 11);
+    const c1L    = cell(sheet, r, 13);
+    const c1V    = cell(sheet, r, 14);
+    const c2L    = cell(sheet, r, 16);
+    const c2V    = cell(sheet, r, 17);
+    const empty = [pathId, name, tcDirectMin, sheetL, shL, c1L, c2L].every(v => v == null);
+    if (empty) break;
+    const segments = [];
+    if (sheetL != null) segments.push({ type: 'sheet', length: sheetL, slope: sheetS, n: sheetN, P2: sheetP });
+    if (shL    != null) segments.push({ type: 'shallow', length: shL, slope: shS, surface: shSurf });
+    if (c1L    != null) segments.push({ type: 'channel', length: c1L, velocity: c1V });
+    if (c2L    != null) segments.push({ type: 'channel', length: c2L, velocity: c2V });
+    rows.push({ pathId, name, tcDirectMin, segments });
+  }
+  return rows;
+}
 function parseWorkbook(wb) {
   rejectLegacySchema(wb);
   for (const name of REQUIRED_SHEETS) requireSheet(wb, name);
@@ -1104,6 +1179,7 @@ function parseWorkbook(wb) {
     cdas: _mergeCdaCompat(cdaExisting, cdaProposed),
     bmps: parseBmp(requireSheet(wb, 'BMP')),
     params: parseParams(requireSheet(wb, 'PARAMS')),
+    tcPaths: parseTcPath(optionalSheet(wb, 'TC_PATH')),
   };
 }
 

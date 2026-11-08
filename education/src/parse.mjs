@@ -387,6 +387,43 @@ function _mergeCdaCompat(existing, proposed) {
   return [...byKey.values()];
 }
 
+// TC_PATH layout (from workbook/builders/tc_path.py):
+//   Header row 3; data rows 4+ (20 paths max).
+//   A=ID, B=Name, C=Tc direct (min),
+//   D=Sheet n, E=Sheet L, F=Sheet P2, G=Sheet S,
+//   I=Shallow surface, J=Shallow L, K=Shallow S,
+//   M=Channel 1 L, N=Channel 1 V,
+//   P=Channel 2 L, Q=Channel 2 V.
+export function parseTcPath(sheet) {
+  if (!sheet) return [];
+  const rows = [];
+  for (let r = 4; r <= DATA_MAX_ROW; r++) {
+    const pathId = cell(sheet, r, 1);
+    const name   = cell(sheet, r, 2);
+    const tcDirectMin = cell(sheet, r, 3);
+    const sheetN = cell(sheet, r, 4);
+    const sheetL = cell(sheet, r, 5);
+    const sheetP = cell(sheet, r, 6);
+    const sheetS = cell(sheet, r, 7);
+    const shSurf = cell(sheet, r, 9);
+    const shL    = cell(sheet, r, 10);
+    const shS    = cell(sheet, r, 11);
+    const c1L    = cell(sheet, r, 13);
+    const c1V    = cell(sheet, r, 14);
+    const c2L    = cell(sheet, r, 16);
+    const c2V    = cell(sheet, r, 17);
+    const empty = [pathId, name, tcDirectMin, sheetL, shL, c1L, c2L].every(v => v == null);
+    if (empty) break;
+    const segments = [];
+    if (sheetL != null) segments.push({ type: 'sheet', length: sheetL, slope: sheetS, n: sheetN, P2: sheetP });
+    if (shL    != null) segments.push({ type: 'shallow', length: shL, slope: shS, surface: shSurf });
+    if (c1L    != null) segments.push({ type: 'channel', length: c1L, velocity: c1V });
+    if (c2L    != null) segments.push({ type: 'channel', length: c2L, velocity: c2V });
+    rows.push({ pathId, name, tcDirectMin, segments });
+  }
+  return rows;
+}
+
 export function parseWorkbook(wb) {
   rejectLegacySchema(wb);
   for (const name of REQUIRED_SHEETS) requireSheet(wb, name);
@@ -411,5 +448,6 @@ export function parseWorkbook(wb) {
     cdas: _mergeCdaCompat(cdaExisting, cdaProposed),
     bmps: parseBmp(requireSheet(wb, 'BMP')),
     params: parseParams(requireSheet(wb, 'PARAMS')),
+    tcPaths: parseTcPath(optionalSheet(wb, 'TC_PATH')),
   };
 }

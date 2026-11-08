@@ -11,7 +11,7 @@ const sheetjsSrc = await readFile(sheetjsPath, 'utf8');
 // Evaluate SheetJS in this scope so `XLSX` becomes available.
 const XLSX = new Function(sheetjsSrc + '; return XLSX;')();
 
-import { parseWorkbook, optionalSheet } from '../src/parse.mjs';
+import { parseWorkbook, optionalSheet, parseTcPath } from '../src/parse.mjs';
 
 const fixtureBytes = await readFile(
   join(__dirname, 'fixtures', 'minnesota-ave.xlsx'),
@@ -155,4 +155,21 @@ test('optionalSheet: returns null when missing (does not throw)', () => {
 test('optionalSheet: null when SheetNames lists a name but Sheets lacks it', () => {
   const fakeWb = { SheetNames: ['FOO'], Sheets: {} };
   assert.equal(optionalSheet(fakeWb, 'FOO'), null);
+});
+
+const tcFixtureBytes = await readFile(
+  join(__dirname, 'fixtures', 'tc-path-sample.xlsx'),
+);
+const tcWb = XLSX.read(new Uint8Array(tcFixtureBytes), { type: 'array' });
+
+test('parseTcPath: reads 3 paths including Tc-direct override and incomplete row', () => {
+  const sheet = optionalSheet(tcWb, 'TC_PATH');
+  assert.ok(sheet);
+  const paths = parseTcPath(sheet);
+  assert.equal(paths.length, 3);
+  assert.equal(paths[0].pathId, 'SDA-1');
+  assert.equal(paths[0].segments.length, 3);
+  assert.equal(paths[1].pathId, 'SDA-2');
+  assert.equal(paths[1].tcDirectMin, 12.5);
+  assert.equal(paths[2].segments.length, 1);
 });

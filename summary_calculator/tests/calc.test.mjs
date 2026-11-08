@@ -12,6 +12,10 @@ import {
   HORTON_INFIL_LOSS_C,
   eisaDirectRunoffDepth,
   eisaDirectTotalVolumeCf,
+  tcSheetFlow,
+  tcShallowFlow,
+  tcChannelFlow,
+  timeOfConcentration,
 } from '../src/calc.mjs';
 
 const approx = (a, b, tol = 1e-6) =>
@@ -388,4 +392,31 @@ test('drySwaleFreeboardFt: returns null when any input missing', () => {
   assert.equal(drySwaleFreeboardFt({
     invUs: 100.0, invDs: null, topUs: 102.0, topDs: 100.0, checkDamHeight: 1.0,
   }), null);
+});
+
+// ─── Time of Concentration (NRCS TR-55) ──────────────────────────────────────
+
+test('tcSheetFlow: NRCS kinematic formula (TR-55 Eq 3-3)', () => {
+  const tt = tcSheetFlow({ length: 100, slope: 0.01, n: 0.15, P2: 3.1 });
+  assert.ok(Math.abs(tt - 13.1353) < 0.05, `expected ~13.135 min, got ${tt}`);
+});
+
+test('tcShallowFlow: V = k*sqrt(s); Tt_min = L / (V*60)', () => {
+  const tt = tcShallowFlow({ length: 500, slope: 0.02, surface: 'Paved' });
+  assert.ok(Math.abs(tt - 2.8987) < 0.05, `expected ~2.899 min, got ${tt}`);
+});
+
+test('tcChannelFlow: Tt_min = L / (V*60)', () => {
+  assert.ok(Math.abs(tcChannelFlow({ length: 1000, velocity: 3 }) - 5.5556) < 0.01);
+});
+
+test('timeOfConcentration: sum of segment minutes, floor 6 min (0.1 hr)', () => {
+  const segs = [
+    { type: 'sheet', length: 100, slope: 0.01, n: 0.15, P2: 3.1 },
+    { type: 'shallow', length: 500, slope: 0.02, surface: 'Paved' },
+    { type: 'channel', length: 1000, velocity: 3 },
+  ];
+  const tc = timeOfConcentration(segs);
+  assert.ok(tc >= 6, 'floor not applied');
+  assert.ok(Math.abs(tc - 21.5896) < 0.1, `expected ~21.59, got ${tc}`);
 });

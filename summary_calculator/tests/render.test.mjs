@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderSheetShell, renderTrace, renderKvTable, renderAreaSummarySheet } from '../src/render.mjs';
+import { renderSheetShell, renderTrace, renderKvTable, renderAreaSummarySheet, renderTcPathSheet } from '../src/render.mjs';
 
 test('renderSheetShell returns HTML with title and sub', () => {
   const html = renderSheetShell({
@@ -532,4 +532,18 @@ test('renderAreaSummarySheet: emits both section headers and Area Match badges',
 test('renderAreaSummarySheet: empty data shows a note, not empty tables', () => {
   const html = renderAreaSummarySheet({ name: 'T' }, { sdaRows: [], cdaRows: [] });
   assert.ok(html.includes('No SDA/CDA summary data entered yet'));
+});
+
+test('renderTcPathSheet: one row per path, includes Tc min column', () => {
+  const html = renderTcPathSheet({ name: 'T', number: 'T-001' }, [
+    { pathId: 'SDA-1', name: 'Full', tcDirectMin: null, segments: [
+      { type: 'sheet',   length: 100, slope: 0.01, n: 0.15, P2: 3.1 },
+      { type: 'channel', length: 1000, velocity: 3 },
+    ], tcMin: 18.5 },
+    { pathId: 'SDA-2', name: 'Direct', tcDirectMin: 12.5, segments: [], tcMin: 12.5 },
+  ]);
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('SDA-2'));
+  assert.ok(html.includes('18.5'));
+  assert.ok(html.includes('Tc'));
 });

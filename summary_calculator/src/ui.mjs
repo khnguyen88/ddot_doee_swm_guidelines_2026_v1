@@ -3,7 +3,7 @@
 import { parseWorkbook } from './parse.mjs';
 import {
   siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
-  eisaDirectVolumeTraceCf, tr55VolumeTraceCf,
+  eisaDirectVolumeTraceCf, tr55VolumeTraceCf, timeOfConcentration,
 } from './calc.mjs';
 import { rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup } from './aggregate.mjs';
 import {
@@ -14,6 +14,7 @@ import {
   renderEisaDirectSheet, renderEisaTr55Sheet, renderEisaComplianceSheet,
   renderDetentionSheet, renderCompliancePage,
   renderExecutiveSummarySheet, renderAreaSummarySheet,
+  renderTcPathSheet,
 } from './render.mjs';
 
 const main = document.getElementById('main');
@@ -128,6 +129,13 @@ function buildDeck(parsed) {
   push('EISA §438 — Direct',     renderEisaDirectSheet(project, eisaDirectPre, eisaDirectPost));
   push('EISA §438 — TR-55',      renderEisaTr55Sheet(project, eisaTr55Pre, eisaTr55Post));
   push('EISA §438 — Compliance', renderEisaComplianceSheet(project, direct, tr55, bmpStorage, project.eisa));
+  const tcPaths = (parsed.tcPaths || []).map(p => ({
+    ...p,
+    tcMin: p.tcDirectMin != null ? p.tcDirectMin
+         : (p.segments.length ? timeOfConcentration(p.segments) : null),
+  }));
+  pushIfNonEmpty('TC_PATH — Time of Concentration',
+                 renderTcPathSheet(project, tcPaths));
   // Site Compliance (portrait) before Detention (landscape) so the deck
   // ends on the landscape sheet — Chromium inserts a blank "transition"
   // page when portrait follows landscape in print output.

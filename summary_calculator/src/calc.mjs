@@ -445,6 +445,48 @@ export function eisaDirectVolumeTraceCf(rows, P) {
   };
 }
 
+// ─── Time of Concentration (NRCS TR-55) ─────────────────────────────────────
+
+// Shallow-concentrated flow velocity coefficient k = ft/s per sqrt(slope).
+// Per NRCS TR-55 Figure 3-1 (subset most commonly used in DC projects).
+export const SHALLOW_FLOW_K = {
+  'Paved':                20.3282,
+  'Unpaved':              16.1345,
+  'Grassed waterway':     15.0,
+  'Nearly bare & untilled': 10.0,
+};
+
+export function tcSheetFlow({ length, slope, n, P2 }) {
+  if (!(length > 0 && slope > 0 && n > 0 && P2 > 0)) return null;
+  const Tt_hr = 0.007 * Math.pow(n * length, 0.8)
+              / (Math.pow(P2, 0.5) * Math.pow(slope, 0.4));
+  return Tt_hr * 60;
+}
+
+export function tcShallowFlow({ length, slope, surface }) {
+  const k = SHALLOW_FLOW_K[surface];
+  if (!(length > 0 && slope > 0 && k > 0)) return null;
+  const V = k * Math.sqrt(slope);
+  return length / (V * 60);
+}
+
+export function tcChannelFlow({ length, velocity }) {
+  if (!(length > 0 && velocity > 0)) return null;
+  return length / (velocity * 60);
+}
+
+export function timeOfConcentration(segments) {
+  const perSegment = segments.map(s => {
+    if (s.type === 'sheet')   return tcSheetFlow(s);
+    if (s.type === 'shallow') return tcShallowFlow(s);
+    if (s.type === 'channel') return tcChannelFlow(s);
+    return null;
+  });
+  const total = perSegment.reduce((a, t) => a + (t || 0), 0);
+  // TR-55 / DOEE floor: Tc_final >= 0.1 hr (6 min).
+  return Math.max(total, 6);
+}
+
 export function tr55VolumeTraceCf(rows, P) {
   const perRow = rows.map(r => {
     const cnRow = CN[r.landUse];
