@@ -107,23 +107,6 @@ function buildDeck(parsed) {
   const cdaPreLabels  = _labelsFor(cdaPrePages,  'CDA — Pre-development');
   const cdaPostLabels = _labelsFor(cdaPostPages, 'CDA — Post-development');
 
-  const laterLabels = [];
-  laterLabels.push('Executive Summary');
-  laterLabels.push('Site DA — Land Cover');
-  laterLabels.push('Site SWRv Required');
-  laterLabels.push(...sdaPreLabels, ...sdaPostLabels, ...cdaPreLabels, ...cdaPostLabels);
-  bmps.forEach(b => laterLabels.push(`${b.name} — ${b.type}`));
-  laterLabels.push('MEP Summary');
-  laterLabels.push('EISA §438 — Direct');
-  laterLabels.push('EISA §438 — TR-55');
-  laterLabels.push('EISA §438 — Compliance');
-  // Site Compliance (portrait) before Detention (landscape) so the deck
-  // ends on the landscape sheet — Chromium inserts a blank "transition"
-  // page when portrait follows landscape in print output.
-  laterLabels.push('Site Compliance');
-  laterLabels.push('Detention Summary');
-
-  push('Cover', renderCoverSheet(project, laterLabels));
   push('Executive Summary', renderExecutiveSummarySheet(
     project, agg, complianceRows, directWithNet, tr55WithNet, project.eisa,
   ));
@@ -140,6 +123,9 @@ function buildDeck(parsed) {
   push('EISA §438 — Compliance', renderEisaComplianceSheet(project, direct, tr55, bmpStorage, project.eisa));
   push('Site Compliance',   renderCompliancePage(project, complianceRows));
   push('Detention Summary', renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
+
+  const tocLabels = deck.map(p => p.label);
+  deck.unshift({ label: 'Cover', html: renderCoverSheet(project, tocLabels) });
 
   return deck;
 }

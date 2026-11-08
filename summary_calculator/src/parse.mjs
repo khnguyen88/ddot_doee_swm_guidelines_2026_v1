@@ -36,9 +36,11 @@ function requireSheet(wb, name) {
   return wb.Sheets[name];
 }
 
+// Returns null when the sheet is absent so workbooks that pre-date a
+// schema change still parse instead of throwing.
 export function optionalSheet(wb, name) {
   if (!wb.SheetNames.includes(name)) return null;
-  return wb.Sheets[name];
+  return wb.Sheets[name] ?? null;
 }
 
 function colToLetters(col) {
