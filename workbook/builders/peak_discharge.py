@@ -8,7 +8,13 @@ qu via TR-55 Appendix F log-polynomial equation:
 
 Coefficients (C0,C1,C2) depend on Ia/P and are stored in PARAMS_TR55
 (6 Ia/P bins: 0.10, 0.30, 0.35, 0.40, 0.45, 0.50).  Linear interpolation
-between adjacent bins; clamped to [0.10, 0.50] via MATCH+MIN/MAX.
+between adjacent bins.
+
+For Ia/P below the first bin (0.10), MATCH(...,1) returns #N/A, so the
+IFERROR wrapper sets qu = 0.  The summary_calculator intentionally clamps
+to the 0.10 curve instead, per TR-55 Exhibit 4-II (physically correct for
+low Ia/P).  The DOEE spreadsheet remains the authoritative compliance
+source; the summary_calculator result is a cross-check.
 """
 from openpyxl import Workbook
 

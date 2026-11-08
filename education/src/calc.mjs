@@ -299,7 +299,7 @@ export function compositeCn(areas, cnByLandUse) {
 
 export const scsRunoffDepth = tr55RunoffDepth;
 
-const LAND_USE_TO_DETENTION_KEY = {
+export const LAND_USE_TO_DETENTION_KEY = {
   'Natural (Woods)':          'Natural',
   'Compacted (Open Space)':   'Compacted',
   'Impervious Vehicular':     'Impervious',
@@ -528,9 +528,21 @@ export function tr55VolumeTraceCf(rows, P) {
 
 // ─── TR-55 Graphical Peak Discharge (Appendix F) ────────────────────────────
 
+export const SQFT_PER_ACRE = 43560;
+export const SQFT_PER_SQMI = 27878400;
+export const DEFAULT_TC_HR = 0.1;
+
 // NRCS TR-55 unit peak discharge (Appendix F log-polynomial).
 // paramsTr55 shape: [[IaP, C0, C1, C2], ...] sorted ascending by IaP.
-// Returns qu in csm/in. Clamps IaP to [first, last] bin; linear interpolation between bins.
+// Returns qu in csm/in. Clamps IaP to the tabulated [0.10, 0.50] range
+// (values below 0.10 use the 0.10 curve, per TR-55 Exhibit 4-II); linear
+// interpolation between bins.
+//
+// Intentional deviation: the DOEE SWMP-BMP Calc template uses MATCH(...,1),
+// which returns #N/A for Ia/P below 0.10, so its IFERROR sets qu = 0. This
+// engine instead clamps to the 0.10 curve because that is the physically
+// correct TR-55 Exhibit 4-II behavior. The DOEE spreadsheet remains the
+// authoritative compliance source; this is a cross-check.
 export function tr55UnitPeakDischarge(tcHr, iaOverP, paramsTr55) {
   if (!(tcHr > 0) || !paramsTr55 || paramsTr55.length < 2) return null;
   const N = paramsTr55.length;

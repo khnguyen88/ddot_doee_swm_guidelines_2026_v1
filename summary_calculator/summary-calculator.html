@@ -450,7 +450,6 @@ function compositeCn(areas, cnByLandUse) {
   };
 }
 const scsRunoffDepth = tr55RunoffDepth;
-
 const LAND_USE_TO_DETENTION_KEY = {
   'Natural (Woods)':          'Natural',
   'Compacted (Open Space)':   'Compacted',
@@ -670,10 +669,21 @@ function tr55VolumeTraceCf(rows, P) {
 }
 
 // ─── TR-55 Graphical Peak Discharge (Appendix F) ────────────────────────────
+const SQFT_PER_ACRE = 43560;
+const SQFT_PER_SQMI = 27878400;
+const DEFAULT_TC_HR = 0.1;
 
 // NRCS TR-55 unit peak discharge (Appendix F log-polynomial).
 // paramsTr55 shape: [[IaP, C0, C1, C2], ...] sorted ascending by IaP.
-// Returns qu in csm/in. Clamps IaP to [first, last] bin; linear interpolation between bins.
+// Returns qu in csm/in. Clamps IaP to the tabulated [0.10, 0.50] range
+// (values below 0.10 use the 0.10 curve, per TR-55 Exhibit 4-II); linear
+// interpolation between bins.
+//
+// Intentional deviation: the DOEE SWMP-BMP Calc template uses MATCH(...,1),
+// which returns #N/A for Ia/P below 0.10, so its IFERROR sets qu = 0. This
+// engine instead clamps to the 0.10 curve because that is the physically
+// correct TR-55 Exhibit 4-II behavior. The DOEE spreadsheet remains the
+// authoritative compliance source; this is a cross-check.
 function tr55UnitPeakDischarge(tcHr, iaOverP, paramsTr55) {
   if (!(tcHr > 0) || !paramsTr55 || paramsTr55.length < 2) return null;
   const N = paramsTr55.length;
@@ -1173,6 +1183,9 @@ function parseWorkbook(wb) {
 // Pure function; no DOM, no SheetJS. Shared by MEP, Compliance, Executive Summary pages
 // so Rv-applied is computed in exactly one place.
 
+// Sorts by the first run of digits, so SDA-2 precedes SDA-10; non-numeric ids compare as 0.
+const _idNum = (s) => Number(String(s).replace(/\D+/g, '')) || 0;
+
 const DEFAULT_PP_DESIGN  = { nReservoir: 0.40, retMultiplier: 1.0 };
 const DEFAULT_BIO_DESIGN = { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
 
@@ -1263,9 +1276,6 @@ function swrvComplianceTableRows(rows, shortStatus = false) {
   return { perRow, siteTotal };
 }
 function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed, swrvBySda = {}) {
-  // Sorts by the first run of digits, so SDA-2 precedes SDA-10; non-numeric ids compare as 0.
-  const _idNum = (s) => Number(String(s).replace(/\D+/g, '')) || 0;
-
   const _sumBy = (rows, sdaId, landUse) =>
     rows.filter(r => r.sdaId === sdaId && r.landUse === landUse)
         .reduce((a, r) => a + (r.areaIn || 0), 0);
@@ -1327,15 +1337,11 @@ function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed, s
 // ─── TR-55 Graphical Peak Discharge roll-up ────────────────────────────────
 // Mirrors workbook/builders/peak_discharge.py. Computes Qp per SDA for the
 // 2-yr and 15-yr storms from the raw SDA rows, PARAMS tables, and TC_PATH.
-
-const _PEAK_LAND_USE_KEY = {
-  'Natural (Woods)':          'Natural',
-  'Compacted (Open Space)':   'Compacted',
-  'Impervious Vehicular':     'Impervious',
-  'Impervious Non-Vehicular': 'Impervious',
-  'BMP':                      'BMP',
-};
 function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
+  const p2In = params?.detention?.p2In;
+  const p15In = params?.detention?.p15In;
+  if (!(p2In > 0) || !(p15In > 0)) return [];
+
   // Group raw rows by their SDA ID, preserving first-appearance order.
   const postBy = new Map();
   for (const r of proposedRows) {
@@ -1353,17 +1359,20 @@ function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
   const _areasFor = (rows) => {
     const out = { Natural: 0, Compacted: 0, Impervious: 0, BMP: 0 };
     for (const r of rows || []) {
-      const k = _PEAK_LAND_USE_KEY[r.landUse];
+      const k = LAND_USE_TO_DETENTION_KEY[r.landUse];
       if (k) out[k] += r.areaIn || 0;
     }
     return out;
   };
 
-  const p2In = params.detention.p2In;
-  const p15In = params.detention.p15In;
+  // Union of proposed and existing SDA IDs (proposed first), ordered numerically.
+  const areaIds = new Set([...postBy.keys(), ...preBy.keys()]);
+  const orderedIds = [...areaIds].sort((a, b) => _idNum(a) - _idNum(b));
 
-  return [...postBy.keys()].map(sdaId => {
-    const postRows = postBy.get(sdaId);
+  return orderedIds.map(sdaId => {
+    const postRows = postBy.get(sdaId) || [];
+    // Missing Existing rows model a zero baseline: no pre areas → composite CN 0
+    // → zero pre-storm runoff (Q = 0) and zero pre-storm Qp.
     const preRows  = preBy.get(sdaId) || [];
     const preAreas  = _areasFor(preRows);
     const postAreas = _areasFor(postRows);
@@ -1371,11 +1380,11 @@ function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
     const cnPost = compositeCn(postAreas, params.detentionCn).value;
 
     const areaSf  = postRows.reduce((s, r) => s + (r.areaIn || 0), 0);
-    const areaMi2 = areaSf / 27878400;
+    const areaMi2 = areaSf / SQFT_PER_SQMI;
 
     const p = (tcPaths || []).find(t => t.pathId === sdaId);
     const tcMin = p ? tcFinalMin(p.tcDirectMin, p.segments) : null;
-    const tcHr = tcMin != null ? tcMin / 60 : 0.1;
+    const tcHr = tcMin != null ? tcMin / 60 : DEFAULT_TC_HR;
 
     const sPre  = cnPre  > 0 ? 1000 / cnPre  - 10 : 0;
     const sPost = cnPost > 0 ? 1000 / cnPost - 10 : 0;
@@ -2213,18 +2222,19 @@ function renderPeakDischargeSdaSheet(project, rows) {
   const hdrs = ['SDA_ID','DA (ac)','Tc (hr)','CN Pre','CN Post',
                 'qu Pre','qu Post','Q Pre (in)','Q Post (in)','Qp Pre (cfs)','Qp Post (cfs)'];
   const to2yr = rows.map(r => [
-    r.areaId, fmtN((r.areaSf||0)/43560,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
+    r.areaId, fmtN((r.areaSf||0)/SQFT_PER_ACRE,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
     fmtN(r.qu2yrPre,0), fmtN(r.qu2yrPost,0), fmtN(r.qPre2yr,3), fmtN(r.qPost2yr,3),
     fmtN(r.qpPre2yr,3), fmtN(r.qpPost2yr,3),
   ]);
   const to15yr = rows.map(r => [
-    r.areaId, fmtN((r.areaSf||0)/43560,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
+    r.areaId, fmtN((r.areaSf||0)/SQFT_PER_ACRE,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
     fmtN(r.qu15yrPre,0), fmtN(r.qu15yrPost,0), fmtN(r.qPre15yr,3), fmtN(r.qPost15yr,3),
     fmtN(r.qpPre15yr,3), fmtN(r.qpPost15yr,3),
   ]);
   const body =
     renderBlock('2-yr storm', renderDataTable(hdrs, to2yr)) +
-    renderBlock('15-yr storm', renderDataTable(hdrs, to15yr));
+    renderBlock('15-yr storm', renderDataTable(hdrs, to15yr)) +
+    renderNote('The DOEE SWMP-BMP Calc spreadsheet is the authoritative compliance source; this page is a TR-55 cross-check.');
   return renderSheetShell({
     title: 'Peak Discharge — SDA',
     sub:   `${project.name || ''} · ${project.number || ''}`,
@@ -2359,7 +2369,7 @@ function buildDeck(parsed) {
   }));
   pushIfNonEmpty('TC_PATH — Time of Concentration',
                  renderTcPathSheet(project, tcPaths));
-  const peakSda = (parsed.params.tr55 && parsed.params.tr55.length)
+  const peakSda = (parsed.params.tr55 && parsed.params.tr55.length >= 2)
     ? peakDischargeRollup(parsed.sdaExisting, parsed.sdaProposed,
                           parsed.tcPaths || [], parsed.params)
     : [];

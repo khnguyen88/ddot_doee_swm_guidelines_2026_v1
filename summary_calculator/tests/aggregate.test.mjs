@@ -298,3 +298,33 @@ test('peakDischargeRollup: per-SDA CN, qu, Q, Qp for 2yr and 15yr', () => {
   assert.ok(Math.abs(r.qu15yrPost     - 529.097) < 0.01, `qu15post=${r.qu15yrPost}`);
   assert.ok(Math.abs(r.qpPost15yr     - 3.04413) < 1e-4, `Qp15post=${r.qpPost15yr}`);
 });
+
+test('peakDischargeRollup: no TC_PATH row falls back to 0.1 hr', () => {
+  const [r] = peakDischargeRollup(peakExisting, peakProposed, [], peakParams);
+  assert.equal(r.tcHr, 0.1);
+});
+
+test('peakDischargeRollup: missing Existing rows model a zero baseline', () => {
+  // No existing-condition rows for SDA-1 → pre areas are all zero → composite
+  // CN 0 → zero pre run-off (Q) and zero pre Qp. This treats a missing existing
+  // condition as a zero-runoff baseline.
+  const [r] = peakDischargeRollup([], peakProposed, peakTcPaths, peakParams);
+  assert.equal(r.cnPre, 0);
+  assert.equal(r.qPre2yr, 0);
+  assert.equal(r.qpPre2yr, 0);
+});
+
+test('peakDischargeRollup: existing-only SDA included, IDs ordered numerically', () => {
+  const existing = [{ sdaId: 'SDA-2', landUse: 'Natural (Woods)', areaIn: 43560 }];
+  const proposed = [{ sdaId: 'SDA-10', landUse: 'Impervious Vehicular', areaIn: 21780 }];
+  const rows = peakDischargeRollup(existing, proposed, [], peakParams);
+  assert.deepEqual(rows.map(r => r.areaId), ['SDA-2', 'SDA-10']);
+});
+
+test('peakDischargeRollup: fewer than 2 TR-55 bins → null qu/Qp, row still returned', () => {
+  const params = { ...peakParams, tr55: [FULL_TR55[0]] };
+  const rows = peakDischargeRollup(peakExisting, peakProposed, peakTcPaths, params);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].qu2yrPre, null);
+  assert.equal(rows[0].qpPre2yr, null);
+});

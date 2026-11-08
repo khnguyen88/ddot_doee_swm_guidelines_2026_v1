@@ -456,6 +456,10 @@ test('tr55UnitPeakDischarge: interpolates coefficients on Ia/P', () => {
   const quMid = tr55UnitPeakDischarge(0.5, 0.20, TR55_2);
   assert.ok(Math.abs(quMid - 481.78) < 0.5, `got ${quMid}`);
 });
+test('tr55UnitPeakDischarge: returns null for fewer than 2 bins', () => {
+  assert.equal(tr55UnitPeakDischarge(0.5, 0.10, [TR55_2[0]]), null);
+  assert.equal(tr55UnitPeakDischarge(0.5, 0.10, []), null);
+});
 test('tr55PeakDischargeCfs: Qp = qu * Am * Q', () => {
   assert.ok(Math.abs(tr55PeakDischargeCfs(500, 0.001, 2) - 1.0) < 0.01);
 });

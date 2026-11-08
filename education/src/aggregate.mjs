@@ -6,7 +6,11 @@ import {
   ppSizingSv, bioSizingSv, drySwaleSizingSv, rvFromSv,
   maxBmpCredit, treeRetentionCredit,
   compositeCn, scsRunoffDepth, tr55UnitPeakDischarge, tr55PeakDischargeCfs, tcFinalMin,
+  LAND_USE_TO_DETENTION_KEY, SQFT_PER_SQMI, DEFAULT_TC_HR,
 } from './calc.mjs';
+
+// Sorts by the first run of digits, so SDA-2 precedes SDA-10; non-numeric ids compare as 0.
+const _idNum = (s) => Number(String(s).replace(/\D+/g, '')) || 0;
 
 const DEFAULT_PP_DESIGN  = { nReservoir: 0.40, retMultiplier: 1.0 };
 const DEFAULT_BIO_DESIGN = { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
@@ -101,9 +105,6 @@ export function swrvComplianceTableRows(rows, shortStatus = false) {
 }
 
 export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed, swrvBySda = {}) {
-  // Sorts by the first run of digits, so SDA-2 precedes SDA-10; non-numeric ids compare as 0.
-  const _idNum = (s) => Number(String(s).replace(/\D+/g, '')) || 0;
-
   const _sumBy = (rows, sdaId, landUse) =>
     rows.filter(r => r.sdaId === sdaId && r.landUse === landUse)
         .reduce((a, r) => a + (r.areaIn || 0), 0);
@@ -166,15 +167,11 @@ export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProp
 // Mirrors workbook/builders/peak_discharge.py. Computes Qp per SDA for the
 // 2-yr and 15-yr storms from the raw SDA rows, PARAMS tables, and TC_PATH.
 
-const _PEAK_LAND_USE_KEY = {
-  'Natural (Woods)':          'Natural',
-  'Compacted (Open Space)':   'Compacted',
-  'Impervious Vehicular':     'Impervious',
-  'Impervious Non-Vehicular': 'Impervious',
-  'BMP':                      'BMP',
-};
-
 export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
+  const p2In = params?.detention?.p2In;
+  const p15In = params?.detention?.p15In;
+  if (!(p2In > 0) || !(p15In > 0)) return [];
+
   // Group raw rows by their SDA ID, preserving first-appearance order.
   const postBy = new Map();
   for (const r of proposedRows) {
@@ -192,17 +189,20 @@ export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params)
   const _areasFor = (rows) => {
     const out = { Natural: 0, Compacted: 0, Impervious: 0, BMP: 0 };
     for (const r of rows || []) {
-      const k = _PEAK_LAND_USE_KEY[r.landUse];
+      const k = LAND_USE_TO_DETENTION_KEY[r.landUse];
       if (k) out[k] += r.areaIn || 0;
     }
     return out;
   };
 
-  const p2In = params.detention.p2In;
-  const p15In = params.detention.p15In;
+  // Union of proposed and existing SDA IDs (proposed first), ordered numerically.
+  const areaIds = new Set([...postBy.keys(), ...preBy.keys()]);
+  const orderedIds = [...areaIds].sort((a, b) => _idNum(a) - _idNum(b));
 
-  return [...postBy.keys()].map(sdaId => {
-    const postRows = postBy.get(sdaId);
+  return orderedIds.map(sdaId => {
+    const postRows = postBy.get(sdaId) || [];
+    // Missing Existing rows model a zero baseline: no pre areas → composite CN 0
+    // → zero pre-storm runoff (Q = 0) and zero pre-storm Qp.
     const preRows  = preBy.get(sdaId) || [];
     const preAreas  = _areasFor(preRows);
     const postAreas = _areasFor(postRows);
@@ -210,11 +210,11 @@ export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params)
     const cnPost = compositeCn(postAreas, params.detentionCn).value;
 
     const areaSf  = postRows.reduce((s, r) => s + (r.areaIn || 0), 0);
-    const areaMi2 = areaSf / 27878400;
+    const areaMi2 = areaSf / SQFT_PER_SQMI;
 
     const p = (tcPaths || []).find(t => t.pathId === sdaId);
     const tcMin = p ? tcFinalMin(p.tcDirectMin, p.segments) : null;
-    const tcHr = tcMin != null ? tcMin / 60 : 0.1;
+    const tcHr = tcMin != null ? tcMin / 60 : DEFAULT_TC_HR;
 
     const sPre  = cnPre  > 0 ? 1000 / cnPre  - 10 : 0;
     const sPost = cnPost > 0 ? 1000 / cnPost - 10 : 0;

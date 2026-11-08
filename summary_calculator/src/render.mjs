@@ -15,7 +15,7 @@ export const fmtN = (n, places = 0) => {
 
 import {
   ppSizingSv, bioSizingSv, drySwaleSizingSv, rvFromSv, maxBmpCredit, treeRetentionCredit,
-  bioFreeboardFt, drySwaleFreeboardFt,
+  bioFreeboardFt, drySwaleFreeboardFt, SQFT_PER_ACRE,
 } from './calc.mjs';
 import { rvProvidedPerSda, swrvComplianceTableRows } from './aggregate.mjs';
 
@@ -832,18 +832,19 @@ export function renderPeakDischargeSdaSheet(project, rows) {
   const hdrs = ['SDA_ID','DA (ac)','Tc (hr)','CN Pre','CN Post',
                 'qu Pre','qu Post','Q Pre (in)','Q Post (in)','Qp Pre (cfs)','Qp Post (cfs)'];
   const to2yr = rows.map(r => [
-    r.areaId, fmtN((r.areaSf||0)/43560,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
+    r.areaId, fmtN((r.areaSf||0)/SQFT_PER_ACRE,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
     fmtN(r.qu2yrPre,0), fmtN(r.qu2yrPost,0), fmtN(r.qPre2yr,3), fmtN(r.qPost2yr,3),
     fmtN(r.qpPre2yr,3), fmtN(r.qpPost2yr,3),
   ]);
   const to15yr = rows.map(r => [
-    r.areaId, fmtN((r.areaSf||0)/43560,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
+    r.areaId, fmtN((r.areaSf||0)/SQFT_PER_ACRE,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
     fmtN(r.qu15yrPre,0), fmtN(r.qu15yrPost,0), fmtN(r.qPre15yr,3), fmtN(r.qPost15yr,3),
     fmtN(r.qpPre15yr,3), fmtN(r.qpPost15yr,3),
   ]);
   const body =
     renderBlock('2-yr storm', renderDataTable(hdrs, to2yr)) +
-    renderBlock('15-yr storm', renderDataTable(hdrs, to15yr));
+    renderBlock('15-yr storm', renderDataTable(hdrs, to15yr)) +
+    renderNote('The DOEE SWMP-BMP Calc spreadsheet is the authoritative compliance source; this page is a TR-55 cross-check.');
   return renderSheetShell({
     title: 'Peak Discharge — SDA',
     sub:   `${project.name || ''} · ${project.number || ''}`,

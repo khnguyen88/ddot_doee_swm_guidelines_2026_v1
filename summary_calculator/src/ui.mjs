@@ -135,7 +135,7 @@ function buildDeck(parsed) {
   }));
   pushIfNonEmpty('TC_PATH — Time of Concentration',
                  renderTcPathSheet(project, tcPaths));
-  const peakSda = (parsed.params.tr55 && parsed.params.tr55.length)
+  const peakSda = (parsed.params.tr55 && parsed.params.tr55.length >= 2)
     ? peakDischargeRollup(parsed.sdaExisting, parsed.sdaProposed,
                           parsed.tcPaths || [], parsed.params)
     : [];
