@@ -2458,8 +2458,8 @@ function renderEisaComplianceSheet(project, direct, tr55, bmpStorage, electedMet
 }
 
 // EISA §438 Direct Determination timestep view. Two portrait pages
-// (summary + 24-row hourly roll-up) because each .calc-sheet is a single
-// printed page with overflow:hidden and the trace has 240 steps.
+// (summary + hourly roll-up, one row per elapsed hour) because each
+// .calc-sheet is a single printed page with overflow:hidden.
 // renderDataTable HTML-escapes every cell, so pass plain values only.
 function renderEisaTimestepSheet(project, trace) {
   if (!trace || !trace.timeSteps || trace.timeSteps.length === 0) return [];
