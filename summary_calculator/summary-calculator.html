@@ -1138,6 +1138,10 @@ function swrvComplianceTableRows(rows, shortStatus = false) {
   return { perRow, siteTotal };
 }
 function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed) {
+  // Numeric-aware ID comparator so SDA-2 sorts before SDA-10; ids with no
+  // digits compare as 0.
+  const _idNum = (s) => Number(String(s).replace(/\D+/g, '')) || 0;
+
   const _sumBy = (rows, sdaId, landUse) =>
     rows.filter(r => r.sdaId === sdaId && r.landUse === landUse)
         .reduce((a, r) => a + (r.areaIn || 0), 0);
@@ -1151,7 +1155,7 @@ function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed) {
     ...sdaProposed.map(r => r.sdaId),
   ].filter(Boolean));
 
-  const sdaRows = [...sdaIds].sort().map(sdaId => {
+  const sdaRows = [...sdaIds].sort((a, b) => _idNum(a) - _idNum(b)).map(sdaId => {
     const preImp  = _impSum(sdaExisting, sdaId);
     const preComp = _sumBy(sdaExisting, sdaId, 'Compacted (Open Space)');
     const preNat  = _sumBy(sdaExisting, sdaId, 'Natural (Woods)');
@@ -1176,7 +1180,7 @@ function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed) {
     ...cdaProposed.map(r => r.cdaId),
   ].filter(Boolean));
 
-  const cdaRows = [...cdaIds].sort().map(cdaId => {
+  const cdaRows = [...cdaIds].sort((a, b) => _idNum(a) - _idNum(b)).map(cdaId => {
     const preTotal  = cdaExisting.filter(r => r.cdaId === cdaId)
                                  .reduce((a, r) => a + (r.areaIn || 0), 0);
     const postTotal = cdaProposed.filter(r => r.cdaId === cdaId)
@@ -1189,7 +1193,7 @@ function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed) {
     const areaMatch = (!hasPre || !hasPost) ? '—'
                     : Math.abs(postTotal - preTotal) <= 1 ? 'OK'
                     : 'MISMATCH';
-    const maxBmpCredit = postTotal * 1.7 / 12;
+    const maxBmpCredit = calcMaxBmpCredit(postTotal).value;
     return { cdaId, sdaId, preTotal, postTotal, maxBmpCredit, areaMatch };
   });
 
@@ -1920,10 +1924,19 @@ function renderEisaComplianceSheet(project, direct, tr55, bmpStorage, electedMet
   });
 }
 function renderAreaSummarySheet(project, areaSummary) {
+  if ((!areaSummary.sdaRows || areaSummary.sdaRows.length === 0) &&
+      (!areaSummary.cdaRows || areaSummary.cdaRows.length === 0)) {
+    return renderSheetShell({
+      title: 'Area_Summary',
+      sub:   `${project.name || ''} · ${project.number || ''}`,
+      body:  renderNote('No SDA/CDA summary data entered yet'),
+      footer: 'Area Match tolerance ±1 SF',
+    });
+  }
   const sdaHeaders = ['SDA_ID',
-    'Pre Imp (SF)', 'Pre Comp (SF)', 'Pre Nat (SF)', 'Pre Total (SF)',
+    'Pre Imp (SF)', 'Pre Comp (SF)', 'Pre Nat (SF)', 'Pre Total Within (SF)',
     'Post Imp (SF)', 'Post Comp (SF)', 'Post Nat (SF)', 'Post BMP (SF)',
-    'Post Total (SF)', 'SWRv Req (CF)', 'Area Match?'];
+    'Post Total (SF)', 'SWRv Required (CF)', 'Area Match?'];
   const sdaRows = areaSummary.sdaRows.map(r => [
     r.sdaId,
     _asN(r.preImp), _asN(r.preComp), _asN(r.preNat), _asN(r.preTotal),
@@ -1942,19 +1955,23 @@ function renderAreaSummarySheet(project, areaSummary) {
     renderBlock('CDA Summary — Max BMP Credit per CDA (DOEE 1.7″ cap)',
       renderDataTable(cdaHeaders, cdaRows)),
   ].join('\n');
+  // Portrait: this page sits between portrait CDA-Post and BMP pages; a
+  // landscape sheet here would force a mid-deck orientation switch that
+  // Chromium prints as a blank transition page.
   return renderSheetShell({
     title: 'Area_Summary',
     sub:   `${project.name || ''} · ${project.number || ''}`,
     body,
     footer: 'Area Match tolerance ±1 SF',
-    landscape: true,
   });
 }
 
+// Like fmtN but drops trailing zeros (no fixed decimal places).
 function _asN(v) {
   if (v == null || v === '') return '—';
-  return (typeof v === 'number' ? v : Number(v)).toLocaleString('en-US',
-    { maximumFractionDigits: 2 });
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 function _asBadge(status) {
@@ -2048,6 +2065,8 @@ function buildDeck(parsed) {
     parsed.sdaExisting, parsed.sdaProposed,
     parsed.cdaExisting, parsed.cdaProposed,
   );
+  const reqBySda = Object.fromEntries(complianceRows.map(r => [r.sdaId, r.swrvReqCf]));
+  areaSummary.sdaRows.forEach(r => { r.swrvReq = reqBySda[r.sdaId] ?? 0; });
   const bmpPages    = renderBmpSheets(project, bmps, cdas, params);
 
   const deck = [];

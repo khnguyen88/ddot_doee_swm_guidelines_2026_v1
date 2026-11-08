@@ -528,3 +528,8 @@ test('renderAreaSummarySheet: emits both section headers and Area Match badges',
   assert.ok(html.includes('CDA-1'));
   assert.ok(html.includes('MISMATCH'));
 });
+
+test('renderAreaSummarySheet: empty data shows a note, not empty tables', () => {
+  const html = renderAreaSummarySheet({ name: 'T' }, { sdaRows: [], cdaRows: [] });
+  assert.ok(html.includes('No SDA/CDA summary data entered yet'));
+});

@@ -221,3 +221,34 @@ test('areaSummaryRollup: em-dash when Pre or Post missing', () => {
   );
   assert.equal(r.sdaRows[0].areaMatch, '—');
 });
+
+test('areaSummaryRollup: numeric ID order (SDA-2 before SDA-10)', () => {
+  const e = [
+    { sdaId: 'SDA-10', landUse: 'Impervious Vehicular', areaIn: 10 },
+    { sdaId: 'SDA-2',  landUse: 'Impervious Vehicular', areaIn: 20 },
+    { sdaId: 'SDA-1',  landUse: 'Impervious Vehicular', areaIn: 30 },
+  ];
+  const r = areaSummaryRollup(e, e, [], []);
+  assert.deepEqual(r.sdaRows.map(x => x.sdaId), ['SDA-1', 'SDA-2', 'SDA-10']);
+});
+
+test('areaSummaryRollup: ±1 SF tolerance boundary is OK', () => {
+  const r = areaSummaryRollup(
+    [{ sdaId: 'SDA-1', landUse: 'Impervious Vehicular', areaIn: 1000 }],
+    [{ sdaId: 'SDA-1', landUse: 'Impervious Vehicular', areaIn: 1001 }],
+    [], [],
+  );
+  assert.equal(r.sdaRows[0].areaMatch, 'OK');
+});
+
+test('areaSummaryRollup: BMP area counts only toward Post total', () => {
+  const e = [{ sdaId: 'SDA-1', landUse: 'Impervious Vehicular', areaIn: 1000 }];
+  const p = [
+    { sdaId: 'SDA-1', landUse: 'Impervious Vehicular', areaIn: 800 },
+    { sdaId: 'SDA-1', landUse: 'BMP', areaIn: 200 },
+  ];
+  const r = areaSummaryRollup(e, p, [], []);
+  assert.equal(r.sdaRows[0].preTotal, 1000);
+  assert.equal(r.sdaRows[0].postBmp, 200);
+  assert.equal(r.sdaRows[0].postTotal, 1000);
+});

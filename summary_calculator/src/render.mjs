@@ -748,10 +748,19 @@ export function renderEisaComplianceSheet(project, direct, tr55, bmpStorage, ele
 }
 
 export function renderAreaSummarySheet(project, areaSummary) {
+  if ((!areaSummary.sdaRows || areaSummary.sdaRows.length === 0) &&
+      (!areaSummary.cdaRows || areaSummary.cdaRows.length === 0)) {
+    return renderSheetShell({
+      title: 'Area_Summary',
+      sub:   `${project.name || ''} · ${project.number || ''}`,
+      body:  renderNote('No SDA/CDA summary data entered yet'),
+      footer: 'Area Match tolerance ±1 SF',
+    });
+  }
   const sdaHeaders = ['SDA_ID',
-    'Pre Imp (SF)', 'Pre Comp (SF)', 'Pre Nat (SF)', 'Pre Total (SF)',
+    'Pre Imp (SF)', 'Pre Comp (SF)', 'Pre Nat (SF)', 'Pre Total Within (SF)',
     'Post Imp (SF)', 'Post Comp (SF)', 'Post Nat (SF)', 'Post BMP (SF)',
-    'Post Total (SF)', 'SWRv Req (CF)', 'Area Match?'];
+    'Post Total (SF)', 'SWRv Required (CF)', 'Area Match?'];
   const sdaRows = areaSummary.sdaRows.map(r => [
     r.sdaId,
     _asN(r.preImp), _asN(r.preComp), _asN(r.preNat), _asN(r.preTotal),
@@ -770,19 +779,23 @@ export function renderAreaSummarySheet(project, areaSummary) {
     renderBlock('CDA Summary — Max BMP Credit per CDA (DOEE 1.7″ cap)',
       renderDataTable(cdaHeaders, cdaRows)),
   ].join('\n');
+  // Portrait: this page sits between portrait CDA-Post and BMP pages; a
+  // landscape sheet here would force a mid-deck orientation switch that
+  // Chromium prints as a blank transition page.
   return renderSheetShell({
     title: 'Area_Summary',
     sub:   `${project.name || ''} · ${project.number || ''}`,
     body,
     footer: 'Area Match tolerance ±1 SF',
-    landscape: true,
   });
 }
 
+// Like fmtN but drops trailing zeros (no fixed decimal places).
 function _asN(v) {
   if (v == null || v === '') return '—';
-  return (typeof v === 'number' ? v : Number(v)).toLocaleString('en-US',
-    { maximumFractionDigits: 2 });
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 function _asBadge(status) {

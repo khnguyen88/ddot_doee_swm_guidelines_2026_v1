@@ -4,7 +4,7 @@
 
 import {
   ppSizingSv, bioSizingSv, drySwaleSizingSv, rvFromSv,
-  maxBmpCredit, treeRetentionCredit,
+  maxBmpCredit, maxBmpCredit as calcMaxBmpCredit, treeRetentionCredit,
 } from './calc.mjs';
 
 const DEFAULT_PP_DESIGN  = { nReservoir: 0.40, retMultiplier: 1.0 };
@@ -100,6 +100,10 @@ export function swrvComplianceTableRows(rows, shortStatus = false) {
 }
 
 export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed) {
+  // Numeric-aware ID comparator so SDA-2 sorts before SDA-10; ids with no
+  // digits compare as 0.
+  const _idNum = (s) => Number(String(s).replace(/\D+/g, '')) || 0;
+
   const _sumBy = (rows, sdaId, landUse) =>
     rows.filter(r => r.sdaId === sdaId && r.landUse === landUse)
         .reduce((a, r) => a + (r.areaIn || 0), 0);
@@ -113,7 +117,7 @@ export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProp
     ...sdaProposed.map(r => r.sdaId),
   ].filter(Boolean));
 
-  const sdaRows = [...sdaIds].sort().map(sdaId => {
+  const sdaRows = [...sdaIds].sort((a, b) => _idNum(a) - _idNum(b)).map(sdaId => {
     const preImp  = _impSum(sdaExisting, sdaId);
     const preComp = _sumBy(sdaExisting, sdaId, 'Compacted (Open Space)');
     const preNat  = _sumBy(sdaExisting, sdaId, 'Natural (Woods)');
@@ -138,7 +142,7 @@ export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProp
     ...cdaProposed.map(r => r.cdaId),
   ].filter(Boolean));
 
-  const cdaRows = [...cdaIds].sort().map(cdaId => {
+  const cdaRows = [...cdaIds].sort((a, b) => _idNum(a) - _idNum(b)).map(cdaId => {
     const preTotal  = cdaExisting.filter(r => r.cdaId === cdaId)
                                  .reduce((a, r) => a + (r.areaIn || 0), 0);
     const postTotal = cdaProposed.filter(r => r.cdaId === cdaId)
@@ -151,7 +155,7 @@ export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProp
     const areaMatch = (!hasPre || !hasPost) ? '—'
                     : Math.abs(postTotal - preTotal) <= 1 ? 'OK'
                     : 'MISMATCH';
-    const maxBmpCredit = postTotal * 1.7 / 12;
+    const maxBmpCredit = calcMaxBmpCredit(postTotal).value;
     return { cdaId, sdaId, preTotal, postTotal, maxBmpCredit, areaMatch };
   });
 
