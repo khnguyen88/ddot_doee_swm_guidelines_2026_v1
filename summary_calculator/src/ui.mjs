@@ -93,6 +93,11 @@ function buildDeck(parsed) {
 
   const deck = [];
   const push = (label, html) => deck.push({ label, html });
+  const pushIfNonEmpty = (label, html) => {
+    if (html && typeof html === 'string' && html.trim().length > 0) {
+      push(label, html);
+    }
+  };
 
   // Cover is built last because its TOC depends on the labels of everything after.
   const _labelsFor = (pages, base) =>

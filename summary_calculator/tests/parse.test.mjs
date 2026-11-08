@@ -11,7 +11,7 @@ const sheetjsSrc = await readFile(sheetjsPath, 'utf8');
 // Evaluate SheetJS in this scope so `XLSX` becomes available.
 const XLSX = new Function(sheetjsSrc + '; return XLSX;')();
 
-import { parseWorkbook } from '../src/parse.mjs';
+import { parseWorkbook, optionalSheet } from '../src/parse.mjs';
 
 const fixtureBytes = await readFile(
   join(__dirname, 'fixtures', 'minnesota-ave.xlsx'),
@@ -140,4 +140,14 @@ test('parse: Dry Swale BMPs populate bmp.swale (NOT bmp.bio)', () => {
   assert.equal(swale.swale.topDs,           100);
   assert.equal(swale.swale.checkDamHeight,  1);
   assert.equal(swale.swale.checkDamSpacing, 50);
+});
+
+test('optionalSheet: returns the sheet when present', () => {
+  const fakeWb = { SheetNames: ['FOO'], Sheets: { FOO: { '!ref': 'A1:A1' } } };
+  assert.equal(optionalSheet(fakeWb, 'FOO'), fakeWb.Sheets.FOO);
+});
+
+test('optionalSheet: returns null when missing (does not throw)', () => {
+  const fakeWb = { SheetNames: ['FOO'], Sheets: { FOO: {} } };
+  assert.equal(optionalSheet(fakeWb, 'MISSING'), null);
 });

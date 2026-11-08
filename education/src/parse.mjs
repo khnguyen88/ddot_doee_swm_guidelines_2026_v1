@@ -36,6 +36,11 @@ function requireSheet(wb, name) {
   return wb.Sheets[name];
 }
 
+export function optionalSheet(wb, name) {
+  if (!wb.SheetNames.includes(name)) return null;
+  return wb.Sheets[name];
+}
+
 function colToLetters(col) {
   // 1 → 'A', 26 → 'Z', 27 → 'AA', 28 → 'AB', …
   let s = '';
