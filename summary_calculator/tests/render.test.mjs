@@ -638,9 +638,47 @@ test('renderEisaTimestepSheet: summary + hourly pages, portrait, plain text', ()
   assert.ok(html.includes('Direct Determination Timestep'));
   assert.ok(html.includes('horton'));
   assert.ok(html.includes('Peak'));
-  assert.ok(html.includes('Hourly summary'));
+  assert.ok(html.includes('HOURLY SUMMARY'));
   assert.ok(html.includes('class="calc-sheet"'));
   assert.ok(!html.includes('landscape'));
   assert.ok(!html.includes('<span'));
   assert.deepEqual(renderEisaTimestepSheet({ name: 'T' }, { timeSteps: [] }), []);
+});
+
+test('renderEisaTimestepSheet: hourly roll-up has 24 buckets totalling the storm', () => {
+  const trace = {
+    lossModelUsed: 'horton',
+    timeSteps: Array.from({ length: 240 }, (_, i) => ({
+      tMin: i * 6, rainIn: 1.7 / 240, infilIn: 0.003,
+      excessPreIn: 0.002, excessPostIn: 0.005,
+      bmpStorageUsedCf: 1.25, netPostIn: 0.004,
+    })),
+    areaSf: { pre: 10000, post: 10000 },
+    bmpSvCf: 500, bmpSvUsedCf: 300, stepMin: 6,
+    peaks: { preIn: 0.02, postIn: 0.05, postWithBmpIn: 0.04 },
+    totals: { preCf: 100, postCf: 300, netPostCf: 250 },
+  };
+  const [, detail] = renderEisaTimestepSheet({ name: 'T', number: 'T-001' }, trace);
+
+  // Exactly the 24 data rows, and no more, in the hourly table's tbody.
+  const tbody = detail.slice(detail.indexOf('<tbody>') + 7, detail.indexOf('</tbody>'));
+  const cells = [...tbody.matchAll(/<tr>(.*?)<\/tr>/g)].map(m =>
+    [...m[1].matchAll(/<td>(.*?)<\/td>/g)].map(c => c[1]));
+  assert.equal(cells.length, 24);
+  assert.deepEqual(cells.map(r => r[0]), Array.from({ length: 24 }, (_, i) => String(i)));
+  assert.ok(detail.includes('<td>0</td>'), 'first hour label 0 present');
+  assert.ok(detail.includes('<td>23</td>'), 'last hour label 23 present');
+
+  const colSum = (idx) => cells.reduce((s, r) => s + Number(r[idx].replace(/,/g, '')), 0);
+  assert.ok(Math.abs(colSum(1) - 1.7) < 0.01, `rain sum ${colSum(1)} ~= 1.7 in`);
+  assert.ok(Math.abs(colSum(5) - trace.bmpSvUsedCf) < 1,
+    `BMP-used sum ${colSum(5)} ~= ${trace.bmpSvUsedCf} CF`);
+
+  // Uniform per-step rain/BMP use means every hour must aggregate exactly ten
+  // six-minute steps. This pins the bucket boundaries: shifting them by even
+  // one step (e.g. floor -> ceil) changes these per-hour values.
+  assert.ok(cells.every(r => r[1] === '0.071'),
+    `each hour holds ten 6-min rain steps: ${cells.map(r => r[1]).join(',')}`);
+  assert.ok(cells.every(r => r[5] === '12.5'),
+    `each hour holds ten 6-min BMP steps: ${cells.map(r => r[5]).join(',')}`);
 });

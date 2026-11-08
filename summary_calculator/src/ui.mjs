@@ -141,9 +141,8 @@ function buildDeck(parsed) {
     lossModel: 'horton',
   });
   const timestepPages = renderEisaTimestepSheet(project, eisaTimestep);
-  timestepPages.forEach((html, i) => push(
-    timestepPages.length > 1 ? `EISA §438 — DD Timestep (${i + 1})` : 'EISA §438 — DD Timestep',
-    html));
+  const timestepLabels = _labelsFor(timestepPages, 'EISA §438 — DD Timestep');
+  timestepPages.forEach((html, i) => push(timestepLabels[i], html));
   const tcPaths = (parsed.tcPaths || []).map(p => ({
     ...p,
     tcMin: tcFinalMin(p.tcDirectMin, p.segments),
