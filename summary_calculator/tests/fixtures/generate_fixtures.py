@@ -64,6 +64,25 @@ def build_tc_path_fixture():
     wb.save(OUT_DIR / 'tc-path-sample.xlsx')
 
 
+def build_params_tr55_fixture():
+    wb = openpyxl.Workbook(); wb.remove(wb.active)
+    _write_bare_required_sheets(wb)
+    p = wb['PARAMS']
+    p.cell(55,1,'2-year'); p.cell(55,2,3.14)
+    p.cell(56,1,'15-year'); p.cell(56,2,5.23)
+    for r,(n,cn) in [(61,('Natural',70)),(62,('Compacted',74)),
+                     (63,('Impervious',98)),(64,('BMP',98))]:
+        p.cell(r,1,n); p.cell(r,2,cn)
+    tr55 = [(0.10,2.55323,-0.61512,-0.16403),(0.30,2.46532,-0.62257,-0.11657),
+            (0.35,2.41896,-0.61594,-0.08820),(0.40,2.36409,-0.59857,-0.05621),
+            (0.45,2.29238,-0.57005,-0.02281),(0.50,2.20282,-0.51599,-0.01259)]
+    for i,(iap,c0,c1,c2) in enumerate(tr55):
+        r = 76+i
+        p.cell(r,1,iap); p.cell(r,2,c0); p.cell(r,3,c1); p.cell(r,4,c2)
+    wb.save(OUT_DIR / 'params-tr55-sample.xlsx')
+
+
 if __name__ == '__main__':
     build_tc_path_fixture()
+    build_params_tr55_fixture()
     print('Wrote fixtures to', OUT_DIR)

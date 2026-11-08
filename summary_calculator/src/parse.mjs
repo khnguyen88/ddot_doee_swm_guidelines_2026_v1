@@ -312,7 +312,15 @@ function parseParams(sheet) {
     if (label) detentionCn[label] = cell(sheet, r, 2);
   }
 
-  return { rv, cn, bmpDesign, treeCredits, detention, detentionCn };
+  // TR-55 Appendix F coefficients: rows 76-81, cols A-D = [Ia/P, C0, C1, C2].
+  const tr55 = [];
+  for (let r = 76; r <= 81; r++) {
+    const iap = cell(sheet, r, 1);
+    if (iap == null) continue;
+    tr55.push([iap, cell(sheet, r, 2), cell(sheet, r, 3), cell(sheet, r, 4)]);
+  }
+
+  return { rv, cn, bmpDesign, treeCredits, detention, detentionCn, tr55 };
 }
 
 /**
@@ -335,7 +343,8 @@ function parseParams(sheet) {
  *                   pp?:    {sa, dReservoir},
  *                   bio?:   {saTop, saBot, dMedia, dGravel, dPond},
  *                   trees?: {plantedSmall, plantedLarge, preservedSmall, preservedLarge, preservedSpecial, preservedHeritage}}>,
- *   params:  {rv, cn, bmpDesign, treeCredits, detention: {p2In, p15In, p100In}, detentionCn}
+ *   params:  {rv, cn, bmpDesign, treeCredits, detention: {p2In, p15In, p100In},
+ *             detentionCn, tr55: Array<[IaP, C0, C1, C2]>}
  * }}
  * @throws if a legacy-schema workbook is detected, if a required sheet is missing,
  *         or if PROJECT!B9/B10 (Retention/EISA rainfall) are empty.

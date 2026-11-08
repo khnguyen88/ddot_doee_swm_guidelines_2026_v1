@@ -5,6 +5,7 @@
 import {
   ppSizingSv, bioSizingSv, drySwaleSizingSv, rvFromSv,
   maxBmpCredit, treeRetentionCredit,
+  compositeCn, scsRunoffDepth, tr55UnitPeakDischarge, tr55PeakDischargeCfs, tcFinalMin,
 } from './calc.mjs';
 
 const DEFAULT_PP_DESIGN  = { nReservoir: 0.40, retMultiplier: 1.0 };
@@ -159,4 +160,88 @@ export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProp
   });
 
   return { sdaRows, cdaRows };
+}
+
+// ─── TR-55 Graphical Peak Discharge roll-up ────────────────────────────────
+// Mirrors workbook/builders/peak_discharge.py. Computes Qp per SDA for the
+// 2-yr and 15-yr storms from the raw SDA rows, PARAMS tables, and TC_PATH.
+
+const _PEAK_LAND_USE_KEY = {
+  'Natural (Woods)':          'Natural',
+  'Compacted (Open Space)':   'Compacted',
+  'Impervious Vehicular':     'Impervious',
+  'Impervious Non-Vehicular': 'Impervious',
+  'BMP':                      'BMP',
+};
+
+export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
+  // Group raw rows by their SDA ID, preserving first-appearance order.
+  const postBy = new Map();
+  for (const r of proposedRows) {
+    if (!r.sdaId) continue;
+    if (!postBy.has(r.sdaId)) postBy.set(r.sdaId, []);
+    postBy.get(r.sdaId).push(r);
+  }
+  const preBy = new Map();
+  for (const r of existingRows) {
+    if (!r.sdaId) continue;
+    if (!preBy.has(r.sdaId)) preBy.set(r.sdaId, []);
+    preBy.get(r.sdaId).push(r);
+  }
+
+  const _areasFor = (rows) => {
+    const out = { Natural: 0, Compacted: 0, Impervious: 0, BMP: 0 };
+    for (const r of rows || []) {
+      const k = _PEAK_LAND_USE_KEY[r.landUse];
+      if (k) out[k] += r.areaIn || 0;
+    }
+    return out;
+  };
+
+  const p2In = params.detention.p2In;
+  const p15In = params.detention.p15In;
+
+  return [...postBy.keys()].map(sdaId => {
+    const postRows = postBy.get(sdaId);
+    const preRows  = preBy.get(sdaId) || [];
+    const preAreas  = _areasFor(preRows);
+    const postAreas = _areasFor(postRows);
+    const cnPre  = compositeCn(preAreas,  params.detentionCn).value;
+    const cnPost = compositeCn(postAreas, params.detentionCn).value;
+
+    const areaSf  = postRows.reduce((s, r) => s + (r.areaIn || 0), 0);
+    const areaMi2 = areaSf / 27878400;
+
+    const p = (tcPaths || []).find(t => t.pathId === sdaId);
+    const tcMin = p ? tcFinalMin(p.tcDirectMin, p.segments) : null;
+    const tcHr = tcMin != null ? tcMin / 60 : 0.1;
+
+    const sPre  = cnPre  > 0 ? 1000 / cnPre  - 10 : 0;
+    const sPost = cnPost > 0 ? 1000 / cnPost - 10 : 0;
+
+    const _storm = (P, s, cn) => {
+      const iaP = s > 0 ? 0.2 * s / P : 0;
+      const qu = tr55UnitPeakDischarge(tcHr, iaP, params.tr55);
+      const q = scsRunoffDepth(P, cn);
+      const qp = tr55PeakDischargeCfs(qu, areaMi2, q);
+      return { iaP, qu, q, qp };
+    };
+    const pre2  = _storm(p2In,  sPre,  cnPre);
+    const post2 = _storm(p2In,  sPost, cnPost);
+    const pre15 = _storm(p15In, sPre,  cnPre);
+    const post15 = _storm(p15In, sPost, cnPost);
+
+    return {
+      areaId: sdaId,
+      areaSf, areaMi2, tcHr, cnPre, cnPost, p2In, p15In,
+      iaOverP2yrPre: pre2.iaP, iaOverP2yrPost: post2.iaP,
+      qu2yrPre: pre2.qu, qu2yrPost: post2.qu,
+      qPre2yr: pre2.q, qPost2yr: post2.q,
+      qpPre2yr: pre2.qp, qpPost2yr: post2.qp,
+      iaOverP15yrPre: pre15.iaP, iaOverP15yrPost: post15.iaP,
+      qu15yrPre: pre15.qu, qu15yrPost: post15.qu,
+      qPre15yr: pre15.q, qPost15yr: post15.q,
+      qpPre15yr: pre15.qp, qpPost15yr: post15.qp,
+    };
+  });
 }

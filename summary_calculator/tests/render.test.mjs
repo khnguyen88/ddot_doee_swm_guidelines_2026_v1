@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderSheetShell, renderTrace, renderKvTable, renderAreaSummarySheet, renderTcPathSheet } from '../src/render.mjs';
+import { renderSheetShell, renderTrace, renderKvTable, renderAreaSummarySheet, renderTcPathSheet, renderPeakDischargeSdaSheet } from '../src/render.mjs';
 
 test('renderSheetShell returns HTML with title and sub', () => {
   const html = renderSheetShell({
@@ -553,5 +553,18 @@ test('renderTcPathSheet: empty input returns empty string; page is portrait', ()
   const html = renderTcPathSheet({ name: 'T' }, [
     { pathId: 'SDA-1', name: 'x', tcDirectMin: null, segments: [], tcMin: null },
   ]);
+  assert.ok(!html.includes('landscape'));
+});
+
+test('renderPeakDischargeSdaSheet: renders 2-yr and 15-yr blocks per SDA', () => {
+  const rows = [{
+    areaId:'SDA-1', areaSf:43560, tcHr:0.5, cnPre:70, cnPost:86,
+    qu2yrPre:450, qu2yrPost:527, qPre2yr:0.793, qPost2yr:1.783, qpPre2yr:0.558, qpPost2yr:1.469,
+    qu15yrPre:498, qu15yrPost:529, qPre15yr:2.208, qPost15yr:3.682, qpPre15yr:1.720, qpPost15yr:3.044,
+  }];
+  const html = renderPeakDischargeSdaSheet({ name:'T', number:'T-001' }, rows);
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('2-yr'));
+  assert.ok(html.includes('15-yr'));
   assert.ok(!html.includes('landscape'));
 });

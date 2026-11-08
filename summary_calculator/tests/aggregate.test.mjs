@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rvProvidedPerSda, rvProvidedPerBmp, swrvComplianceTableRows, areaSummaryRollup } from '../src/aggregate.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp, swrvComplianceTableRows, areaSummaryRollup, peakDischargeRollup } from '../src/aggregate.mjs';
 
 const params = {
   bmpDesign: {
@@ -257,4 +257,44 @@ test('areaSummaryRollup: fills swrvReq from the optional swrvBySda map', () => {
   const e = [{ sdaId: 'SDA-1', landUse: 'Impervious Vehicular', areaIn: 1000 }];
   const r = areaSummaryRollup(e, e, [], [], { 'SDA-1': 180 });
   assert.equal(r.sdaRows[0].swrvReq, 180);
+});
+
+// ─── peakDischargeRollup ─────────────────────────────────────────────────────
+
+const FULL_TR55 = [
+  [0.10,2.55323,-0.61512,-0.16403],[0.30,2.46532,-0.62257,-0.11657],
+  [0.35,2.41896,-0.61594,-0.08820],[0.40,2.36409,-0.59857,-0.05621],
+  [0.45,2.29238,-0.57005,-0.02281],[0.50,2.20282,-0.51599,-0.01259],
+];
+const peakExisting = [{ sdaId:'SDA-1', landUse:'Natural (Woods)', areaIn:43560, areaOut:0 }];
+const peakProposed = [
+  { sdaId:'SDA-1', landUse:'Impervious Vehicular', areaIn:21780, areaOut:0 },
+  { sdaId:'SDA-1', landUse:'Compacted (Open Space)', areaIn:21780, areaOut:0 },
+];
+const peakTcPaths = [{ pathId:'SDA-1', tcDirectMin:30, segments:[] }];
+const peakParams = {
+  detention: { p2In:3.14, p15In:5.23 },
+  detentionCn: { Natural:70, Compacted:74, Impervious:98, BMP:98 },
+  tr55: FULL_TR55,
+};
+test('peakDischargeRollup: per-SDA CN, qu, Q, Qp for 2yr and 15yr', () => {
+  const [r] = peakDischargeRollup(peakExisting, peakProposed, peakTcPaths, peakParams);
+  assert.equal(r.areaId, 'SDA-1');
+  assert.equal(r.areaSf, 43560);
+  assert.ok(Math.abs(r.areaMi2 - 0.0015625) < 1e-9);
+  assert.ok(Math.abs(r.tcHr - 0.5) < 1e-9);
+  assert.ok(Math.abs(r.cnPre - 70) < 1e-9);
+  assert.ok(Math.abs(r.cnPost - 86) < 1e-9);
+  // Hand-computed from the Excel formulas (tolerance 0.01):
+  assert.ok(Math.abs(r.iaOverP2yrPre  - 0.27298) < 1e-4, `iaP2pre=${r.iaOverP2yrPre}`);
+  assert.ok(Math.abs(r.qu2yrPre       - 449.949) < 0.01, `qu2pre=${r.qu2yrPre}`);
+  assert.ok(Math.abs(r.qPre2yr        - 0.79339) < 1e-4, `Q2pre=${r.qPre2yr}`);
+  assert.ok(Math.abs(r.qpPre2yr       - 0.55779) < 1e-4, `Qp2pre=${r.qpPre2yr}`);
+  assert.ok(Math.abs(r.qu2yrPost      - 527.272) < 0.01, `qu2post=${r.qu2yrPost}`);
+  assert.ok(Math.abs(r.qPost2yr       - 1.78306) < 1e-4, `Q2post=${r.qPost2yr}`);
+  assert.ok(Math.abs(r.qpPost2yr      - 1.46900) < 1e-4, `Qp2post=${r.qpPost2yr}`);
+  assert.ok(Math.abs(r.qu15yrPre      - 498.360) < 0.01, `qu15pre=${r.qu15yrPre}`);
+  assert.ok(Math.abs(r.qpPre15yr      - 1.71968) < 1e-4, `Qp15pre=${r.qpPre15yr}`);
+  assert.ok(Math.abs(r.qu15yrPost     - 529.097) < 0.01, `qu15post=${r.qu15yrPost}`);
+  assert.ok(Math.abs(r.qpPost15yr     - 3.04413) < 1e-4, `Qp15post=${r.qpPost15yr}`);
 });

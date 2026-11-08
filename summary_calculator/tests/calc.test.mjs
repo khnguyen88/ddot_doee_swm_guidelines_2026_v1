@@ -437,3 +437,25 @@ test('tcFinalMin: direct override floored at 6 min; null when no segments', () =
   assert.equal(tcFinalMin(null, []), null);
   assert.ok(Math.abs(tcFinalMin(null, [{ type: 'channel', length: 1000, velocity: 3 }]) - 6) < 1e-9);
 });
+
+// ─── TR-55 Graphical Peak Discharge ─────────────────────────────────────────
+
+import { tr55UnitPeakDischarge, tr55PeakDischargeCfs } from '../src/calc.mjs';
+const TR55_2 = [[0.10, 2.55323, -0.61512, -0.16403],[0.30, 2.46532, -0.62257, -0.11657]];
+test('tr55UnitPeakDischarge: evaluates at a tabulated Ia/P', () => {
+  const qu = tr55UnitPeakDischarge(0.5, 0.10, TR55_2);
+  assert.ok(Math.abs(qu - 529.10) < 0.5, `got ${qu}`);   // 529.097
+});
+test('tr55UnitPeakDischarge: clamps below the first bin', () => {
+  assert.equal(tr55UnitPeakDischarge(0.5, 0.05, TR55_2),
+               tr55UnitPeakDischarge(0.5, 0.10, TR55_2));
+});
+test('tr55UnitPeakDischarge: interpolates coefficients on Ia/P', () => {
+  // NOTE: interpolating C0..C2 then exponentiating is NOT the average of the
+  // endpoint qu values. Correct midpoint value is ~481.78, not ~483.90.
+  const quMid = tr55UnitPeakDischarge(0.5, 0.20, TR55_2);
+  assert.ok(Math.abs(quMid - 481.78) < 0.5, `got ${quMid}`);
+});
+test('tr55PeakDischargeCfs: Qp = qu * Am * Q', () => {
+  assert.ok(Math.abs(tr55PeakDischargeCfs(500, 0.001, 2) - 1.0) < 0.01);
+});

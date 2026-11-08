@@ -5,7 +5,7 @@ import {
   siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
   eisaDirectVolumeTraceCf, tr55VolumeTraceCf, tcFinalMin,
 } from './calc.mjs';
-import { rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup } from './aggregate.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup, peakDischargeRollup } from './aggregate.mjs';
 import {
   renderCoverSheet, renderSiteDaSheet, renderSiteSwrvSheet,
   renderSdaPreSheet, renderSdaPostSheet, renderCdaPreSheet, renderCdaPostSheet,
@@ -14,7 +14,7 @@ import {
   renderEisaDirectSheet, renderEisaTr55Sheet, renderEisaComplianceSheet,
   renderDetentionSheet, renderCompliancePage,
   renderExecutiveSummarySheet, renderAreaSummarySheet,
-  renderTcPathSheet,
+  renderTcPathSheet, renderPeakDischargeSdaSheet,
 } from './render.mjs';
 
 const main = document.getElementById('main');
@@ -135,6 +135,11 @@ function buildDeck(parsed) {
   }));
   pushIfNonEmpty('TC_PATH — Time of Concentration',
                  renderTcPathSheet(project, tcPaths));
+  const peakSda = (parsed.params.tr55 && parsed.params.tr55.length)
+    ? peakDischargeRollup(parsed.sdaExisting, parsed.sdaProposed,
+                          parsed.tcPaths || [], parsed.params)
+    : [];
+  pushIfNonEmpty('Peak Discharge — SDA', renderPeakDischargeSdaSheet(project, peakSda));
   // Site Compliance (portrait) before Detention (landscape) so the deck
   // ends on the landscape sheet — Chromium inserts a blank "transition"
   // page when portrait follows landscape in print output.

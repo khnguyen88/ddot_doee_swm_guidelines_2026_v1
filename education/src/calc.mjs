@@ -525,3 +525,35 @@ export function tr55VolumeTraceCf(rows, P) {
     ],
   };
 }
+
+// ─── TR-55 Graphical Peak Discharge (Appendix F) ────────────────────────────
+
+// NRCS TR-55 unit peak discharge (Appendix F log-polynomial).
+// paramsTr55 shape: [[IaP, C0, C1, C2], ...] sorted ascending by IaP.
+// Returns qu in csm/in. Clamps IaP to [first, last] bin; linear interpolation between bins.
+export function tr55UnitPeakDischarge(tcHr, iaOverP, paramsTr55) {
+  if (!(tcHr > 0) || !paramsTr55 || paramsTr55.length < 2) return null;
+  const N = paramsTr55.length;
+  const iaFirst = paramsTr55[0][0], iaLast = paramsTr55[N - 1][0];
+  const iap = Math.min(Math.max(iaOverP, iaFirst), iaLast);
+  let lo = 0;
+  for (let i = 0; i < N - 1; i++) {
+    if (paramsTr55[i][0] <= iap && paramsTr55[i + 1][0] >= iap) { lo = i; break; }
+  }
+  if (iap >= iaLast) lo = N - 2;
+  const hi = lo + 1;
+  const [iapLo, c0Lo, c1Lo, c2Lo] = paramsTr55[lo];
+  const [iapHi, c0Hi, c1Hi, c2Hi] = paramsTr55[hi];
+  const f = (iap - iapLo) / (iapHi - iapLo);
+  const C0 = c0Lo + f * (c0Hi - c0Lo);
+  const C1 = c1Lo + f * (c1Hi - c1Lo);
+  const C2 = c2Lo + f * (c2Hi - c2Lo);
+  const lt = Math.log10(tcHr);
+  return Math.pow(10, C0 + C1 * lt + C2 * lt * lt);
+}
+
+// TR-55 Eq 4-1: Qp = qu * Am * Q * Fp; Fp = 1.0.
+export function tr55PeakDischargeCfs(qu, areaMi2, runoffIn) {
+  if (qu == null || !(areaMi2 > 0)) return null;
+  return qu * areaMi2 * (runoffIn || 0);
+}

@@ -183,3 +183,16 @@ test('parseTcPath: reads paths, maps segment fields, tolerates a blank gap row',
 test('parseTcPath: absent sheet returns empty array', () => {
   assert.deepEqual(parseTcPath(null), []);
 });
+
+const tr55Bytes = await readFile(
+  join(__dirname, 'fixtures', 'params-tr55-sample.xlsx'),
+);
+
+test('parse: params.tr55 reads the 6 Appendix F coefficient rows', () => {
+  const pWb = XLSX.read(new Uint8Array(tr55Bytes), { type:'array' });
+  const { params } = parseWorkbook(pWb);
+  assert.equal(params.tr55.length, 6);
+  assert.deepEqual(params.tr55[0], [0.10, 2.55323, -0.61512, -0.16403]);
+  assert.equal(params.tr55[5][3], -0.01259);
+  assert.equal(params.detention.p2In, 3.14);
+});
