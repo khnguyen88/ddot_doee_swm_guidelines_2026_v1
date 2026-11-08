@@ -4,7 +4,7 @@
 
 import {
   ppSizingSv, bioSizingSv, drySwaleSizingSv, rvFromSv,
-  maxBmpCredit, maxBmpCredit as calcMaxBmpCredit, treeRetentionCredit,
+  maxBmpCredit, treeRetentionCredit,
 } from './calc.mjs';
 
 const DEFAULT_PP_DESIGN  = { nReservoir: 0.40, retMultiplier: 1.0 };
@@ -99,9 +99,8 @@ export function swrvComplianceTableRows(rows, shortStatus = false) {
   return { perRow, siteTotal };
 }
 
-export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed) {
-  // Numeric-aware ID comparator so SDA-2 sorts before SDA-10; ids with no
-  // digits compare as 0.
+export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed, swrvBySda = {}) {
+  // Sorts by the first run of digits, so SDA-2 precedes SDA-10; non-numeric ids compare as 0.
   const _idNum = (s) => Number(String(s).replace(/\D+/g, '')) || 0;
 
   const _sumBy = (rows, sdaId, landUse) =>
@@ -134,7 +133,7 @@ export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProp
                     : 'MISMATCH';
     return { sdaId, preImp, preComp, preNat, preTotal,
              postImp, postComp, postNat, postBmp, postTotal,
-             swrvReq: 0, areaMatch };
+             swrvReq: swrvBySda[sdaId] ?? 0, areaMatch };
   });
 
   const cdaIds = new Set([
@@ -155,8 +154,8 @@ export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProp
     const areaMatch = (!hasPre || !hasPost) ? '—'
                     : Math.abs(postTotal - preTotal) <= 1 ? 'OK'
                     : 'MISMATCH';
-    const maxBmpCredit = calcMaxBmpCredit(postTotal).value;
-    return { cdaId, sdaId, preTotal, postTotal, maxBmpCredit, areaMatch };
+    const maxCredit = maxBmpCredit(postTotal).value;
+    return { cdaId, sdaId, preTotal, postTotal, maxBmpCredit: maxCredit, areaMatch };
   });
 
   return { sdaRows, cdaRows };

@@ -89,12 +89,12 @@ function buildDeck(parsed) {
   const sdaPostPages = renderSdaPostSheet(project, sdas);
   const cdaPrePages  = renderCdaPreSheet(project, cdas);
   const cdaPostPages = renderCdaPostSheet(project, cdas);
+  const reqBySda = Object.fromEntries(complianceRows.map(r => [r.sdaId, r.swrvReqCf]));
   const areaSummary = areaSummaryRollup(
     parsed.sdaExisting, parsed.sdaProposed,
     parsed.cdaExisting, parsed.cdaProposed,
+    reqBySda,
   );
-  const reqBySda = Object.fromEntries(complianceRows.map(r => [r.sdaId, r.swrvReqCf]));
-  areaSummary.sdaRows.forEach(r => { r.swrvReq = reqBySda[r.sdaId] ?? 0; });
   const bmpPages    = renderBmpSheets(project, bmps, cdas, params);
 
   const deck = [];

@@ -252,3 +252,9 @@ test('areaSummaryRollup: BMP area counts only toward Post total', () => {
   assert.equal(r.sdaRows[0].postBmp, 200);
   assert.equal(r.sdaRows[0].postTotal, 1000);
 });
+
+test('areaSummaryRollup: fills swrvReq from the optional swrvBySda map', () => {
+  const e = [{ sdaId: 'SDA-1', landUse: 'Impervious Vehicular', areaIn: 1000 }];
+  const r = areaSummaryRollup(e, e, [], [], { 'SDA-1': 180 });
+  assert.equal(r.sdaRows[0].swrvReq, 180);
+});
