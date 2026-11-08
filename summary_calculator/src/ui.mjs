@@ -5,7 +5,7 @@ import {
   siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
   eisaDirectVolumeTraceCf, tr55VolumeTraceCf, tcFinalMin,
 } from './calc.mjs';
-import { rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup, peakDischargeRollup } from './aggregate.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup, peakDischargeRollup, detentionBmpRollup } from './aggregate.mjs';
 import {
   renderCoverSheet, renderSiteDaSheet, renderSiteSwrvSheet,
   renderSdaPreSheet, renderSdaPostSheet, renderCdaPreSheet, renderCdaPostSheet,
@@ -15,6 +15,7 @@ import {
   renderDetentionSheet, renderCompliancePage,
   renderExecutiveSummarySheet, renderAreaSummarySheet,
   renderTcPathSheet, renderPeakDischargeSdaSheet, renderPeakDischargeCdaSheet,
+  renderDoeeDetentionBmpSheet,
 } from './render.mjs';
 
 const main = document.getElementById('main');
@@ -64,6 +65,9 @@ function buildDeck(parsed) {
                           pass: (tr55.deltaCf   - bmpTotalCf) <= 0 };
   const detention = detentionSummary(
     sdas, params.detention.p2In, params.detention.p15In, params.detentionCn,
+  );
+  const detentionBmp = detentionBmpRollup(
+    parsed.cdaExisting, parsed.cdaProposed, bmps, params,
   );
 
   // SWRv_req + Rv_provided per SDA for compliance roll-up.
@@ -145,6 +149,8 @@ function buildDeck(parsed) {
                           parsed.tcPaths || [], parsed.params, 'cdaId')
     : [];
   pushIfNonEmpty('Peak Discharge — CDA', renderPeakDischargeCdaSheet(project, peakCda));
+  pushIfNonEmpty('Detention Summary — 2020 CDA (BMP-Adjusted)',
+                 renderDoeeDetentionBmpSheet(project, detentionBmp));
   // Site Compliance (portrait) before Detention (landscape) so the deck
   // ends on the landscape sheet — Chromium inserts a blank "transition"
   // page when portrait follows landscape in print output.

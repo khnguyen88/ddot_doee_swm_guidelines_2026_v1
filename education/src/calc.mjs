@@ -569,3 +569,34 @@ export function tr55PeakDischargeCfs(qu, areaMi2, runoffIn) {
   if (qu == null || !(areaMi2 > 0)) return null;
   return qu * areaMi2 * (runoffIn || 0);
 }
+
+// ─── 2020 DOEE CDA-level detention (BMP-adjusted) ───────────────────────────
+
+// Adj Q = max(0, PostQ − BMP_Sv·12 / DA_SF). BMP storage subtracts from the
+// post-development runoff depth as an equivalent uniform withdrawal. When
+// DA_SF <= 0 the builder's IFERROR falls back to PostQ unchanged.
+export function detentionBmpAdjustedQ(qPostIn, bmpSvCf, daSf) {
+  if (!(daSf > 0)) return qPostIn;
+  const reductionIn = (bmpSvCf || 0) * 12 / daSf;
+  return Math.max(0, (qPostIn || 0) - reductionIn);
+}
+
+// Closed-form inverse of the SCS runoff equation, solving for S given Q and P:
+//   S_adj = 5·(P + 2Q − sqrt(Q·(4Q + 5P)))
+//   CN    = 1000/(S_adj + 10)
+// Returns 0 when Q <= 0 (sufficient storage → no runoff → no CN needed).
+export function detentionBmpAdjustedCn(adjQIn, pIn) {
+  if (!(adjQIn > 0) || !(pIn > 0)) return 0;
+  const sAdj = 5 * (pIn + 2 * adjQIn - Math.sqrt(adjQIn * (4 * adjQIn + 5 * pIn)));
+  return 1000 / (sAdj + 10);
+}
+
+// Trigger check per 2020 DOEE methodology:
+//   2-yr  → Adj CN > 70
+//   15-yr → Adj CN > Pre CN
+//   100-yr → no trigger
+export function detentionBmpRequired(adjCn, cnPre, stormLabel) {
+  if (stormLabel === '2-yr')  return adjCn > 70    ? 'Yes' : 'No';
+  if (stormLabel === '15-yr') return adjCn > cnPre ? 'Yes' : 'No';
+  return '—';
+}

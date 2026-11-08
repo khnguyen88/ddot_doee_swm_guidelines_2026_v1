@@ -593,3 +593,28 @@ test('renderPeakDischargeCdaSheet: null sdaId renders an em-dash', () => {
   const html = renderPeakDischargeCdaSheet({ name:'T', number:'T-001' }, rows);
   assert.ok(html.includes('—'));
 });
+
+// ─── 2020 DOEE CDA-level detention (BMP-adjusted) ──────────────────────────
+
+import { renderDoeeDetentionBmpSheet } from '../src/render.mjs';
+
+test('renderDoeeDetentionBmpSheet: 3 storm blocks, portrait, plain-text triggers', () => {
+  const rows = [{
+    cdaId: 'CDA-1', bmpName: 'BMP-1', sdaId: 'SDA-1',
+    cnPre: 65, cnPost: 85, daSf: 10000, bmpSvCf: 100,
+    storms: [
+      { label: '2-yr',   rainIn: 3.14, qPreIn: 0.5, qPostIn: 1.8, adjQIn: 1.68, adjCn: 82, detRequired: 'Yes' },
+      { label: '15-yr',  rainIn: 5.23, qPreIn: 1.5, qPostIn: 3.2, adjQIn: 3.08, adjCn: 86, detRequired: 'Yes' },
+      { label: '100-yr', rainIn: 7.00, qPreIn: 2.7, qPostIn: 4.5, adjQIn: 4.38, adjCn: 88, detRequired: '—' },
+    ],
+  }];
+  const html = renderDoeeDetentionBmpSheet({ name: 'T', number: 'T-001' }, rows);
+  assert.ok(html.includes('CDA-1'));
+  assert.ok(html.includes('2-yr'));
+  assert.ok(html.includes('15-yr'));
+  assert.ok(html.includes('100-yr'));
+  assert.ok(html.includes('Yes'));
+  assert.ok(html.includes('class="calc-sheet"'));
+  assert.ok(!html.includes('landscape'));
+  assert.ok(!html.includes('<span'));
+});

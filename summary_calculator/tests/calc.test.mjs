@@ -463,3 +463,45 @@ test('tr55UnitPeakDischarge: returns null for fewer than 2 bins', () => {
 test('tr55PeakDischargeCfs: Qp = qu * Am * Q', () => {
   assert.ok(Math.abs(tr55PeakDischargeCfs(500, 0.001, 2) - 1.0) < 0.01);
 });
+
+// ─── 2020 DOEE CDA-level detention (BMP-adjusted) ──────────────────────────
+
+import { detentionBmpAdjustedQ, detentionBmpAdjustedCn, detentionBmpRequired } from '../src/calc.mjs';
+
+test('detentionBmpAdjustedQ: max(0, qPost - bmpSv*12/DA)', () => {
+  // qPost=2 in, bmpSv=500 cf, DA=10000 sf → adj = 2 - 500*12/10000 = 2 - 0.6 = 1.4
+  assert.equal(detentionBmpAdjustedQ(2.0, 500, 10000), 1.4);
+  // negative clamp to 0
+  assert.equal(detentionBmpAdjustedQ(0.5, 500, 10000), 0);
+});
+
+test('detentionBmpAdjustedQ: DA <= 0 falls back to Post Q', () => {
+  assert.equal(detentionBmpAdjustedQ(2.0, 500, 0), 2.0);
+});
+
+test('detentionBmpAdjustedCn: closed-form inverse SCS', () => {
+  // adjQ=1.4, P=3.14 → S_adj = 5(P + 2Q - sqrt(Q(4Q+5P)))
+  //                 = 5(3.14 + 2.8 - sqrt(1.4*(5.6 + 15.7)))
+  //                 = 5(5.94 - sqrt(29.82)) = 5(5.94 - 5.461) ≈ 2.396
+  // CN = 1000/(2.396+10) ≈ 80.67
+  const cn = detentionBmpAdjustedCn(1.4, 3.14);
+  assert.ok(Math.abs(cn - 80.67) < 0.3, `expected ~80.67, got ${cn}`);
+});
+
+test('detentionBmpAdjustedCn: Q=0 returns 0', () => {
+  assert.equal(detentionBmpAdjustedCn(0, 3.14), 0);
+});
+
+test('detentionBmpRequired: 2-yr triggers when adjCn > 70', () => {
+  assert.equal(detentionBmpRequired(75, 60, '2-yr'), 'Yes');
+  assert.equal(detentionBmpRequired(65, 60, '2-yr'), 'No');
+});
+
+test('detentionBmpRequired: 15-yr triggers when adjCn > cnPre', () => {
+  assert.equal(detentionBmpRequired(75, 70, '15-yr'), 'Yes');
+  assert.equal(detentionBmpRequired(70, 75, '15-yr'), 'No');
+});
+
+test('detentionBmpRequired: 100-yr returns em-dash', () => {
+  assert.equal(detentionBmpRequired(80, 70, '100-yr'), '—');
+});

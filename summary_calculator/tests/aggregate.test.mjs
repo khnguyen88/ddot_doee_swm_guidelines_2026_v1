@@ -390,3 +390,62 @@ test('peakDischargeRollup: SDA rollup sets sdaId equal to areaId', () => {
   assert.equal(r.areaId, 'SDA-1');
   assert.equal(r.sdaId, r.areaId);
 });
+
+// ─── 2020 DOEE CDA-level detention (BMP-adjusted) ──────────────────────────
+
+import { detentionBmpRollup } from '../src/aggregate.mjs';
+
+const dParams = {
+  detentionCn: { Natural: 70, Compacted: 74, Impervious: 98, BMP: 98 },
+  detention: { p2In: 3.14, p15In: 5.23, p100In: 7.0 },
+  bmpDesign: { 'Permeable Pavement / Porous Asphalt': { nReservoir: 0.4, retMultiplier: 1.0 } },
+  treeCredits: {},
+};
+const dCdaExisting = [
+  { cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Natural (Woods)', hsg: 'C', areaIn: 10000, areaOut: 0 },
+];
+const dCdaProposed = [
+  { cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Impervious Vehicular', hsg: 'C', areaIn: 5000, areaOut: 0 },
+  { cdaId: 'CDA-1', sdaId: 'SDA-1', landUse: 'Natural (Woods)', hsg: 'C', areaIn: 5000, areaOut: 0 },
+];
+const dBmps = [
+  { name: 'PP-1', cdaId: 'CDA-1', sdaId: 'SDA-1', type: 'Permeable Pavement',
+    subType: 'Porous Asphalt', pp: { sa: 2000, dReservoir: 0.5 } },
+];
+
+test('detentionBmpRollup: per-CDA storm blocks mirror the builder formulas', () => {
+  const rows = detentionBmpRollup(dCdaExisting, dCdaProposed, dBmps, dParams);
+  assert.equal(rows.length, 1);
+  const r = rows[0];
+  assert.equal(r.cdaId, 'CDA-1');
+  assert.equal(r.sdaId, 'SDA-1');
+  assert.equal(r.bmpName, 'PP-1');
+  assert.equal(r.cnPre, 70);
+  assert.equal(r.cnPost, 84);
+  assert.equal(r.daSf, 10000);
+  assert.equal(r.bmpSvCf, 400);           // 2000 · 0.5 · 0.4
+  assert.deepEqual(r.storms.map(s => s.label), ['2-yr', '15-yr', '100-yr']);
+
+  const [p2, p15, p100] = r.storms;
+  assert.ok(Math.abs(p2.qPreIn  - 0.7934) < 1e-3, `qPre2=${p2.qPreIn}`);
+  assert.ok(Math.abs(p2.qPostIn - 1.6322) < 1e-3, `qPost2=${p2.qPostIn}`);
+  assert.ok(Math.abs(p2.adjQIn  - 1.1522) < 1e-3, `adjQ2=${p2.adjQIn}`);
+  assert.ok(Math.abs(p2.adjCn   - 76.7)   < 0.2,  `adjCn2=${p2.adjCn}`);
+  assert.equal(p2.detRequired, 'Yes');
+  assert.equal(p15.detRequired, 'Yes');
+  assert.equal(p100.detRequired, '—');
+});
+
+test('detentionBmpRollup: tree BMPs add no Sv, so Adj Q equals Post Q', () => {
+  const ex = [{ cdaId: 'CDA-2', sdaId: 'SDA-1', landUse: 'Natural (Woods)', hsg: 'C', areaIn: 5000 }];
+  const pr = [{ cdaId: 'CDA-2', sdaId: 'SDA-1', landUse: 'Impervious Vehicular', hsg: 'C', areaIn: 5000 }];
+  const bmps = [{
+    name: 'Trees-1', cdaId: 'CDA-2', sdaId: 'SDA-1', type: 'Planted Trees',
+    trees: { plantedLarge: 3 },   // 3 large planted trees
+  }];
+  const [r] = detentionBmpRollup(ex, pr, bmps, dParams);
+  assert.equal(r.bmpSvCf, 0);
+  for (const s of r.storms) {
+    assert.ok(Math.abs(s.adjQIn - s.qPostIn) < 1e-12, `${s.label}: adjQ=${s.adjQIn} postQ=${s.qPostIn}`);
+  }
+});

@@ -7,6 +7,7 @@ import {
   maxBmpCredit, treeRetentionCredit,
   compositeCn, scsRunoffDepth, tr55UnitPeakDischarge, tr55PeakDischargeCfs, tcFinalMin,
   LAND_USE_TO_DETENTION_KEY, SQFT_PER_SQMI, DEFAULT_TC_HR,
+  detentionBmpAdjustedQ, detentionBmpAdjustedCn, detentionBmpRequired,
 } from './calc.mjs';
 
 // Sorts by the first run of digits, so SDA-2 precedes SDA-10; non-numeric ids compare as 0.
@@ -15,28 +16,23 @@ const _idNum = (s) => Number(String(s).replace(/\D+/g, '')) || 0;
 const DEFAULT_PP_DESIGN  = { nReservoir: 0.40, retMultiplier: 1.0 };
 const DEFAULT_BIO_DESIGN = { nMedia: 0.40, nGravel: 0.40, retMultiplier: 1.0 };
 
-function _rvForBmp(bmp, cdas, params) {
+// Raw storage volume (CF) for a BMP. Trees carry no Sv — only tree Rv credit.
+function _svForBmp(bmp, params) {
   if (bmp.type === 'Permeable Pavement' && bmp.pp) {
     const design = params.bmpDesign[`Permeable Pavement / ${bmp.subType}`] || DEFAULT_PP_DESIGN;
-    const sv = ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir).value;
-    const rv = rvFromSv(sv, design.retMultiplier).value;
-    const cda = cdas.find(c => c.cdaId === bmp.cdaId);
-    return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
+    return ppSizingSv(bmp.pp.sa, bmp.pp.dReservoir, design.nReservoir).value;
   }
   if (bmp.type === 'Bioretention' && bmp.bio) {
     const design = params.bmpDesign[`Bioretention / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
-    const sv = bioSizingSv(
+    return bioSizingSv(
       bmp.bio.saBot, bmp.bio.saTop, bmp.bio.saPondTop,
       bmp.bio.dMedia, design.nMedia,
       bmp.bio.dGravel, design.nGravel, bmp.bio.dPond,
     ).value;
-    const rv = rvFromSv(sv, design.retMultiplier).value;
-    const cda = cdas.find(c => c.cdaId === bmp.cdaId);
-    return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
   }
   if (bmp.type === 'Dry Swale' && bmp.swale) {
     const design = params.bmpDesign[`Dry Swale / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
-    const sv = drySwaleSizingSv({
+    return drySwaleSizingSv({
       saBot: bmp.swale.saBot,
       dMedia: bmp.swale.dMedia, nMedia: design.nMedia,
       dGravel: bmp.swale.dGravel, nGravel: design.nGravel,
@@ -46,14 +42,28 @@ function _rvForBmp(bmp, cdas, params) {
       checkDamHeight: bmp.swale.checkDamHeight,
       checkDamSpacing: bmp.swale.checkDamSpacing,
     }).value;
-    const rv = rvFromSv(sv, design.retMultiplier).value;
-    const cda = cdas.find(c => c.cdaId === bmp.cdaId);
-    return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
   }
+  return 0;
+}
+
+function _rvForBmp(bmp, cdas, params) {
   if ((bmp.type === 'Planted Trees' || bmp.type === 'Preserve Trees') && bmp.trees) {
     return treeRetentionCredit(bmp.trees, params.treeCredits).value;
   }
-  return 0;
+  let design;
+  if (bmp.type === 'Permeable Pavement' && bmp.pp) {
+    design = params.bmpDesign[`Permeable Pavement / ${bmp.subType}`] || DEFAULT_PP_DESIGN;
+  } else if (bmp.type === 'Bioretention' && bmp.bio) {
+    design = params.bmpDesign[`Bioretention / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
+  } else if (bmp.type === 'Dry Swale' && bmp.swale) {
+    design = params.bmpDesign[`Dry Swale / ${bmp.subType}`] || DEFAULT_BIO_DESIGN;
+  } else {
+    return 0;
+  }
+  const sv = _svForBmp(bmp, params);
+  const rv = rvFromSv(sv, design.retMultiplier).value;
+  const cda = cdas.find(c => c.cdaId === bmp.cdaId);
+  return cda ? Math.min(rv, maxBmpCredit(cda.postIn).value) : rv;
 }
 
 export function rvProvidedPerSda(bmps, cdas, params) {
@@ -245,6 +255,76 @@ export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params,
       qu15yrPre: pre15.qu, qu15yrPost: post15.qu,
       qPre15yr: pre15.q, qPost15yr: post15.q,
       qpPre15yr: pre15.qp, qpPost15yr: post15.qp,
+    };
+  });
+}
+
+// ─── DOEE_DETENTION_BMP roll-up (2020 CDA-level methodology) ────────────────
+// Mirrors workbook/builders/doee.py build_doee_detention_bmp(), but iterates
+// the ACTUAL CDA ids present in the data instead of the builder's fixed
+// CDA-1..CDA-10 labels. Everything is computed from raw rows; the derived
+// workbook cells are never read.
+export function detentionBmpRollup(cdaExisting, cdaProposed, bmps, params) {
+  const det = params?.detention || {};
+  const storms = [
+    { label: '2-yr',   rainIn: det.p2In   },
+    { label: '15-yr',  rainIn: det.p15In  },
+    { label: '100-yr', rainIn: det.p100In },
+  ];
+
+  const _areasFor = (rows) => {
+    const out = { Natural: 0, Compacted: 0, Impervious: 0, BMP: 0 };
+    for (const r of rows || []) {
+      const k = LAND_USE_TO_DETENTION_KEY[r.landUse];
+      if (k) out[k] += r.areaIn || 0;
+    }
+    return out;
+  };
+
+  const preBy = new Map();
+  for (const r of cdaExisting || []) {
+    if (!r.cdaId) continue;
+    if (!preBy.has(r.cdaId)) preBy.set(r.cdaId, []);
+    preBy.get(r.cdaId).push(r);
+  }
+  const postBy = new Map();
+  for (const r of cdaProposed || []) {
+    if (!r.cdaId) continue;
+    if (!postBy.has(r.cdaId)) postBy.set(r.cdaId, []);
+    postBy.get(r.cdaId).push(r);
+  }
+
+  const cdaIds = [...new Set([...postBy.keys(), ...preBy.keys()])]
+    .sort((a, b) => _idNum(a) - _idNum(b));
+
+  return cdaIds.map(cdaId => {
+    const postRows = postBy.get(cdaId) || [];
+    const preRows  = preBy.get(cdaId) || [];
+    const src      = postRows[0] || preRows[0] || {};
+    const cnPre    = compositeCn(_areasFor(preRows),  params.detentionCn).value;
+    const cnPost   = compositeCn(_areasFor(postRows), params.detentionCn).value;
+    const daSf     = postRows.reduce((s, r) => s + (r.areaIn || 0), 0);
+    // BMP Sv sums every BMP assigned to this CDA (matching SUMIFS over BMP col AO).
+    const cdaBmps  = (bmps || []).filter(b => b.cdaId === cdaId);
+    const bmpSvCf  = cdaBmps.reduce((s, b) => s + _svForBmp(b, params), 0);
+    const bmpName  = cdaBmps.length ? cdaBmps[0].name : '';   // builder uses first MATCH
+
+    const stormRows = storms.map(s => {
+      const P = s.rainIn || 0;
+      const qPreIn  = scsRunoffDepth(P, cnPre);
+      const qPostIn = scsRunoffDepth(P, cnPost);
+      const adjQIn  = detentionBmpAdjustedQ(qPostIn, bmpSvCf, daSf);
+      const adjCn   = detentionBmpAdjustedCn(adjQIn, P);
+      const detRequired = detentionBmpRequired(adjCn, cnPre, s.label);
+      return { label: s.label, rainIn: P, qPreIn, qPostIn, adjQIn, adjCn, detRequired };
+    });
+
+    return {
+      cdaId,
+      bmpName,
+      sdaId: src.sdaId ?? null,
+      cnPre, cnPost, daSf, bmpSvCf,
+      storms: stormRows,
     };
   });
 }
