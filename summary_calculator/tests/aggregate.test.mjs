@@ -436,6 +436,22 @@ test('detentionBmpRollup: per-CDA storm blocks mirror the builder formulas', () 
   assert.equal(p100.detRequired, '—');
 });
 
+test('detentionBmpRollup: BMP Sv sums every BMP assigned to the same CDA', () => {
+  // Two Permeable Pavement BMPs on CDA-1: 2000·0.5·0.4 = 400 cf and
+  // 1000·0.5·0.4 = 200 cf. The rollup must sum them (600), not take the first.
+  const bmps = [
+    { name: 'PP-1', cdaId: 'CDA-1', sdaId: 'SDA-1', type: 'Permeable Pavement',
+      subType: 'Porous Asphalt', pp: { sa: 2000, dReservoir: 0.5 } },
+    { name: 'PP-2', cdaId: 'CDA-1', sdaId: 'SDA-1', type: 'Permeable Pavement',
+      subType: 'Porous Asphalt', pp: { sa: 1000, dReservoir: 0.5 } },
+  ];
+  const [r] = detentionBmpRollup(dCdaExisting, dCdaProposed, bmps, dParams);
+  assert.equal(r.cdaId, 'CDA-1');
+  // BMP name shows the first BMP assigned to the CDA.
+  assert.equal(r.bmpName, 'PP-1');
+  assert.ok(Math.abs(r.bmpSvCf - 600) < 1e-6, `bmpSvCf=${r.bmpSvCf}`);
+});
+
 test('detentionBmpRollup: tree BMPs add no Sv, so Adj Q equals Post Q', () => {
   const ex = [{ cdaId: 'CDA-2', sdaId: 'SDA-1', landUse: 'Natural (Woods)', hsg: 'C', areaIn: 5000 }];
   const pr = [{ cdaId: 'CDA-2', sdaId: 'SDA-1', landUse: 'Impervious Vehicular', hsg: 'C', areaIn: 5000 }];

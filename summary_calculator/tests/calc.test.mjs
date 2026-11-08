@@ -505,3 +505,12 @@ test('detentionBmpRequired: 15-yr triggers when adjCn > cnPre', () => {
 test('detentionBmpRequired: 100-yr returns em-dash', () => {
   assert.equal(detentionBmpRequired(80, 70, '100-yr'), '—');
 });
+
+test('detentionBmpRequired: strict > boundary at the trigger threshold', () => {
+  // 2-yr trigger is Adj CN > 70 — equality must NOT trigger.
+  assert.equal(detentionBmpRequired(70, 60, '2-yr'), 'No');
+  assert.equal(detentionBmpRequired(70.0001, 60, '2-yr'), 'Yes');
+  // 15-yr trigger is Adj CN > Pre CN — equality must NOT trigger.
+  assert.equal(detentionBmpRequired(70, 70, '15-yr'), 'No');
+  assert.equal(detentionBmpRequired(70.0001, 70, '15-yr'), 'Yes');
+});

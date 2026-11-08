@@ -880,6 +880,8 @@ export function renderPeakDischargeCdaSheet(project, rows) {
 // triggers only — renderDataTable HTML-escapes every cell, so no badges.
 export function renderDoeeDetentionBmpSheet(project, rows) {
   if (!rows || rows.length === 0) return '';
+  // The BMP column shows the first BMP assigned to the CDA (mirroring the
+  // official sheet's first MATCH), while BMP Sv (CF) sums every BMP on that CDA.
   const hdrs = ['CDA', 'BMP', 'SDA', 'CN Pre', 'CN Post', 'DA (SF)', 'BMP Sv (CF)',
     'Rain (in)', 'Pre Q (in)', 'Post Q (in)', 'Adj Q (in)', 'Adj CN', "Det Req'd?"];
   const blockFor = (storm) => renderBlock(`${storm} storm`, renderDataTable(hdrs,
@@ -887,9 +889,9 @@ export function renderDoeeDetentionBmpSheet(project, rows) {
       const s = r.storms.find(x => x.label === storm) || {};
       return [
         r.cdaId, r.bmpName || '—', r.sdaId || '—',
-        fmtN(r.cnPre, 0), fmtN(r.cnPost, 0), fmtN(r.daSf, 0), fmtN(r.bmpSvCf, 0),
+        fmtN(r.cnPre, 2), fmtN(r.cnPost, 2), fmtN(r.daSf, 0), fmtN(r.bmpSvCf, 0),
         fmtN(s.rainIn, 2), fmtN(s.qPreIn, 3), fmtN(s.qPostIn, 3),
-        fmtN(s.adjQIn, 3), fmtN(s.adjCn, 1), s.detRequired || '—',
+        fmtN(s.adjQIn, 3), fmtN(s.adjCn, 2), s.detRequired || '—',
       ];
     })));
   const body = ['2-yr', '15-yr', '100-yr'].map(blockFor).join('\n') +

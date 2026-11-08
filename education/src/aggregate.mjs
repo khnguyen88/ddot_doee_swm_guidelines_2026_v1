@@ -265,7 +265,7 @@ export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params,
 // CDA-1..CDA-10 labels. Everything is computed from raw rows; the derived
 // workbook cells are never read.
 export function detentionBmpRollup(cdaExisting, cdaProposed, bmps, params) {
-  const det = params?.detention || {};
+  const det = params.detention || {};
   const storms = [
     { label: '2-yr',   rainIn: det.p2In   },
     { label: '15-yr',  rainIn: det.p15In  },
@@ -316,7 +316,9 @@ export function detentionBmpRollup(cdaExisting, cdaProposed, bmps, params) {
       const adjQIn  = detentionBmpAdjustedQ(qPostIn, bmpSvCf, daSf);
       const adjCn   = detentionBmpAdjustedCn(adjQIn, P);
       const detRequired = detentionBmpRequired(adjCn, cnPre, s.label);
-      return { label: s.label, rainIn: P, qPreIn, qPostIn, adjQIn, adjCn, detRequired };
+      // Preserve a missing rainfall as null so the deck renders '—' rather
+      // than a misleading 0.00; P=0 still drives the (zero-runoff) math.
+      return { label: s.label, rainIn: s.rainIn ?? null, qPreIn, qPostIn, adjQIn, adjCn, detRequired };
     });
 
     return {
