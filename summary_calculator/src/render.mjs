@@ -747,6 +747,73 @@ export function renderEisaComplianceSheet(project, direct, tr55, bmpStorage, ele
   });
 }
 
+// EISA §438 Direct Determination timestep view. Two portrait pages
+// (summary + 24-row hourly roll-up) because each .calc-sheet is a single
+// printed page with overflow:hidden and the trace has 240 steps.
+// renderDataTable HTML-escapes every cell, so pass plain values only.
+export function renderEisaTimestepSheet(project, trace) {
+  if (!trace || !trace.timeSteps || trace.timeSteps.length === 0) return [];
+  const stormIn = trace.timeSteps.reduce((s, t) => s + (t.rainIn || 0), 0);
+  const sub = `${project.name || ''} · ${project.number || ''}`;
+
+  const inputs = renderKvTable([
+    ['Design storm (in)',         fmtN(stormIn, 2)],
+    ['Timestep (min)',            String(trace.stepMin ?? 6)],
+    ['Loss model',                trace.lossModelUsed],
+    ['Hyetograph',                'SCS Type II (NRCS TR-55 Table 5-1)'],
+    ['Pre area (sf)',             fmtN(trace.areaSf?.pre ?? 0, 0)],
+    ['Post area (sf)',            fmtN(trace.areaSf?.post ?? 0, 0)],
+    ['BMP storage provided (CF)', fmtN(trace.bmpSvCf ?? 0, 0)],
+    ['BMP storage used (CF)',     fmtN(trace.bmpSvUsedCf ?? 0, 0)],
+  ]);
+  const summary = renderKvTable([
+    ['Peak pre excess (in/step)',      fmtN(trace.peaks.preIn, 4)],
+    ['Peak post excess (in/step)',     fmtN(trace.peaks.postIn, 4)],
+    ['Peak post-with-BMP (in/step)',   fmtN(trace.peaks.postWithBmpIn, 4)],
+    ['Total pre runoff (CF)',          fmtN(trace.totals.preCf, 1)],
+    ['Total post runoff (CF)',         fmtN(trace.totals.postCf, 1)],
+    ['Net post runoff after BMP (CF)', fmtN(trace.totals.netPostCf, 1)],
+  ]);
+
+  const summaryPage = renderSheetShell({
+    title: 'EISA §438 — Direct Determination Timestep',
+    sub,
+    body: renderBlock('Inputs', inputs) +
+          renderBlock('Peaks and totals', summary) +
+          renderNote('Derived timestep cross-check. The DOEE SWMP-BMP Calc spreadsheet is the authoritative compliance source.'),
+    footer: '1.7″ design storm distributed via SCS Type II; BMP storage withdrawn from a cumulative budget',
+  });
+
+  const hours = Array.from({ length: 24 }, () => ({
+    rainIn: 0, infilIn: 0, excessPreIn: 0, excessPostIn: 0,
+    bmpStorageUsedCf: 0, netPostIn: 0,
+  }));
+  for (const s of trace.timeSteps) {
+    const h = Math.min(23, Math.floor((s.tMin || 0) / 60));
+    const b = hours[h];
+    b.rainIn           += s.rainIn || 0;
+    b.infilIn          += s.infilIn || 0;
+    b.excessPreIn      += s.excessPreIn || 0;
+    b.excessPostIn     += s.excessPostIn || 0;
+    b.bmpStorageUsedCf += s.bmpStorageUsedCf || 0;
+    b.netPostIn        += s.netPostIn || 0;
+  }
+  const hdrs = ['Hour', 'Rain (in)', 'Infil (in)', 'Excess Pre (in)',
+    'Excess Post (in)', 'BMP used (CF)', 'Net Post (in)'];
+  const rows = hours.map((b, h) => [
+    String(h), fmtN(b.rainIn, 3), fmtN(b.infilIn, 3), fmtN(b.excessPreIn, 3),
+    fmtN(b.excessPostIn, 3), fmtN(b.bmpStorageUsedCf, 1), fmtN(b.netPostIn, 3),
+  ]);
+  const detailPage = renderSheetShell({
+    title: 'EISA §438 — Direct Determination Timestep (hourly)',
+    sub,
+    body: renderBlock('Hourly summary (24 × 1 hr)', renderDataTable(hdrs, rows)),
+    footer: 'Aggregated from 240 six-minute steps',
+  });
+
+  return [summaryPage, detailPage];
+}
+
 export function renderAreaSummarySheet(project, areaSummary) {
   if ((!areaSummary.sdaRows || areaSummary.sdaRows.length === 0) &&
       (!areaSummary.cdaRows || areaSummary.cdaRows.length === 0)) {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderSheetShell, renderTrace, renderKvTable, renderAreaSummarySheet, renderTcPathSheet, renderPeakDischargeSdaSheet, renderPeakDischargeCdaSheet } from '../src/render.mjs';
+import { renderSheetShell, renderTrace, renderKvTable, renderAreaSummarySheet, renderTcPathSheet, renderPeakDischargeSdaSheet, renderPeakDischargeCdaSheet, renderEisaTimestepSheet } from '../src/render.mjs';
 
 test('renderSheetShell returns HTML with title and sub', () => {
   const html = renderSheetShell({
@@ -617,4 +617,30 @@ test('renderDoeeDetentionBmpSheet: 3 storm blocks, portrait, plain-text triggers
   assert.ok(html.includes('class="calc-sheet"'));
   assert.ok(!html.includes('landscape'));
   assert.ok(!html.includes('<span'));
+});
+
+test('renderEisaTimestepSheet: summary + hourly pages, portrait, plain text', () => {
+  const trace = {
+    lossModelUsed: 'horton',
+    timeSteps: Array.from({ length: 240 }, (_, i) => ({
+      tMin: i * 6, rainIn: 1.7 / 240, infilIn: 0.003,
+      excessPreIn: 0.002, excessPostIn: 0.005,
+      bmpStorageUsedCf: 1.25, netPostIn: 0.004,
+    })),
+    areaSf: { pre: 10000, post: 10000 },
+    bmpSvCf: 500, bmpSvUsedCf: 300, stepMin: 6,
+    peaks: { preIn: 0.02, postIn: 0.05, postWithBmpIn: 0.04 },
+    totals: { preCf: 100, postCf: 300, netPostCf: 250 },
+  };
+  const pages = renderEisaTimestepSheet({ name: 'T', number: 'T-001' }, trace);
+  assert.equal(pages.length, 2);
+  const html = pages.join('');
+  assert.ok(html.includes('Direct Determination Timestep'));
+  assert.ok(html.includes('horton'));
+  assert.ok(html.includes('Peak'));
+  assert.ok(html.includes('Hourly summary'));
+  assert.ok(html.includes('class="calc-sheet"'));
+  assert.ok(!html.includes('landscape'));
+  assert.ok(!html.includes('<span'));
+  assert.deepEqual(renderEisaTimestepSheet({ name: 'T' }, { timeSteps: [] }), []);
 });

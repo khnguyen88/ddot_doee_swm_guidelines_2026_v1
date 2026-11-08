@@ -3,7 +3,7 @@
 import { parseWorkbook } from './parse.mjs';
 import {
   siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
-  eisaDirectVolumeTraceCf, tr55VolumeTraceCf, tcFinalMin,
+  eisaDirectVolumeTraceCf, tr55VolumeTraceCf, tcFinalMin, eisaTimestepTrace,
 } from './calc.mjs';
 import { rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup, peakDischargeRollup, detentionBmpRollup } from './aggregate.mjs';
 import {
@@ -15,7 +15,7 @@ import {
   renderDetentionSheet, renderCompliancePage,
   renderExecutiveSummarySheet, renderAreaSummarySheet,
   renderTcPathSheet, renderPeakDischargeSdaSheet, renderPeakDischargeCdaSheet,
-  renderDoeeDetentionBmpSheet,
+  renderDoeeDetentionBmpSheet, renderEisaTimestepSheet,
 } from './render.mjs';
 
 const main = document.getElementById('main');
@@ -133,6 +133,17 @@ function buildDeck(parsed) {
   push('EISA §438 — Direct',     renderEisaDirectSheet(project, eisaDirectPre, eisaDirectPost));
   push('EISA §438 — TR-55',      renderEisaTr55Sheet(project, eisaTr55Pre, eisaTr55Post));
   push('EISA §438 — Compliance', renderEisaComplianceSheet(project, direct, tr55, bmpStorage, project.eisa));
+  const eisaTimestep = eisaTimestepTrace({
+    sdas,
+    bmps: bmpStorage,
+    params,
+    P: project.rainfallEisa || 1.7,
+    lossModel: 'horton',
+  });
+  const timestepPages = renderEisaTimestepSheet(project, eisaTimestep);
+  timestepPages.forEach((html, i) => push(
+    timestepPages.length > 1 ? `EISA §438 — DD Timestep (${i + 1})` : 'EISA §438 — DD Timestep',
+    html));
   const tcPaths = (parsed.tcPaths || []).map(p => ({
     ...p,
     tcMin: tcFinalMin(p.tcDirectMin, p.segments),
