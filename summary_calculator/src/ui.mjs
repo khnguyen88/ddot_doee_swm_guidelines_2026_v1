@@ -121,6 +121,9 @@ function buildDeck(parsed) {
   push('EISA §438 — Direct',     renderEisaDirectSheet(project, eisaDirectPre, eisaDirectPost));
   push('EISA §438 — TR-55',      renderEisaTr55Sheet(project, eisaTr55Pre, eisaTr55Post));
   push('EISA §438 — Compliance', renderEisaComplianceSheet(project, direct, tr55, bmpStorage, project.eisa));
+  // Site Compliance (portrait) before Detention (landscape) so the deck
+  // ends on the landscape sheet — Chromium inserts a blank "transition"
+  // page when portrait follows landscape in print output.
   push('Site Compliance',   renderCompliancePage(project, complianceRows));
   push('Detention Summary', renderDetentionSheet(project, detention, params.detention.p2In, params.detention.p15In));
 

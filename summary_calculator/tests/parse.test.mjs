@@ -151,3 +151,8 @@ test('optionalSheet: returns null when missing (does not throw)', () => {
   const fakeWb = { SheetNames: ['FOO'], Sheets: { FOO: {} } };
   assert.equal(optionalSheet(fakeWb, 'MISSING'), null);
 });
+
+test('optionalSheet: null when SheetNames lists a name but Sheets lacks it', () => {
+  const fakeWb = { SheetNames: ['FOO'], Sheets: {} };
+  assert.equal(optionalSheet(fakeWb, 'FOO'), null);
+});
