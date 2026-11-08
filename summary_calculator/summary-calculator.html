@@ -595,13 +595,12 @@ function eisaDirectVolumeTraceCf(rows, P) {
 
 // ─── Time of Concentration (NRCS TR-55) ─────────────────────────────────────
 
-// Shallow-concentrated flow velocity coefficient k = ft/s per sqrt(slope).
-// Per NRCS TR-55 Figure 3-1 (subset most commonly used in DC projects).
+// Shallow-concentrated flow velocity coefficients (TR-55 Fig 3-1).
+// Template dropdown offers only "paved" / "unpaved"; the workbook formula
+// treats anything other than "paved" as unpaved.
 const SHALLOW_FLOW_K = {
-  'Paved':                20.3282,
-  'Unpaved':              16.1345,
-  'Grassed waterway':     15.0,
-  'Nearly bare & untilled': 10.0,
+  paved:   20.3282,
+  unpaved: 16.1345,
 };
 function tcSheetFlow({ length, slope, n, P2 }) {
   if (!(length > 0 && slope > 0 && n > 0 && P2 > 0)) return null;
@@ -610,8 +609,9 @@ function tcSheetFlow({ length, slope, n, P2 }) {
   return Tt_hr * 60;
 }
 function tcShallowFlow({ length, slope, surface }) {
-  const k = SHALLOW_FLOW_K[surface];
-  if (!(length > 0 && slope > 0 && k > 0)) return null;
+  if (!(length > 0 && slope > 0)) return null;
+  const key = String(surface ?? '').trim().toLowerCase();
+  const k = SHALLOW_FLOW_K[key] ?? SHALLOW_FLOW_K.unpaved;
   const V = k * Math.sqrt(slope);
   return length / (V * 60);
 }
@@ -629,6 +629,14 @@ function timeOfConcentration(segments) {
   const total = perSegment.reduce((a, t) => a + (t || 0), 0);
   // TR-55 / DOEE floor: Tc_final >= 0.1 hr (6 min).
   return Math.max(total, 6);
+}
+
+// Final Tc in minutes: a direct entry overrides the computed sum, and the
+// TR-55 / DOEE 6-minute floor applies to both paths.
+function tcFinalMin(tcDirectMin, segments) {
+  if (tcDirectMin != null) return Math.max(tcDirectMin, 6);
+  if (!segments || segments.length === 0) return null;
+  return timeOfConcentration(segments);
 }
 function tr55VolumeTraceCf(rows, P) {
   const perRow = rows.map(r => {
@@ -1054,7 +1062,7 @@ function _mergeCdaCompat(existing, proposed) {
 }
 
 // TC_PATH layout (from workbook/builders/tc_path.py):
-//   Header row 3; data rows 4+ (20 paths max).
+//   Header row 3; data rows 4..23 (20 paths max).
 //   A=ID, B=Name, C=Tc direct (min),
 //   D=Sheet n, E=Sheet L, F=Sheet P2, G=Sheet S,
 //   I=Shallow surface, J=Shallow L, K=Shallow S,
@@ -1063,7 +1071,7 @@ function _mergeCdaCompat(existing, proposed) {
 function parseTcPath(sheet) {
   if (!sheet) return [];
   const rows = [];
-  for (let r = 4; r <= DATA_MAX_ROW; r++) {
+  for (let r = 4; r <= 23; r++) {
     const pathId = cell(sheet, r, 1);
     const name   = cell(sheet, r, 2);
     const tcDirectMin = cell(sheet, r, 3);
@@ -1079,7 +1087,7 @@ function parseTcPath(sheet) {
     const c2L    = cell(sheet, r, 16);
     const c2V    = cell(sheet, r, 17);
     const empty = [pathId, name, tcDirectMin, sheetL, shL, c1L, c2L].every(v => v == null);
-    if (empty) break;
+    if (empty) continue;
     const segments = [];
     if (sheetL != null) segments.push({ type: 'sheet', length: sheetL, slope: sheetS, n: sheetN, P2: sheetP });
     if (shL    != null) segments.push({ type: 'shallow', length: shL, slope: shS, surface: shSurf });
@@ -2062,16 +2070,18 @@ function renderTcPathSheet(project, tcPaths) {
       p.segments.map(s => s.type).join(' + ') || '—';
     const segs = p.segments.length === 0 ? '—' :
       p.segments.map(s => `${s.type}:${s.length}ft`).join(', ');
-    const tcDirect = p.tcDirectMin != null ? p.tcDirectMin.toFixed(1) : '—';
-    const tcTotal  = p.tcMin != null ? p.tcMin.toFixed(1) : '—';
-    return [p.pathId, p.name || '—', method, segs, tcDirect, tcTotal];
+    const tcDirect = p.tcDirectMin != null ? fmtN(p.tcDirectMin, 1) : '—';
+    const tcTotal  = p.tcMin != null ? fmtN(p.tcMin, 1) : '—';
+    return [p.pathId || '—', p.name || '—', method, segs, tcDirect, tcTotal];
   });
+  // Portrait: this page sits between portrait EISA/Site Compliance pages;
+  // a landscape sheet here would force a mid-deck orientation switch that
+  // Chromium prints as a blank transition page.
   return renderSheetShell({
     title: 'TC_PATH — Time of Concentration',
     sub:   `${project.name || ''} · ${project.number || ''}`,
     body:  renderBlock('Flow paths', renderDataTable(headers, rows)),
     footer: 'NRCS TR-55 Sheet / Shallow / Channel; floor Tc ≥ 6 min',
-    landscape: true,
   });
 }
 
@@ -2197,8 +2207,7 @@ function buildDeck(parsed) {
   push('EISA §438 — Compliance', renderEisaComplianceSheet(project, direct, tr55, bmpStorage, project.eisa));
   const tcPaths = (parsed.tcPaths || []).map(p => ({
     ...p,
-    tcMin: p.tcDirectMin != null ? p.tcDirectMin
-         : (p.segments.length ? timeOfConcentration(p.segments) : null),
+    tcMin: tcFinalMin(p.tcDirectMin, p.segments),
   }));
   pushIfNonEmpty('TC_PATH — Time of Concentration',
                  renderTcPathSheet(project, tcPaths));

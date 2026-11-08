@@ -388,7 +388,7 @@ function _mergeCdaCompat(existing, proposed) {
 }
 
 // TC_PATH layout (from workbook/builders/tc_path.py):
-//   Header row 3; data rows 4+ (20 paths max).
+//   Header row 3; data rows 4..23 (20 paths max).
 //   A=ID, B=Name, C=Tc direct (min),
 //   D=Sheet n, E=Sheet L, F=Sheet P2, G=Sheet S,
 //   I=Shallow surface, J=Shallow L, K=Shallow S,
@@ -397,7 +397,7 @@ function _mergeCdaCompat(existing, proposed) {
 export function parseTcPath(sheet) {
   if (!sheet) return [];
   const rows = [];
-  for (let r = 4; r <= DATA_MAX_ROW; r++) {
+  for (let r = 4; r <= 23; r++) {
     const pathId = cell(sheet, r, 1);
     const name   = cell(sheet, r, 2);
     const tcDirectMin = cell(sheet, r, 3);
@@ -413,7 +413,7 @@ export function parseTcPath(sheet) {
     const c2L    = cell(sheet, r, 16);
     const c2V    = cell(sheet, r, 17);
     const empty = [pathId, name, tcDirectMin, sheetL, shL, c1L, c2L].every(v => v == null);
-    if (empty) break;
+    if (empty) continue;
     const segments = [];
     if (sheetL != null) segments.push({ type: 'sheet', length: sheetL, slope: sheetS, n: sheetN, P2: sheetP });
     if (shL    != null) segments.push({ type: 'shallow', length: shL, slope: shS, surface: shSurf });

@@ -547,3 +547,11 @@ test('renderTcPathSheet: one row per path, includes Tc min column', () => {
   assert.ok(html.includes('18.5'));
   assert.ok(html.includes('Tc'));
 });
+
+test('renderTcPathSheet: empty input returns empty string; page is portrait', () => {
+  assert.equal(renderTcPathSheet({ name: 'T' }, []), '');
+  const html = renderTcPathSheet({ name: 'T' }, [
+    { pathId: 'SDA-1', name: 'x', tcDirectMin: null, segments: [], tcMin: null },
+  ]);
+  assert.ok(!html.includes('landscape'));
+});

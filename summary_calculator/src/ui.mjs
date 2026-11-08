@@ -3,7 +3,7 @@
 import { parseWorkbook } from './parse.mjs';
 import {
   siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
-  eisaDirectVolumeTraceCf, tr55VolumeTraceCf, timeOfConcentration,
+  eisaDirectVolumeTraceCf, tr55VolumeTraceCf, tcFinalMin,
 } from './calc.mjs';
 import { rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup } from './aggregate.mjs';
 import {
@@ -131,8 +131,7 @@ function buildDeck(parsed) {
   push('EISA §438 — Compliance', renderEisaComplianceSheet(project, direct, tr55, bmpStorage, project.eisa));
   const tcPaths = (parsed.tcPaths || []).map(p => ({
     ...p,
-    tcMin: p.tcDirectMin != null ? p.tcDirectMin
-         : (p.segments.length ? timeOfConcentration(p.segments) : null),
+    tcMin: tcFinalMin(p.tcDirectMin, p.segments),
   }));
   pushIfNonEmpty('TC_PATH — Time of Concentration',
                  renderTcPathSheet(project, tcPaths));

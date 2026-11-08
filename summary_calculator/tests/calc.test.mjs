@@ -16,6 +16,7 @@ import {
   tcShallowFlow,
   tcChannelFlow,
   timeOfConcentration,
+  tcFinalMin,
 } from '../src/calc.mjs';
 
 const approx = (a, b, tol = 1e-6) =>
@@ -419,4 +420,20 @@ test('timeOfConcentration: sum of segment minutes, floor 6 min (0.1 hr)', () => 
   const tc = timeOfConcentration(segs);
   assert.ok(tc >= 6, 'floor not applied');
   assert.ok(Math.abs(tc - 21.5896) < 0.1, `expected ~21.59, got ${tc}`);
+});
+
+test('tcShallowFlow: lowercase template value and unknown surface default to unpaved', () => {
+  const lower = tcShallowFlow({ length: 500, slope: 0.02, surface: 'paved' });
+  const upper = tcShallowFlow({ length: 500, slope: 0.02, surface: 'Paved' });
+  assert.ok(Math.abs(lower - upper) < 1e-9);
+  const unknown = tcShallowFlow({ length: 500, slope: 0.02, surface: 'gravel' });
+  const unpaved = tcShallowFlow({ length: 500, slope: 0.02, surface: 'unpaved' });
+  assert.ok(Math.abs(unknown - unpaved) < 1e-9);
+});
+
+test('tcFinalMin: direct override floored at 6 min; null when no segments', () => {
+  assert.equal(tcFinalMin(2, []), 6);
+  assert.equal(tcFinalMin(12.5, []), 12.5);
+  assert.equal(tcFinalMin(null, []), null);
+  assert.ok(Math.abs(tcFinalMin(null, [{ type: 'channel', length: 1000, velocity: 3 }]) - 6) < 1e-9);
 });

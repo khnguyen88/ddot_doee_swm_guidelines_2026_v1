@@ -812,15 +812,17 @@ export function renderTcPathSheet(project, tcPaths) {
       p.segments.map(s => s.type).join(' + ') || '—';
     const segs = p.segments.length === 0 ? '—' :
       p.segments.map(s => `${s.type}:${s.length}ft`).join(', ');
-    const tcDirect = p.tcDirectMin != null ? p.tcDirectMin.toFixed(1) : '—';
-    const tcTotal  = p.tcMin != null ? p.tcMin.toFixed(1) : '—';
-    return [p.pathId, p.name || '—', method, segs, tcDirect, tcTotal];
+    const tcDirect = p.tcDirectMin != null ? fmtN(p.tcDirectMin, 1) : '—';
+    const tcTotal  = p.tcMin != null ? fmtN(p.tcMin, 1) : '—';
+    return [p.pathId || '—', p.name || '—', method, segs, tcDirect, tcTotal];
   });
+  // Portrait: this page sits between portrait EISA/Site Compliance pages;
+  // a landscape sheet here would force a mid-deck orientation switch that
+  // Chromium prints as a blank transition page.
   return renderSheetShell({
     title: 'TC_PATH — Time of Concentration',
     sub:   `${project.name || ''} · ${project.number || ''}`,
     body:  renderBlock('Flow paths', renderDataTable(headers, rows)),
     footer: 'NRCS TR-55 Sheet / Shallow / Channel; floor Tc ≥ 6 min',
-    landscape: true,
   });
 }

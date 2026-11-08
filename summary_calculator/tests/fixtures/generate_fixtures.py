@@ -51,13 +51,16 @@ def build_tc_path_fixture():
     # Row 4: full path (sheet + shallow + channel)
     ws.cell(4, 1, 'SDA-1'); ws.cell(4, 2, 'Full path')
     ws.cell(4, 4, 0.15); ws.cell(4, 5, 100); ws.cell(4, 6, 3.1); ws.cell(4, 7, 0.01)
-    ws.cell(4, 9, 'Paved'); ws.cell(4, 10, 500); ws.cell(4, 11, 0.02)
+    ws.cell(4, 9, 'paved'); ws.cell(4, 10, 500); ws.cell(4, 11, 0.02)
     ws.cell(4, 13, 1000); ws.cell(4, 14, 3)
     # Row 5: Tc direct override
     ws.cell(5, 1, 'SDA-2'); ws.cell(5, 2, 'Direct'); ws.cell(5, 3, 12.5)
     # Row 6: incomplete (just a shallow segment)
     ws.cell(6, 1, 'CDA-1'); ws.cell(6, 2, 'Short path')
-    ws.cell(6, 9, 'Unpaved'); ws.cell(6, 10, 300); ws.cell(6, 11, 0.03)
+    ws.cell(6, 9, 'unpaved'); ws.cell(6, 10, 300); ws.cell(6, 11, 0.03)
+    # Row 8: appears after a blank row — parser must not stop at the gap
+    ws.cell(8, 1, 'SDA-4'); ws.cell(8, 2, 'After gap')
+    ws.cell(8, 9, 'paved'); ws.cell(8, 10, 1000); ws.cell(8, 11, 0.01)
     wb.save(OUT_DIR / 'tc-path-sample.xlsx')
 
 

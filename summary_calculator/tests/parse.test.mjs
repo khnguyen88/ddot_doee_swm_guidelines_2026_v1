@@ -162,14 +162,24 @@ const tcFixtureBytes = await readFile(
 );
 const tcWb = XLSX.read(new Uint8Array(tcFixtureBytes), { type: 'array' });
 
-test('parseTcPath: reads 3 paths including Tc-direct override and incomplete row', () => {
+test('parseTcPath: reads paths, maps segment fields, tolerates a blank gap row', () => {
   const sheet = optionalSheet(tcWb, 'TC_PATH');
   assert.ok(sheet);
   const paths = parseTcPath(sheet);
-  assert.equal(paths.length, 3);
+  assert.equal(paths.length, 4);
   assert.equal(paths[0].pathId, 'SDA-1');
   assert.equal(paths[0].segments.length, 3);
-  assert.equal(paths[1].pathId, 'SDA-2');
+  assert.deepEqual(paths[0].segments[0],
+    { type: 'sheet', length: 100, slope: 0.01, n: 0.15, P2: 3.1 });
+  assert.deepEqual(paths[0].segments[1],
+    { type: 'shallow', length: 500, slope: 0.02, surface: 'paved' });
+  assert.deepEqual(paths[0].segments[2],
+    { type: 'channel', length: 1000, velocity: 3 });
   assert.equal(paths[1].tcDirectMin, 12.5);
   assert.equal(paths[2].segments.length, 1);
+  assert.equal(paths[3].pathId, 'SDA-4');
+});
+
+test('parseTcPath: absent sheet returns empty array', () => {
+  assert.deepEqual(parseTcPath(null), []);
 });

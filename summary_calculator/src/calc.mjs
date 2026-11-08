@@ -447,13 +447,12 @@ export function eisaDirectVolumeTraceCf(rows, P) {
 
 // ─── Time of Concentration (NRCS TR-55) ─────────────────────────────────────
 
-// Shallow-concentrated flow velocity coefficient k = ft/s per sqrt(slope).
-// Per NRCS TR-55 Figure 3-1 (subset most commonly used in DC projects).
+// Shallow-concentrated flow velocity coefficients (TR-55 Fig 3-1).
+// Template dropdown offers only "paved" / "unpaved"; the workbook formula
+// treats anything other than "paved" as unpaved.
 export const SHALLOW_FLOW_K = {
-  'Paved':                20.3282,
-  'Unpaved':              16.1345,
-  'Grassed waterway':     15.0,
-  'Nearly bare & untilled': 10.0,
+  paved:   20.3282,
+  unpaved: 16.1345,
 };
 
 export function tcSheetFlow({ length, slope, n, P2 }) {
@@ -464,8 +463,9 @@ export function tcSheetFlow({ length, slope, n, P2 }) {
 }
 
 export function tcShallowFlow({ length, slope, surface }) {
-  const k = SHALLOW_FLOW_K[surface];
-  if (!(length > 0 && slope > 0 && k > 0)) return null;
+  if (!(length > 0 && slope > 0)) return null;
+  const key = String(surface ?? '').trim().toLowerCase();
+  const k = SHALLOW_FLOW_K[key] ?? SHALLOW_FLOW_K.unpaved;
   const V = k * Math.sqrt(slope);
   return length / (V * 60);
 }
@@ -485,6 +485,14 @@ export function timeOfConcentration(segments) {
   const total = perSegment.reduce((a, t) => a + (t || 0), 0);
   // TR-55 / DOEE floor: Tc_final >= 0.1 hr (6 min).
   return Math.max(total, 6);
+}
+
+// Final Tc in minutes: a direct entry overrides the computed sum, and the
+// TR-55 / DOEE 6-minute floor applies to both paths.
+export function tcFinalMin(tcDirectMin, segments) {
+  if (tcDirectMin != null) return Math.max(tcDirectMin, 6);
+  if (!segments || segments.length === 0) return null;
+  return timeOfConcentration(segments);
 }
 
 export function tr55VolumeTraceCf(rows, P) {
