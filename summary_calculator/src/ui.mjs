@@ -5,7 +5,7 @@ import {
   siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
   eisaDirectVolumeTraceCf, tr55VolumeTraceCf,
 } from './calc.mjs';
-import { rvProvidedPerSda, rvProvidedPerBmp } from './aggregate.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup } from './aggregate.mjs';
 import {
   renderCoverSheet, renderSiteDaSheet, renderSiteSwrvSheet,
   renderSdaPreSheet, renderSdaPostSheet, renderCdaPreSheet, renderCdaPostSheet,
@@ -13,7 +13,7 @@ import {
   renderMepSheet,
   renderEisaDirectSheet, renderEisaTr55Sheet, renderEisaComplianceSheet,
   renderDetentionSheet, renderCompliancePage,
-  renderExecutiveSummarySheet,
+  renderExecutiveSummarySheet, renderAreaSummarySheet,
 } from './render.mjs';
 
 const main = document.getElementById('main');
@@ -89,6 +89,10 @@ function buildDeck(parsed) {
   const sdaPostPages = renderSdaPostSheet(project, sdas);
   const cdaPrePages  = renderCdaPreSheet(project, cdas);
   const cdaPostPages = renderCdaPostSheet(project, cdas);
+  const areaSummary = areaSummaryRollup(
+    parsed.sdaExisting, parsed.sdaProposed,
+    parsed.cdaExisting, parsed.cdaProposed,
+  );
   const bmpPages    = renderBmpSheets(project, bmps, cdas, params);
 
   const deck = [];
@@ -116,6 +120,7 @@ function buildDeck(parsed) {
   sdaPostPages.forEach((html, i) => push(sdaPostLabels[i], html));
   cdaPrePages.forEach((html, i)  => push(cdaPreLabels[i],  html));
   cdaPostPages.forEach((html, i) => push(cdaPostLabels[i], html));
+  pushIfNonEmpty('Area_Summary', renderAreaSummarySheet(project, areaSummary));
   bmpPages.forEach((html, i) => push(`${bmps[i].name} — ${bmps[i].type}`, html));
   push('MEP Summary', renderMepSheet(project, sdas, bmps, cdas, params));
   push('EISA §438 — Direct',     renderEisaDirectSheet(project, eisaDirectPre, eisaDirectPost));

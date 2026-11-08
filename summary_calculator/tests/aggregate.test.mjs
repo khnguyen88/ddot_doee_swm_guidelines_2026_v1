@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rvProvidedPerSda, rvProvidedPerBmp, swrvComplianceTableRows } from '../src/aggregate.mjs';
+import { rvProvidedPerSda, rvProvidedPerBmp, swrvComplianceTableRows, areaSummaryRollup } from '../src/aggregate.mjs';
 
 const params = {
   bmpDesign: {
@@ -176,4 +176,48 @@ test('rvProvidedPerSda: Dry Swale without geometry falls back to flat-pond formu
   });
   // media_gravel = 400; flat pond = 400 × 1.0 = 400; Sv = 800
   assert.equal(result['SDA-1'], 800);
+});
+
+// ─── areaSummaryRollup ───────────────────────────────────────────────────────
+
+test('areaSummaryRollup: splits Pre/Post by land use and flags Area Match', () => {
+  const sdaExisting = [
+    { sdaId: 'SDA-1', landUse: 'Impervious Vehicular',     areaIn: 1000 },
+    { sdaId: 'SDA-1', landUse: 'Impervious Non-Vehicular', areaIn: 500 },
+    { sdaId: 'SDA-1', landUse: 'Compacted (Open Space)',   areaIn: 200 },
+    { sdaId: 'SDA-1', landUse: 'Natural (Woods)',          areaIn: 100 },
+  ];
+  const sdaProposed = [
+    { sdaId: 'SDA-1', landUse: 'Impervious Vehicular',     areaIn: 1000 },
+    { sdaId: 'SDA-1', landUse: 'Impervious Non-Vehicular', areaIn: 500 },
+    { sdaId: 'SDA-1', landUse: 'Compacted (Open Space)',   areaIn: 200 },
+    { sdaId: 'SDA-1', landUse: 'Natural (Woods)',          areaIn: 100 },
+    { sdaId: 'SDA-1', landUse: 'BMP',                      areaIn: 0   },
+  ];
+  const cdaExisting = [{ cdaId: 'CDA-1', sdaId: 'SDA-1', areaIn: 500 }];
+  const cdaProposed = [{ cdaId: 'CDA-1', sdaId: 'SDA-1', areaIn: 500 }];
+  const r = areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed);
+  assert.equal(r.sdaRows.length, 1);
+  assert.equal(r.sdaRows[0].preImp, 1500);
+  assert.equal(r.sdaRows[0].preTotal, 1800);
+  assert.equal(r.sdaRows[0].postTotal, 1800);
+  assert.equal(r.sdaRows[0].areaMatch, 'OK');
+  assert.equal(r.cdaRows[0].maxBmpCredit, 500 * 1.7 / 12);
+  assert.equal(r.cdaRows[0].areaMatch, 'OK');
+});
+
+test('areaSummaryRollup: flags MISMATCH when Pre differs from Post by > 1 SF', () => {
+  const sdaExisting = [{ sdaId: 'SDA-2', landUse: 'Impervious Vehicular', areaIn: 1000 }];
+  const sdaProposed = [{ sdaId: 'SDA-2', landUse: 'Impervious Vehicular', areaIn: 1100 }];
+  const r = areaSummaryRollup(sdaExisting, sdaProposed, [], []);
+  assert.equal(r.sdaRows[0].areaMatch, 'MISMATCH');
+});
+
+test('areaSummaryRollup: em-dash when Pre or Post missing', () => {
+  const r = areaSummaryRollup(
+    [{ sdaId: 'SDA-3', landUse: 'Impervious Vehicular', areaIn: 500 }],
+    [],
+    [], [],
+  );
+  assert.equal(r.sdaRows[0].areaMatch, '—');
 });

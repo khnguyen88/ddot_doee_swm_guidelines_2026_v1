@@ -98,3 +98,62 @@ export function swrvComplianceTableRows(rows, shortStatus = false) {
   };
   return { perRow, siteTotal };
 }
+
+export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed) {
+  const _sumBy = (rows, sdaId, landUse) =>
+    rows.filter(r => r.sdaId === sdaId && r.landUse === landUse)
+        .reduce((a, r) => a + (r.areaIn || 0), 0);
+
+  const _impSum = (rows, sdaId) =>
+    _sumBy(rows, sdaId, 'Impervious Vehicular') +
+    _sumBy(rows, sdaId, 'Impervious Non-Vehicular');
+
+  const sdaIds = new Set([
+    ...sdaExisting.map(r => r.sdaId),
+    ...sdaProposed.map(r => r.sdaId),
+  ].filter(Boolean));
+
+  const sdaRows = [...sdaIds].sort().map(sdaId => {
+    const preImp  = _impSum(sdaExisting, sdaId);
+    const preComp = _sumBy(sdaExisting, sdaId, 'Compacted (Open Space)');
+    const preNat  = _sumBy(sdaExisting, sdaId, 'Natural (Woods)');
+    const preTotal = preImp + preComp + preNat;
+    const postImp  = _impSum(sdaProposed, sdaId);
+    const postComp = _sumBy(sdaProposed, sdaId, 'Compacted (Open Space)');
+    const postNat  = _sumBy(sdaProposed, sdaId, 'Natural (Woods)');
+    const postBmp  = _sumBy(sdaProposed, sdaId, 'BMP');
+    const postTotal = postImp + postComp + postNat + postBmp;
+    const hasPre  = sdaExisting.some(r => r.sdaId === sdaId);
+    const hasPost = sdaProposed.some(r => r.sdaId === sdaId);
+    const areaMatch = (!hasPre || !hasPost) ? '—'
+                    : Math.abs(postTotal - preTotal) <= 1 ? 'OK'
+                    : 'MISMATCH';
+    return { sdaId, preImp, preComp, preNat, preTotal,
+             postImp, postComp, postNat, postBmp, postTotal,
+             swrvReq: 0, areaMatch };
+  });
+
+  const cdaIds = new Set([
+    ...cdaExisting.map(r => r.cdaId),
+    ...cdaProposed.map(r => r.cdaId),
+  ].filter(Boolean));
+
+  const cdaRows = [...cdaIds].sort().map(cdaId => {
+    const preTotal  = cdaExisting.filter(r => r.cdaId === cdaId)
+                                 .reduce((a, r) => a + (r.areaIn || 0), 0);
+    const postTotal = cdaProposed.filter(r => r.cdaId === cdaId)
+                                 .reduce((a, r) => a + (r.areaIn || 0), 0);
+    const sdaId = (cdaProposed.find(r => r.cdaId === cdaId) || {}).sdaId
+               || (cdaExisting.find(r => r.cdaId === cdaId) || {}).sdaId
+               || '';
+    const hasPre  = cdaExisting.some(r => r.cdaId === cdaId);
+    const hasPost = cdaProposed.some(r => r.cdaId === cdaId);
+    const areaMatch = (!hasPre || !hasPost) ? '—'
+                    : Math.abs(postTotal - preTotal) <= 1 ? 'OK'
+                    : 'MISMATCH';
+    const maxBmpCredit = postTotal * 1.7 / 12;
+    return { cdaId, sdaId, preTotal, postTotal, maxBmpCredit, areaMatch };
+  });
+
+  return { sdaRows, cdaRows };
+}

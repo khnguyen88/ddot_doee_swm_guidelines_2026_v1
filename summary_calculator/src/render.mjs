@@ -746,3 +746,47 @@ export function renderEisaComplianceSheet(project, direct, tr55, bmpStorage, ele
     footer: 'EISA §438 TG (EPA, Dec 2009)',
   });
 }
+
+export function renderAreaSummarySheet(project, areaSummary) {
+  const sdaHeaders = ['SDA_ID',
+    'Pre Imp (SF)', 'Pre Comp (SF)', 'Pre Nat (SF)', 'Pre Total (SF)',
+    'Post Imp (SF)', 'Post Comp (SF)', 'Post Nat (SF)', 'Post BMP (SF)',
+    'Post Total (SF)', 'SWRv Req (CF)', 'Area Match?'];
+  const sdaRows = areaSummary.sdaRows.map(r => [
+    r.sdaId,
+    _asN(r.preImp), _asN(r.preComp), _asN(r.preNat), _asN(r.preTotal),
+    _asN(r.postImp), _asN(r.postComp), _asN(r.postNat), _asN(r.postBmp),
+    _asN(r.postTotal), _asN(r.swrvReq), _asBadge(r.areaMatch),
+  ]);
+  const cdaHeaders = ['CDA_ID', 'SDA_ID',
+    'Pre Total (SF)', 'Post Total (SF)', 'Max BMP Credit (CF)', 'Area Match?'];
+  const cdaRows = areaSummary.cdaRows.map(r => [
+    r.cdaId, r.sdaId,
+    _asN(r.preTotal), _asN(r.postTotal), _asN(r.maxBmpCredit), _asBadge(r.areaMatch),
+  ]);
+  const body = [
+    renderBlock('SDA Summary — Pre vs. Post land cover + SWRv per SDA_ID',
+      renderDataTable(sdaHeaders, sdaRows)),
+    renderBlock('CDA Summary — Max BMP Credit per CDA (DOEE 1.7″ cap)',
+      renderDataTable(cdaHeaders, cdaRows)),
+  ].join('\n');
+  return renderSheetShell({
+    title: 'Area_Summary',
+    sub:   `${project.name || ''} · ${project.number || ''}`,
+    body,
+    footer: 'Area Match tolerance ±1 SF',
+    landscape: true,
+  });
+}
+
+function _asN(v) {
+  if (v == null || v === '') return '—';
+  return (typeof v === 'number' ? v : Number(v)).toLocaleString('en-US',
+    { maximumFractionDigits: 2 });
+}
+
+function _asBadge(status) {
+  if (status === 'OK')       return '✓ OK';
+  if (status === 'MISMATCH') return '⚠ MISMATCH';
+  return '—';
+}

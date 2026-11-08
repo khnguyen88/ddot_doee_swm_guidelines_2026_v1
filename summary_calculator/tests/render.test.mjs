@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderSheetShell, renderTrace, renderKvTable } from '../src/render.mjs';
+import { renderSheetShell, renderTrace, renderKvTable, renderAreaSummarySheet } from '../src/render.mjs';
 
 test('renderSheetShell returns HTML with title and sub', () => {
   const html = renderSheetShell({
@@ -506,4 +506,25 @@ test('renderExecutiveSummarySheet: EISA block shows "No" when PROJECT!B11 = No',
   assert.ok(html.includes('No'));
   // Direct/TR-55 numbers should NOT appear when EISA does not apply
   assert.ok(!html.includes('Net after BMP storage'));
+});
+
+test('renderAreaSummarySheet: emits both section headers and Area Match badges', () => {
+  const project = { name: 'Test Project', number: 'T-001' };
+  const areaSummary = {
+    sdaRows: [
+      { sdaId: 'SDA-1', preImp: 1500, preComp: 200, preNat: 100, preTotal: 1800,
+        postImp: 1500, postComp: 200, postNat: 100, postBmp: 0, postTotal: 1800,
+        swrvReq: 180, areaMatch: 'OK' },
+    ],
+    cdaRows: [
+      { cdaId: 'CDA-1', sdaId: 'SDA-1', preTotal: 500, postTotal: 600,
+        maxBmpCredit: 85, areaMatch: 'MISMATCH' },
+    ],
+  };
+  const html = renderAreaSummarySheet(project, areaSummary);
+  assert.ok(html.includes('SDA Summary'), 'SDA section header missing');
+  assert.ok(html.includes('CDA Summary'), 'CDA section header missing');
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('CDA-1'));
+  assert.ok(html.includes('MISMATCH'));
 });
