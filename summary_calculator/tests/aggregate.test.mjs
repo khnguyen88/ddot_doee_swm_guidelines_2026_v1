@@ -351,3 +351,42 @@ test('peakDischargeRollup: CDA grouping with idKey="cdaId" and sdaId join', () =
   assert.ok(Math.abs(r.qu15yrPost - 676.110) < 0.01, `qu15post=${r.qu15yrPost}`);
   assert.ok(Math.abs(r.qpPost15yr - 2.637262) < 1e-4, `Qp15post=${r.qpPost15yr}`);
 });
+
+test('peakDischargeRollup: existing-only CDA uses the SDA join from existing rows', () => {
+  // CDA-1 exists only in the Existing rows — no Proposed rows at all.
+  const exCda = [{ cdaId:'CDA-1', sdaId:'SDA-1', landUse:'Natural (Woods)', areaIn:21780, areaOut:0 }];
+  const prCda = [];
+  const tc = [{ pathId:'CDA-1', tcDirectMin:18, segments:[] }];
+  const rows = peakDischargeRollup(exCda, prCda, tc, peakParams, 'cdaId');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].areaId, 'CDA-1');
+  assert.equal(rows[0].sdaId, 'SDA-1');
+  assert.equal(rows[0].cnPre, 70);
+});
+
+test('peakDischargeRollup: two CDAs sharing one parent SDA both report that sdaId', () => {
+  const exCda = [
+    { cdaId:'CDA-1', sdaId:'SDA-1', landUse:'Natural (Woods)', areaIn:10890, areaOut:0 },
+    { cdaId:'CDA-2', sdaId:'SDA-1', landUse:'Natural (Woods)', areaIn:10890, areaOut:0 },
+  ];
+  const prCda = [
+    { cdaId:'CDA-1', sdaId:'SDA-1', landUse:'Impervious Vehicular', areaIn:10890 },
+    { cdaId:'CDA-2', sdaId:'SDA-1', landUse:'Impervious Vehicular', areaIn:10890 },
+  ];
+  const tc = [
+    { pathId:'CDA-1', tcDirectMin:18, segments:[] },
+    { pathId:'CDA-2', tcDirectMin:18, segments:[] },
+  ];
+  const rows = peakDischargeRollup(exCda, prCda, tc, peakParams, 'cdaId');
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].areaId, 'CDA-1');
+  assert.equal(rows[1].areaId, 'CDA-2');
+  assert.equal(rows[0].sdaId, 'SDA-1');
+  assert.equal(rows[1].sdaId, 'SDA-1');
+});
+
+test('peakDischargeRollup: SDA rollup sets sdaId equal to areaId', () => {
+  const [r] = peakDischargeRollup(peakExisting, peakProposed, peakTcPaths, peakParams);
+  assert.equal(r.areaId, 'SDA-1');
+  assert.equal(r.sdaId, r.areaId);
+});

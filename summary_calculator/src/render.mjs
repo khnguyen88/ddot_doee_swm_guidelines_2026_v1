@@ -872,6 +872,6 @@ export function renderPeakDischargeSdaSheet(project, rows) {
 export function renderPeakDischargeCdaSheet(project, rows) {
   return _renderPeakDischarge(project, rows, {
     title: 'Peak Discharge — CDA', idHeader: 'CDA_ID', showSdaId: true,
-    footer: 'TR-55 Graphical (SCS Type II); SDA_ID joined from CDA_Proposed',
+    footer: 'TR-55 Graphical (SCS Type II); SDA_ID joined from CDA rows',
   });
 }
