@@ -164,26 +164,27 @@ export function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProp
 }
 
 // ─── TR-55 Graphical Peak Discharge roll-up ────────────────────────────────
-// Mirrors workbook/builders/peak_discharge.py. Computes Qp per SDA for the
-// 2-yr and 15-yr storms from the raw SDA rows, PARAMS tables, and TC_PATH.
+// Mirrors workbook/builders/peak_discharge.py. Computes Qp per drainage area
+// for the 2-yr and 15-yr storms from the raw rows, PARAMS tables, and TC_PATH.
+// `idKey` selects the grouping column: 'sdaId' for SDA rollups, 'cdaId' for CDA.
 
-export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
+export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params, idKey = 'sdaId') {
   const p2In = params?.detention?.p2In;
   const p15In = params?.detention?.p15In;
   if (!(p2In > 0) || !(p15In > 0)) return [];
 
-  // Group raw rows by their SDA ID, preserving first-appearance order.
+  // Group raw rows by their area ID, preserving first-appearance order.
   const postBy = new Map();
   for (const r of proposedRows) {
-    if (!r.sdaId) continue;
-    if (!postBy.has(r.sdaId)) postBy.set(r.sdaId, []);
-    postBy.get(r.sdaId).push(r);
+    if (!r[idKey]) continue;
+    if (!postBy.has(r[idKey])) postBy.set(r[idKey], []);
+    postBy.get(r[idKey]).push(r);
   }
   const preBy = new Map();
   for (const r of existingRows) {
-    if (!r.sdaId) continue;
-    if (!preBy.has(r.sdaId)) preBy.set(r.sdaId, []);
-    preBy.get(r.sdaId).push(r);
+    if (!r[idKey]) continue;
+    if (!preBy.has(r[idKey])) preBy.set(r[idKey], []);
+    preBy.get(r[idKey]).push(r);
   }
 
   const _areasFor = (rows) => {
@@ -195,15 +196,16 @@ export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params)
     return out;
   };
 
-  // Union of proposed and existing SDA IDs (proposed first), ordered numerically.
+  // Union of proposed and existing area IDs (proposed first), ordered numerically.
   const areaIds = new Set([...postBy.keys(), ...preBy.keys()]);
   const orderedIds = [...areaIds].sort((a, b) => _idNum(a) - _idNum(b));
 
-  return orderedIds.map(sdaId => {
-    const postRows = postBy.get(sdaId) || [];
+  return orderedIds.map(areaId => {
+    const postRows = postBy.get(areaId) || [];
     // Missing Existing rows model a zero baseline: no pre areas → composite CN 0
     // → zero pre-storm runoff (Q = 0) and zero pre-storm Qp.
-    const preRows  = preBy.get(sdaId) || [];
+    const preRows  = preBy.get(areaId) || [];
+    const src = postRows[0] || preRows[0] || {};
     const preAreas  = _areasFor(preRows);
     const postAreas = _areasFor(postRows);
     const cnPre  = compositeCn(preAreas,  params.detentionCn).value;
@@ -212,7 +214,7 @@ export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params)
     const areaSf  = postRows.reduce((s, r) => s + (r.areaIn || 0), 0);
     const areaMi2 = areaSf / SQFT_PER_SQMI;
 
-    const p = (tcPaths || []).find(t => t.pathId === sdaId);
+    const p = (tcPaths || []).find(t => t.pathId === areaId);
     const tcMin = p ? tcFinalMin(p.tcDirectMin, p.segments) : null;
     const tcHr = tcMin != null ? tcMin / 60 : DEFAULT_TC_HR;
 
@@ -232,7 +234,8 @@ export function peakDischargeRollup(existingRows, proposedRows, tcPaths, params)
     const post15 = _storm(p15In, sPost, cnPost);
 
     return {
-      areaId: sdaId,
+      areaId,
+      sdaId: src.sdaId ?? null,
       areaSf, areaMi2, tcHr, cnPre, cnPost, p2In, p15In,
       iaOverP2yrPre: pre2.iaP, iaOverP2yrPost: post2.iaP,
       qu2yrPre: pre2.qu, qu2yrPost: post2.qu,

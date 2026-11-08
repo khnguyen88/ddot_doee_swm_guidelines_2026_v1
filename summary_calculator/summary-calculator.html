@@ -1335,25 +1335,26 @@ function areaSummaryRollup(sdaExisting, sdaProposed, cdaExisting, cdaProposed, s
 }
 
 // ─── TR-55 Graphical Peak Discharge roll-up ────────────────────────────────
-// Mirrors workbook/builders/peak_discharge.py. Computes Qp per SDA for the
-// 2-yr and 15-yr storms from the raw SDA rows, PARAMS tables, and TC_PATH.
-function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
+// Mirrors workbook/builders/peak_discharge.py. Computes Qp per drainage area
+// for the 2-yr and 15-yr storms from the raw rows, PARAMS tables, and TC_PATH.
+// `idKey` selects the grouping column: 'sdaId' for SDA rollups, 'cdaId' for CDA.
+function peakDischargeRollup(existingRows, proposedRows, tcPaths, params, idKey = 'sdaId') {
   const p2In = params?.detention?.p2In;
   const p15In = params?.detention?.p15In;
   if (!(p2In > 0) || !(p15In > 0)) return [];
 
-  // Group raw rows by their SDA ID, preserving first-appearance order.
+  // Group raw rows by their area ID, preserving first-appearance order.
   const postBy = new Map();
   for (const r of proposedRows) {
-    if (!r.sdaId) continue;
-    if (!postBy.has(r.sdaId)) postBy.set(r.sdaId, []);
-    postBy.get(r.sdaId).push(r);
+    if (!r[idKey]) continue;
+    if (!postBy.has(r[idKey])) postBy.set(r[idKey], []);
+    postBy.get(r[idKey]).push(r);
   }
   const preBy = new Map();
   for (const r of existingRows) {
-    if (!r.sdaId) continue;
-    if (!preBy.has(r.sdaId)) preBy.set(r.sdaId, []);
-    preBy.get(r.sdaId).push(r);
+    if (!r[idKey]) continue;
+    if (!preBy.has(r[idKey])) preBy.set(r[idKey], []);
+    preBy.get(r[idKey]).push(r);
   }
 
   const _areasFor = (rows) => {
@@ -1365,15 +1366,16 @@ function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
     return out;
   };
 
-  // Union of proposed and existing SDA IDs (proposed first), ordered numerically.
+  // Union of proposed and existing area IDs (proposed first), ordered numerically.
   const areaIds = new Set([...postBy.keys(), ...preBy.keys()]);
   const orderedIds = [...areaIds].sort((a, b) => _idNum(a) - _idNum(b));
 
-  return orderedIds.map(sdaId => {
-    const postRows = postBy.get(sdaId) || [];
+  return orderedIds.map(areaId => {
+    const postRows = postBy.get(areaId) || [];
     // Missing Existing rows model a zero baseline: no pre areas → composite CN 0
     // → zero pre-storm runoff (Q = 0) and zero pre-storm Qp.
-    const preRows  = preBy.get(sdaId) || [];
+    const preRows  = preBy.get(areaId) || [];
+    const src = postRows[0] || preRows[0] || {};
     const preAreas  = _areasFor(preRows);
     const postAreas = _areasFor(postRows);
     const cnPre  = compositeCn(preAreas,  params.detentionCn).value;
@@ -1382,7 +1384,7 @@ function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
     const areaSf  = postRows.reduce((s, r) => s + (r.areaIn || 0), 0);
     const areaMi2 = areaSf / SQFT_PER_SQMI;
 
-    const p = (tcPaths || []).find(t => t.pathId === sdaId);
+    const p = (tcPaths || []).find(t => t.pathId === areaId);
     const tcMin = p ? tcFinalMin(p.tcDirectMin, p.segments) : null;
     const tcHr = tcMin != null ? tcMin / 60 : DEFAULT_TC_HR;
 
@@ -1402,7 +1404,8 @@ function peakDischargeRollup(existingRows, proposedRows, tcPaths, params) {
     const post15 = _storm(p15In, sPost, cnPost);
 
     return {
-      areaId: sdaId,
+      areaId,
+      sdaId: src.sdaId ?? null,
       areaSf, areaMi2, tcHr, cnPre, cnPost, p2In, p15In,
       iaOverP2yrPre: pre2.iaP, iaOverP2yrPost: post2.iaP,
       qu2yrPre: pre2.qu, qu2yrPost: post2.qu,
@@ -2217,29 +2220,51 @@ function renderTcPathSheet(project, tcPaths) {
     footer: 'NRCS TR-55 Sheet / Shallow / Channel; floor Tc ≥ 6 min',
   });
 }
-function renderPeakDischargeSdaSheet(project, rows) {
+
+function _renderPeakDischarge(project, rows, { title, idHeader, showSdaId, footer }) {
   if (!rows || rows.length === 0) return '';
-  const hdrs = ['SDA_ID','DA (ac)','Tc (hr)','CN Pre','CN Post',
-                'qu Pre','qu Post','Q Pre (in)','Q Post (in)','Qp Pre (cfs)','Qp Post (cfs)'];
-  const to2yr = rows.map(r => [
-    r.areaId, fmtN((r.areaSf||0)/SQFT_PER_ACRE,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
-    fmtN(r.qu2yrPre,0), fmtN(r.qu2yrPost,0), fmtN(r.qPre2yr,3), fmtN(r.qPost2yr,3),
-    fmtN(r.qpPre2yr,3), fmtN(r.qpPost2yr,3),
-  ]);
-  const to15yr = rows.map(r => [
-    r.areaId, fmtN((r.areaSf||0)/SQFT_PER_ACRE,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
-    fmtN(r.qu15yrPre,0), fmtN(r.qu15yrPost,0), fmtN(r.qPre15yr,3), fmtN(r.qPost15yr,3),
-    fmtN(r.qpPre15yr,3), fmtN(r.qpPost15yr,3),
-  ]);
+  const hdrs = [
+    idHeader,
+    ...(showSdaId ? ['SDA_ID'] : []),
+    'DA (ac)','Tc (hr)','CN Pre','CN Post',
+    'qu Pre','qu Post','Q Pre (in)','Q Post (in)','Qp Pre (cfs)','Qp Post (cfs)',
+  ];
+  const mapRow = (r, quPre, quPost, qPre, qPost, qpPre, qpPost) => [
+    r.areaId,
+    ...(showSdaId ? [r.sdaId || '—'] : []),
+    fmtN((r.areaSf||0)/SQFT_PER_ACRE, 2), fmtN(r.tcHr, 2), fmtN(r.cnPre, 0), fmtN(r.cnPost, 0),
+    fmtN(quPre, 0), fmtN(quPost, 0), fmtN(qPre, 3), fmtN(qPost, 3),
+    fmtN(qpPre, 3), fmtN(qpPost, 3),
+  ];
+  const renderBlockFor = (label, suffix) => renderBlock(label, renderDataTable(
+    hdrs,
+    rows.map(r => mapRow(r,
+      r[`qu${suffix}Pre`], r[`qu${suffix}Post`],
+      r[`qPre${suffix}`], r[`qPost${suffix}`],
+      r[`qpPre${suffix}`], r[`qpPost${suffix}`],
+    )),
+  ));
   const body =
-    renderBlock('2-yr storm', renderDataTable(hdrs, to2yr)) +
-    renderBlock('15-yr storm', renderDataTable(hdrs, to15yr)) +
+    renderBlockFor('2-yr storm', '2yr') +
+    renderBlockFor('15-yr storm', '15yr') +
     renderNote('The DOEE SWMP-BMP Calc spreadsheet is the authoritative compliance source; this page is a TR-55 cross-check.');
   return renderSheetShell({
-    title: 'Peak Discharge — SDA',
+    title,
     sub:   `${project.name || ''} · ${project.number || ''}`,
     body,
+    footer,
+  });
+}
+function renderPeakDischargeSdaSheet(project, rows) {
+  return _renderPeakDischarge(project, rows, {
+    title: 'Peak Discharge — SDA', idHeader: 'SDA_ID', showSdaId: false,
     footer: 'TR-55 Graphical (SCS Type II, NOAA Atlas 14); Qp = qu · Am · Q',
+  });
+}
+function renderPeakDischargeCdaSheet(project, rows) {
+  return _renderPeakDischarge(project, rows, {
+    title: 'Peak Discharge — CDA', idHeader: 'CDA_ID', showSdaId: true,
+    footer: 'TR-55 Graphical (SCS Type II); SDA_ID joined from CDA_Proposed',
   });
 }
 
@@ -2374,6 +2399,11 @@ function buildDeck(parsed) {
                           parsed.tcPaths || [], parsed.params)
     : [];
   pushIfNonEmpty('Peak Discharge — SDA', renderPeakDischargeSdaSheet(project, peakSda));
+  const peakCda = (parsed.params.tr55 && parsed.params.tr55.length >= 2)
+    ? peakDischargeRollup(parsed.cdaExisting, parsed.cdaProposed,
+                          parsed.tcPaths || [], parsed.params, 'cdaId')
+    : [];
+  pushIfNonEmpty('Peak Discharge — CDA', renderPeakDischargeCdaSheet(project, peakCda));
   // Site Compliance (portrait) before Detention (landscape) so the deck
   // ends on the landscape sheet — Chromium inserts a blank "transition"
   // page when portrait follows landscape in print output.

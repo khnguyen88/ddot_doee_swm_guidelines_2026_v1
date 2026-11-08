@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderSheetShell, renderTrace, renderKvTable, renderAreaSummarySheet, renderTcPathSheet, renderPeakDischargeSdaSheet } from '../src/render.mjs';
+import { renderSheetShell, renderTrace, renderKvTable, renderAreaSummarySheet, renderTcPathSheet, renderPeakDischargeSdaSheet, renderPeakDischargeCdaSheet } from '../src/render.mjs';
 
 test('renderSheetShell returns HTML with title and sub', () => {
   const html = renderSheetShell({
@@ -566,5 +566,18 @@ test('renderPeakDischargeSdaSheet: renders 2-yr and 15-yr blocks per SDA', () =>
   assert.ok(html.includes('SDA-1'));
   assert.ok(html.includes('2-yr'));
   assert.ok(html.includes('15-yr'));
+  assert.ok(!html.includes('landscape'));
+});
+
+test('renderPeakDischargeCdaSheet: includes CDA_ID and SDA_ID join columns', () => {
+  const rows = [{
+    areaId:'CDA-1', sdaId:'SDA-1', areaSf:21780, tcHr:0.3, cnPre:70, cnPost:98,
+    qu2yrPre:587, qu2yrPost:676, qPre2yr:0.793, qPost2yr:2.908, qpPre2yr:0.364, qpPost2yr:1.536,
+    qu15yrPre:642, qu15yrPost:676, qPre15yr:2.208, qPost15yr:4.993, qpPre15yr:1.107, qpPost15yr:2.637,
+  }];
+  const html = renderPeakDischargeCdaSheet({ name:'T', number:'T-001' }, rows);
+  assert.ok(html.includes('CDA-1'));
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('Peak Discharge — CDA'));
   assert.ok(!html.includes('landscape'));
 });

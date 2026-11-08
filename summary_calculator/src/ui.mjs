@@ -14,7 +14,7 @@ import {
   renderEisaDirectSheet, renderEisaTr55Sheet, renderEisaComplianceSheet,
   renderDetentionSheet, renderCompliancePage,
   renderExecutiveSummarySheet, renderAreaSummarySheet,
-  renderTcPathSheet, renderPeakDischargeSdaSheet,
+  renderTcPathSheet, renderPeakDischargeSdaSheet, renderPeakDischargeCdaSheet,
 } from './render.mjs';
 
 const main = document.getElementById('main');
@@ -140,6 +140,11 @@ function buildDeck(parsed) {
                           parsed.tcPaths || [], parsed.params)
     : [];
   pushIfNonEmpty('Peak Discharge — SDA', renderPeakDischargeSdaSheet(project, peakSda));
+  const peakCda = (parsed.params.tr55 && parsed.params.tr55.length >= 2)
+    ? peakDischargeRollup(parsed.cdaExisting, parsed.cdaProposed,
+                          parsed.tcPaths || [], parsed.params, 'cdaId')
+    : [];
+  pushIfNonEmpty('Peak Discharge — CDA', renderPeakDischargeCdaSheet(project, peakCda));
   // Site Compliance (portrait) before Detention (landscape) so the deck
   // ends on the landscape sheet — Chromium inserts a blank "transition"
   // page when portrait follows landscape in print output.

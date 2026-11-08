@@ -827,28 +827,51 @@ export function renderTcPathSheet(project, tcPaths) {
   });
 }
 
-export function renderPeakDischargeSdaSheet(project, rows) {
+function _renderPeakDischarge(project, rows, { title, idHeader, showSdaId, footer }) {
   if (!rows || rows.length === 0) return '';
-  const hdrs = ['SDA_ID','DA (ac)','Tc (hr)','CN Pre','CN Post',
-                'qu Pre','qu Post','Q Pre (in)','Q Post (in)','Qp Pre (cfs)','Qp Post (cfs)'];
-  const to2yr = rows.map(r => [
-    r.areaId, fmtN((r.areaSf||0)/SQFT_PER_ACRE,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
-    fmtN(r.qu2yrPre,0), fmtN(r.qu2yrPost,0), fmtN(r.qPre2yr,3), fmtN(r.qPost2yr,3),
-    fmtN(r.qpPre2yr,3), fmtN(r.qpPost2yr,3),
-  ]);
-  const to15yr = rows.map(r => [
-    r.areaId, fmtN((r.areaSf||0)/SQFT_PER_ACRE,2), fmtN(r.tcHr,2), fmtN(r.cnPre,0), fmtN(r.cnPost,0),
-    fmtN(r.qu15yrPre,0), fmtN(r.qu15yrPost,0), fmtN(r.qPre15yr,3), fmtN(r.qPost15yr,3),
-    fmtN(r.qpPre15yr,3), fmtN(r.qpPost15yr,3),
-  ]);
+  const hdrs = [
+    idHeader,
+    ...(showSdaId ? ['SDA_ID'] : []),
+    'DA (ac)','Tc (hr)','CN Pre','CN Post',
+    'qu Pre','qu Post','Q Pre (in)','Q Post (in)','Qp Pre (cfs)','Qp Post (cfs)',
+  ];
+  const mapRow = (r, quPre, quPost, qPre, qPost, qpPre, qpPost) => [
+    r.areaId,
+    ...(showSdaId ? [r.sdaId || '—'] : []),
+    fmtN((r.areaSf||0)/SQFT_PER_ACRE, 2), fmtN(r.tcHr, 2), fmtN(r.cnPre, 0), fmtN(r.cnPost, 0),
+    fmtN(quPre, 0), fmtN(quPost, 0), fmtN(qPre, 3), fmtN(qPost, 3),
+    fmtN(qpPre, 3), fmtN(qpPost, 3),
+  ];
+  const renderBlockFor = (label, suffix) => renderBlock(label, renderDataTable(
+    hdrs,
+    rows.map(r => mapRow(r,
+      r[`qu${suffix}Pre`], r[`qu${suffix}Post`],
+      r[`qPre${suffix}`], r[`qPost${suffix}`],
+      r[`qpPre${suffix}`], r[`qpPost${suffix}`],
+    )),
+  ));
   const body =
-    renderBlock('2-yr storm', renderDataTable(hdrs, to2yr)) +
-    renderBlock('15-yr storm', renderDataTable(hdrs, to15yr)) +
+    renderBlockFor('2-yr storm', '2yr') +
+    renderBlockFor('15-yr storm', '15yr') +
     renderNote('The DOEE SWMP-BMP Calc spreadsheet is the authoritative compliance source; this page is a TR-55 cross-check.');
   return renderSheetShell({
-    title: 'Peak Discharge — SDA',
+    title,
     sub:   `${project.name || ''} · ${project.number || ''}`,
     body,
+    footer,
+  });
+}
+
+export function renderPeakDischargeSdaSheet(project, rows) {
+  return _renderPeakDischarge(project, rows, {
+    title: 'Peak Discharge — SDA', idHeader: 'SDA_ID', showSdaId: false,
     footer: 'TR-55 Graphical (SCS Type II, NOAA Atlas 14); Qp = qu · Am · Q',
+  });
+}
+
+export function renderPeakDischargeCdaSheet(project, rows) {
+  return _renderPeakDischarge(project, rows, {
+    title: 'Peak Discharge — CDA', idHeader: 'CDA_ID', showSdaId: true,
+    footer: 'TR-55 Graphical (SCS Type II); SDA_ID joined from CDA_Proposed',
   });
 }

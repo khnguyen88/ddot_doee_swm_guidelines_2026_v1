@@ -328,3 +328,26 @@ test('peakDischargeRollup: fewer than 2 TR-55 bins → null qu/Qp, row still ret
   assert.equal(rows[0].qu2yrPre, null);
   assert.equal(rows[0].qpPre2yr, null);
 });
+
+test('peakDischargeRollup: CDA grouping with idKey="cdaId" and sdaId join', () => {
+  const exCda = [{ cdaId:'CDA-1', sdaId:'SDA-1', landUse:'Natural (Woods)', areaIn:21780, areaOut:0 }];
+  const prCda = [{ cdaId:'CDA-1', sdaId:'SDA-1', landUse:'Impervious Vehicular', areaIn:21780 }];
+  const tc = [{ pathId:'CDA-1', tcDirectMin:18, segments:[] }];
+  const [r] = peakDischargeRollup(exCda, prCda, tc, peakParams, 'cdaId');
+  assert.equal(r.areaId, 'CDA-1');
+  assert.equal(r.sdaId, 'SDA-1');
+  assert.equal(r.areaSf, 21780);
+  assert.ok(Math.abs(r.areaMi2 - 0.00078125) < 1e-12);
+  assert.ok(Math.abs(r.tcHr - 0.3) < 1e-9);
+  assert.ok(Math.abs(r.cnPre - 70) < 1e-9);
+  assert.ok(Math.abs(r.cnPost - 98) < 1e-9);
+  // Hand-computed from the Excel formulas (Tc=0.3 hr, P2=3.14, P15=5.23):
+  assert.ok(Math.abs(r.qu2yrPre   - 586.918) < 0.01, `qu2pre=${r.qu2yrPre}`);
+  assert.ok(Math.abs(r.qpPre2yr   - 0.363792) < 1e-4, `Qp2pre=${r.qpPre2yr}`);
+  assert.ok(Math.abs(r.qu2yrPost  - 676.110) < 0.01, `qu2post=${r.qu2yrPost}`);
+  assert.ok(Math.abs(r.qpPost2yr  - 1.535883) < 1e-4, `Qp2post=${r.qpPost2yr}`);
+  assert.ok(Math.abs(r.qu15yrPre  - 641.688) < 0.01, `qu15pre=${r.qu15yrPre}`);
+  assert.ok(Math.abs(r.qpPre15yr  - 1.107129) < 1e-4, `Qp15pre=${r.qpPre15yr}`);
+  assert.ok(Math.abs(r.qu15yrPost - 676.110) < 0.01, `qu15post=${r.qu15yrPost}`);
+  assert.ok(Math.abs(r.qpPost15yr - 2.637262) < 1e-4, `Qp15post=${r.qpPost15yr}`);
+});
