@@ -779,16 +779,17 @@ const SCS_TYPE_II_CURVE = _TR55_TYPE_II_6MIN_STR
   .map(Number);
 
 // Scale the dimensionless curve to a total depth; 240 timesteps of
-// { tMin, pInRate (in/hr average over the step), pCumIn }.
-function scsType2Hyetograph(totalDepthIn, timestepMin = 6) {
+// { tMin, pInRate (in/hr average over the 6-min step), pCumIn }.
+const HYETO_STEP_MIN = 6;
+function scsType2Hyetograph(totalDepthIn) {
   if (!(totalDepthIn > 0)) return [];
   const steps = [];
   let prevCum = 0;
   for (let i = 0; i < SCS_TYPE_II_CURVE.length; i++) {
     const pCumIn = SCS_TYPE_II_CURVE[i] * totalDepthIn;
     const dCum   = pCumIn - prevCum;
-    const pInRate = (dCum / timestepMin) * 60;
-    steps.push({ tMin: i * timestepMin, pInRate, pCumIn });
+    const pInRate = (dCum / HYETO_STEP_MIN) * 60;
+    steps.push({ tMin: i * HYETO_STEP_MIN, pInRate, pCumIn });
     prevCum = pCumIn;
   }
   return steps;
@@ -802,89 +803,126 @@ function hortonInfilRate(fMax, fMin, k, tHours) {
 
 // EISA §438 Direct Determination timestep trace. Distributes P over 24 hr
 // via the SCS Type II hyetograph, computes per-6-min excess runoff for
-// pre/post land cover, and withdraws BMP storage as a uniform per-step
-// withdrawal. Simplified aggregate loss model: a single area-weighted
-// Horton rate (weighted over HSGs that have PARAMS values — the template
-// only defines B and C) is applied site-wide. Falls back to an SCS-CN loss
-// stand-in (CN 80 pre / 95 post) when Horton params are absent and records
-// the path in `lossModelUsed`. This is an educational cross-check, not the
-// authoritative compliance calculation.
+// pre/post land cover, and withdraws BMP storage from a cumulative budget.
+//
+// Loss model: a single area-weighted Horton rate per phase, averaged over
+// the FULL phase area (HSGs without PARAMS entries contribute zero
+// infiltration). If no phase area matches a Horton HSG, or params.horton is
+// absent/empty, the engine falls back to an SCS-CN stand-in (CN 80 pre /
+// 95 post) and records the path in `lossModelUsed`.
+//
+// BMP storage: `bmps[].rvApplied` (falling back to `rvCf`) is summed into a
+// shared volume budget. Each step withdraws up to the step's post-runoff
+// volume from the remaining budget, so storage is fully usable.
+//
+// Educational cross-check only — the DOEE spreadsheet is authoritative.
 function eisaTimestepTrace({ sdas, bmps, params, P = 1.7, lossModel = 'horton' }) {
-  const hyeto = scsType2Hyetograph(P, 6);
-  const totalBmpSv = (bmps || []).reduce((a, b) => a + (b.rvApplied || 0), 0);
-  const haveHorton = params && params.horton && Object.keys(params.horton).length > 0;
-  const lossModelUsed = (lossModel === 'horton' && haveHorton) ? 'horton' : 'scs-cn';
+  const hyeto = scsType2Hyetograph(P);
+  const totalBmpSv = (bmps || []).reduce((a, b) => a + (b.rvApplied ?? b.rvCf ?? 0), 0);
 
   const _sumArea = (phase) => (sdas || []).reduce((a, s) => a + (s[phase] || 0), 0);
   const aPreSf  = _sumArea('preIn');
   const aPostSf = _sumArea('postIn');
 
+  // Area-weighted Horton parameters per phase. The denominator is the full
+  // phase area; unmatched HSGs (e.g. D, or null) simply contribute no
+  // infiltration. `matched` records how much area actually resolved a row.
   const weighted = (phase) => {
-    let fMax = 0, fMin = 0, k = 0, area = 0;
+    let fMax = 0, fMin = 0, k = 0, area = 0, matched = 0;
     for (const s of (sdas || [])) {
       const a = s[phase] || 0;
-      const h = params?.horton?.[s.hsg || 'D'];
-      if (!h || !a) continue;
+      if (!a) continue;
       area += a;
-      fMax += a * (h.fMax || 0);
-      fMin += a * (h.fMin || 0);
-      k    += a * (h.k    || 4);
+      const h = params?.horton?.[s.hsg];
+      if (!h) continue;
+      matched += a;
+      fMax += a * (h.fMax ?? 0);
+      fMin += a * (h.fMin ?? 0);
+      k    += a * (h.k ?? 4);
     }
-    if (area === 0) return null;
-    return { fMax: fMax / area, fMin: fMin / area, k: k / area };
+    if (area === 0) return { fMax: 0, fMin: 0, k: 0, area: 0, matched: 0 };
+    return { fMax: fMax / area, fMin: fMin / area, k: k / area, area, matched };
   };
   const hPre  = weighted('preIn');
   const hPost = weighted('postIn');
 
-  const stepHr = 6 / 60;
-  let cumBmpUsedCf = 0;
+  const haveHorton = !!params?.horton
+    && Object.keys(params.horton).length > 0
+    && (hPre.matched > 0 || hPost.matched > 0);
+  const lossModelUsed = (lossModel === 'horton' && haveHorton) ? 'horton' : 'scs-cn';
+
+  const empty = {
+    lossModelUsed,
+    timeSteps: [],
+    areaSf: { pre: aPreSf, post: aPostSf },
+    bmpSvCf: totalBmpSv,
+    bmpSvUsedCf: 0,
+    stepMin: HYETO_STEP_MIN,
+    peaks:    { preIn: 0, postIn: 0, postWithBmpIn: 0 },
+    totals:   { preCf: 0, postCf: 0, netPostCf: 0 },
+  };
+  if (hyeto.length === 0 || (aPreSf <= 0 && aPostSf <= 0)) return empty;
+
+  const stepHr = HYETO_STEP_MIN / 60;
+
+  // Shared cumulative BMP-storage budget.
+  let bmpRemainingCf = totalBmpSv;
+  const _applyBmp = (excessPostIn) => {
+    const daSf = aPostSf > 0 ? aPostSf : 1;
+    const stepRunoffCf = excessPostIn * daSf / 12;
+    const usedCf = Math.max(0, Math.min(bmpRemainingCf, stepRunoffCf));
+    bmpRemainingCf -= usedCf;
+    const netPostIn = Math.max(0, excessPostIn - usedCf * 12 / daSf);
+    return { usedCf, netPostIn };
+  };
+
+  // SCS-CN fallback constants (hoisted out of the loop).
+  const Sp    = 1000 / 80 - 10;
+  const Spost = 1000 / 95 - 10;
+  const _scsQ = (P_, S) => (P_ > 0.2 * S ? (P_ - 0.2 * S) ** 2 / (P_ + 0.8 * S) : 0);
+
   let peakPre = 0, peakPost = 0, peakPostWithBmp = 0;
   let totalPreIn = 0, totalPostIn = 0, totalNetPostIn = 0;
 
   const timeSteps = hyeto.map((row, i) => {
     const tHours = row.tMin / 60;
-    if (lossModelUsed === 'scs-cn') {
-      const Sp = 1000 / 80 - 10, Spost = 1000 / 95 - 10;
-      const Q = (P_, S) => (P_ > 0.2 * S ? (P_ - 0.2 * S) ** 2 / (P_ + 0.8 * S) : 0);
-      const qPreCum  = Q(row.pCumIn, Sp);
-      const qPostCum = Q(row.pCumIn, Spost);
-      const prevPreCum  = i > 0 ? Q(hyeto[i - 1].pCumIn, Sp)    : 0;
-      const prevPostCum = i > 0 ? Q(hyeto[i - 1].pCumIn, Spost) : 0;
-      const excessPreIn  = Math.max(0, qPreCum  - prevPreCum);
-      const excessPostIn = Math.max(0, qPostCum - prevPostCum);
-      const bmpPerStepCf = totalBmpSv / 240;
-      const usedCf = Math.min(bmpPerStepCf, excessPostIn * (aPostSf / 12));
-      cumBmpUsedCf += usedCf;
-      const netPostIn = Math.max(0, excessPostIn - usedCf * 12 / (aPostSf || 1));
-      totalPreIn += excessPreIn; totalPostIn += excessPostIn; totalNetPostIn += netPostIn;
-      peakPre = Math.max(peakPre, excessPreIn);
-      peakPost = Math.max(peakPost, excessPostIn);
-      peakPostWithBmp = Math.max(peakPostWithBmp, netPostIn);
-      return { tMin: row.tMin, rainIn: row.pInRate * stepHr, infilIn: 0,
-               excessPreIn, excessPostIn, bmpStorageUsedCf: usedCf, netPostIn };
-    }
-    let fPre = 0, fPost = 0;
-    if (hPre)  fPre  = hortonInfilRate(hPre.fMax,  hPre.fMin,  hPre.k,  tHours);
-    if (hPost) fPost = hortonInfilRate(hPost.fMax, hPost.fMin, hPost.k, tHours);
     const rainIn = row.pInRate * stepHr;
-    const excessPreIn  = Math.max(0, rainIn - Math.min(rainIn, (fPre  || 0) * stepHr));
-    const excessPostIn = Math.max(0, rainIn - Math.min(rainIn, (fPost || 0) * stepHr));
-    const bmpPerStepCf = totalBmpSv / 240;
-    const usedCf = Math.min(bmpPerStepCf, excessPostIn * ((aPostSf || 1) / 12));
-    cumBmpUsedCf += usedCf;
-    const netPostIn = Math.max(0, excessPostIn - usedCf * 12 / (aPostSf || 1));
+    let infilIn, excessPreIn, excessPostIn;
+
+    if (lossModelUsed === 'scs-cn') {
+      const qPreCum  = _scsQ(row.pCumIn, Sp);
+      const qPostCum = _scsQ(row.pCumIn, Spost);
+      const prevPreCum  = i > 0 ? _scsQ(hyeto[i - 1].pCumIn, Sp)    : 0;
+      const prevPostCum = i > 0 ? _scsQ(hyeto[i - 1].pCumIn, Spost) : 0;
+      infilIn = 0;
+      excessPreIn  = Math.max(0, qPreCum  - prevPreCum);
+      excessPostIn = Math.max(0, qPostCum - prevPostCum);
+    } else {
+      const fPre  = hortonInfilRate(hPre.fMax,  hPre.fMin,  hPre.k,  tHours) ?? 0;
+      const fPost = hortonInfilRate(hPost.fMax, hPost.fMin, hPost.k, tHours) ?? 0;
+      infilIn = Math.min(rainIn, fPost * stepHr);
+      excessPreIn  = Math.max(0, rainIn - Math.min(rainIn, fPre * stepHr));
+      excessPostIn = Math.max(0, rainIn - infilIn);
+    }
+
+    const { usedCf, netPostIn } = _applyBmp(excessPostIn);
+
     totalPreIn += excessPreIn; totalPostIn += excessPostIn; totalNetPostIn += netPostIn;
     peakPre = Math.max(peakPre, excessPreIn);
     peakPost = Math.max(peakPost, excessPostIn);
     peakPostWithBmp = Math.max(peakPostWithBmp, netPostIn);
-    return { tMin: row.tMin, rainIn, infilIn: Math.min(rainIn, (fPost || 0) * stepHr),
+    return { tMin: row.tMin, rainIn, infilIn,
              excessPreIn, excessPostIn, bmpStorageUsedCf: usedCf, netPostIn };
   });
 
   return {
     lossModelUsed,
     timeSteps,
-    peaks: { pre: peakPre, post: peakPost, postWithBmp: peakPostWithBmp },
+    areaSf: { pre: aPreSf, post: aPostSf },
+    bmpSvCf: totalBmpSv,
+    bmpSvUsedCf: totalBmpSv - bmpRemainingCf,
+    stepMin: HYETO_STEP_MIN,
+    peaks: { preIn: peakPre, postIn: peakPost, postWithBmpIn: peakPostWithBmp },
     totals: {
       preCf:     totalPreIn     * (aPreSf  || 0) / 12,
       postCf:    totalPostIn    * (aPostSf || 0) / 12,
@@ -1219,8 +1257,10 @@ function parseParams(sheet) {
   }
 
   // Horton infiltration parameters: rows 22-24, cols B/C = HSG B/C. The
-  // template only defines HSGs B and C (no A/D columns). Row 26 holds the
-  // pre-computed 24-hr loss integrals, NOT a k scalar — do not read it here.
+  // template only defines HSGs B and C (no A/D columns). Row 25 (Δt) is
+  // intentionally unused because the timestep engine fixes the step at
+  // 6 minutes. Row 26 holds the pre-computed 24-hr loss integrals, NOT a
+  // k scalar — do not read it here.
   const horton = {};
   for (const [col, hsg] of [[2, 'B'], [3, 'C']]) {
     const fMax = cell(sheet, 22, col);

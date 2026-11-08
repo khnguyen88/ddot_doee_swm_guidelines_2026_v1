@@ -321,8 +321,10 @@ function parseParams(sheet) {
   }
 
   // Horton infiltration parameters: rows 22-24, cols B/C = HSG B/C. The
-  // template only defines HSGs B and C (no A/D columns). Row 26 holds the
-  // pre-computed 24-hr loss integrals, NOT a k scalar — do not read it here.
+  // template only defines HSGs B and C (no A/D columns). Row 25 (Δt) is
+  // intentionally unused because the timestep engine fixes the step at
+  // 6 minutes. Row 26 holds the pre-computed 24-hr loss integrals, NOT a
+  // k scalar — do not read it here.
   const horton = {};
   for (const [col, hsg] of [[2, 'B'], [3, 'C']]) {
     const fMax = cell(sheet, 22, col);
