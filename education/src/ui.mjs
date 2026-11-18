@@ -8,7 +8,7 @@ import {
 } from './calc.mjs';
 import {
   rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup,
-  peakDischargeRollup,
+  peakDischargeRollup, detentionBmpRollup,
 } from './aggregate.mjs';
 import { tr16LookupQ } from './tr16-exhibit.mjs';
 import {
@@ -21,6 +21,7 @@ import {
   renderEisaDirectEduPage, renderEisaTr55EduPage, renderEisaTr16EduPage, renderEisaComparisonEduPage,
   renderTcPathEduPage,
   renderPeakDischargeSdaEduPage, renderPeakDischargeCdaEduPage,
+  renderDoeeDetentionBmpEduPage,
   renderDetentionEduPage, renderSiteComplianceEduPage,
   renderTr16AppendixPages, renderGlossaryPage,
 } from './render-edu.mjs';
@@ -202,6 +203,11 @@ function buildAndRender() {
                           state.parsed.tcPaths || [], params, 'cdaId')
     : [];
 
+  // DOEE 2020 detention-BMP rollup (per-CDA adjusted-CN methodology).
+  const detentionBmp = detentionBmpRollup(
+    cdaExisting || [], cdaProposed || [], bmps, params,
+  );
+
   // Per-SDA SWRv compliance rows.
   const bySda = {};
   for (const row of sdas) {
@@ -271,6 +277,7 @@ function buildAndRender() {
     'EISA 438 Intro', 'EISA Direct Determination', 'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
     'TC_PATH — Time of Concentration',
     'Peak Discharge — SDA', 'Peak Discharge — CDA',
+    'Detention Summary — 2020 CDA',
     // Site Compliance (portrait) before Detention (landscape) so the deck
     // ends on a landscape sheet — Chromium inserts a blank transition page
     // when portrait follows landscape in print output.
@@ -305,6 +312,7 @@ function buildAndRender() {
   push('TC_PATH — Time of Concentration', renderTcPathEduPage(project, tcPathsWithTc));
   push('Peak Discharge — SDA',           renderPeakDischargeSdaEduPage(project, peakSda));
   push('Peak Discharge — CDA',           renderPeakDischargeCdaEduPage(project, peakCda));
+  push('Detention Summary — 2020 CDA',   renderDoeeDetentionBmpEduPage(project, detentionBmp));
   push('Site Compliance',                renderSiteComplianceEduPage(project, complianceRows));
   push('Detention 2-yr/15-yr',           renderDetentionEduPage(project, detention, params.detention.p2In, params.detention.p15In));
   renderTr16AppendixPages().forEach((html, i) => push(`Appendix A — TR-16 (${i+1})`, html));

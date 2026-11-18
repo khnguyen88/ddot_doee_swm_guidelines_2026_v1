@@ -1316,6 +1316,72 @@ export function renderPeakDischargeCdaEduPage(project, peakCda) {
   });
 }
 
+// ── Task 7.4 — DOEE Detention-BMP (2020 methodology) page ─────────────────
+
+export function renderDoeeDetentionBmpEduPage(project, detentionBmp) {
+  const overview = renderOverview(
+    'The DOEE 2020 methodology credits a BMP\'s stored volume (Sv) toward reducing the effective post-development runoff depth, which in turn yields an adjusted CN compared against the pre CN for the detention trigger.',
+  );
+  const why = renderWhy(`
+    <p>Before 2020, every BMP's Sv was spent on the SWRv retention credit and was <b>not re-usable</b> for detention — a project meeting its SWRv target could still trigger a separate detention facility because the CN comparison ignored BMP storage. The DOEE 2020 methodology changed that: the same Sv now directly offsets the post-development runoff depth, lowering Q_adj and therefore CN_adj. A design that meets SWRv usually no longer triggers a stand-alone detention facility.</p>
+    <p>The comparison is per-CDA (the drainage area the BMP sees) and per-storm. DOEE's rule-of-thumb trigger is: 2-yr required when <code>CN_adj &gt; 70</code>; 15-yr required when <code>CN_adj &gt; CN_pre</code>; 100-yr is informational only.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">Q_post = (P − 0.2·S_post)² / (P + 0.8·S_post)   <i>where S_post = 1000/CN_post − 10</i></div>
+    <div class="cs-formula-line">Q_adj  = max(0, Q_post − Sv_bmp / A_cda · 12)   <i>— BMP storage credited as depth (in)</i></div>
+    <div class="cs-formula-line">CN_adj: solve Q_adj = (P − 0.2·S_adj)² / (P + 0.8·S_adj) ⇒ CN_adj = 1000 / (S_adj + 10)</div>
+    <div class="cs-formula-line">Detention required if CN_adj &gt; CN_pre (15-yr) or CN_adj &gt; 70 (2-yr)</div>
+  `);
+  const rows = detentionBmp || [];
+  let worked;
+  if (!rows.length) {
+    worked = renderWorked('<p>No CDAs defined — DOEE 2020 methodology does not apply.</p>');
+  } else {
+    const traces = rows.map(r => {
+      const twoYr   = (r.storms || []).find(s => s.label === '2-yr')   || {};
+      const fifteen = (r.storms || []).find(s => s.label === '15-yr')  || {};
+      const hundred = (r.storms || []).find(s => s.label === '100-yr') || {};
+      const kv = renderKvTable([
+        ['CDA',                      r.cdaId || '—'],
+        ['SDA (parent)',             r.sdaId || '—'],
+        ['BMP',                      r.bmpName || '—'],
+        ['CN Pre',                   fmtN(r.cnPre, 2)],
+        ['CN Post (unadjusted)',     fmtN(r.cnPost, 2)],
+        ['CDA area (sf)',            fmtN(r.daSf, 0)],
+        ['BMP Sv credited (cf)',     fmtN(r.bmpSvCf, 0)],
+        ['2-yr P / Q_post / Q_adj',  `${fmtN(twoYr.rainIn, 2)}″ / ${fmtN(twoYr.qPostIn, 3)}″ / ${fmtN(twoYr.adjQIn, 3)}″`],
+        ['2-yr CN_adj',              fmtN(twoYr.adjCn, 2)],
+        ['2-yr required?',           twoYr.detRequired || '—'],
+        ['15-yr P / Q_post / Q_adj', `${fmtN(fifteen.rainIn, 2)}″ / ${fmtN(fifteen.qPostIn, 3)}″ / ${fmtN(fifteen.adjQIn, 3)}″`],
+        ['15-yr CN_adj',             fmtN(fifteen.adjCn, 2)],
+        ['15-yr required?',          fifteen.detRequired || '—'],
+        ['100-yr CN_adj (info)',     fmtN(hundred.adjCn, 2)],
+      ]);
+      return renderBlock(`${r.cdaId} — ${r.bmpName || '(no BMP)'}`, kv);
+    }).join('');
+    const nReq2  = rows.filter(r => (r.storms || []).some(s => s.label === '2-yr'  && s.detRequired === 'Yes')).length;
+    const nReq15 = rows.filter(r => (r.storms || []).some(s => s.label === '15-yr' && s.detRequired === 'Yes')).length;
+    const summary = renderDataTable(
+      ['Storm', 'CDAs Requiring Detention', 'CDAs Clear', 'Total'],
+      [
+        ['2-yr',  String(nReq2),  String(rows.length - nReq2),  String(rows.length)],
+        ['15-yr', String(nReq15), String(rows.length - nReq15), String(rows.length)],
+      ],
+    );
+    worked = renderWorked(
+      traces +
+      renderBlock('SUMMARY — DETENTION REQUIRED COUNTS (post-2020 methodology)', summary),
+    );
+  }
+  const body = overview + why + formula + worked;
+  return renderSheetShell({
+    title: 'Detention Summary — 2020 CDA Methodology (BMP-Adjusted)',
+    sub:   project.name || '',
+    body,
+    footer: 'DOEE Guidebook (2020 revision) · 2-yr trigger when CN_adj > 70; 15-yr when CN_adj > CN_pre',
+  });
+}
+
 // ── Task 7.2 — TC_PATH (Time of Concentration) pedagogy page ──────────────
 
 function _segTt(seg) {

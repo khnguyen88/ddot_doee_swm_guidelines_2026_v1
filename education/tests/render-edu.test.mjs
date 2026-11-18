@@ -461,3 +461,49 @@ test('renderPeakDischargeCdaEduPage: empty rows gracefully', () => {
   const html = renderPeakDischargeCdaEduPage({ name: 'Empty' }, []);
   assert.ok(html.includes('Peak Discharge'));
 });
+
+// ── Task 7.4 — DOEE Detention-BMP (2020 methodology) page ─────────────────
+
+import { renderDoeeDetentionBmpEduPage } from '../src/render-edu.mjs';
+
+test('renderDoeeDetentionBmpEduPage: emits all four narrative blocks', () => {
+  const { project, detentionBmp } = buildEduFixture();
+  const html = renderDoeeDetentionBmpEduPage(project, detentionBmp);
+  assert.match(html, /Overview/);
+  assert.match(html, /Why it matters/);
+  assert.match(html, /Formula/);
+  assert.match(html, /Worked/);
+});
+
+test('renderDoeeDetentionBmpEduPage: per-BMP block with CN pre/post, Sv, Q_adj, CN_adj', () => {
+  const { project, detentionBmp } = buildEduFixture();
+  const html = renderDoeeDetentionBmpEduPage(project, detentionBmp);
+  assert.ok(html.includes('BMP-1'));
+  assert.ok(html.includes('CDA-1'));
+  // KV labels
+  assert.ok(html.toLowerCase().includes('pre'));
+  assert.ok(html.toLowerCase().includes('post'));
+  assert.ok(html.toLowerCase().includes('sv'));
+  assert.ok(html.includes('Adj'));
+  // Specific stormwater values (fixture: 2-yr detention required)
+  assert.ok(html.includes('2-yr'));
+  assert.ok(html.includes('15-yr'));
+});
+
+test('renderDoeeDetentionBmpEduPage: narrative cites 2020 methodology', () => {
+  const { project, detentionBmp } = buildEduFixture();
+  const html = renderDoeeDetentionBmpEduPage(project, detentionBmp);
+  assert.ok(html.includes('2020'));
+});
+
+test('renderDoeeDetentionBmpEduPage: summary count table at bottom', () => {
+  const { project, detentionBmp } = buildEduFixture();
+  const html = renderDoeeDetentionBmpEduPage(project, detentionBmp);
+  // There should be a count/summary of required vs not-required
+  assert.ok(html.toLowerCase().includes('required'));
+});
+
+test('renderDoeeDetentionBmpEduPage: handles empty rows gracefully', () => {
+  const html = renderDoeeDetentionBmpEduPage({ name: 'Empty' }, []);
+  assert.ok(html.includes('Detention'));
+});
