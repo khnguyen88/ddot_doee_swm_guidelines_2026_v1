@@ -4,7 +4,7 @@ import { parseWorkbook } from './parse.mjs';
 import {
   siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
   eisaDirectVolumeTraceCf, tr55VolumeTraceCf,
-  tcFinalMin,
+  tcFinalMin, eisaTimestepTrace,
 } from './calc.mjs';
 import {
   rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup,
@@ -19,6 +19,7 @@ import {
   renderTreeCreditPage, renderRvProvidedPage,
   renderMepEduPage, renderEisaIntroPage,
   renderEisaDirectEduPage, renderEisaTr55EduPage, renderEisaTr16EduPage, renderEisaComparisonEduPage,
+  renderEisaTimestepEduPage,
   renderTcPathEduPage,
   renderPeakDischargeSdaEduPage, renderPeakDischargeCdaEduPage,
   renderDoeeDetentionBmpEduPage,
@@ -268,13 +269,25 @@ function buildAndRender() {
                           deltaCf: tr55.post.value   - tr55.pre.value };
   const bmpStorage = rvProvidedPerBmp(bmps, cdas, params).filter(b => b.rvCf > 0);
 
+  // EISA Direct Timestep trace (SCS Type-II hyetograph + Horton loss model).
+  // Uses the merged `sdas` compat shape so eisaTimestepTrace sees preIn/postIn
+  // per row; bmpStorage carries rvCf applied so the step budget is correct.
+  const eisaTimestep = eisaTimestepTrace({
+    sdas,
+    bmps: bmpStorage,
+    params,
+    P: project.rainfallEisa || 1.7,
+    lossModel: 'horton',
+  });
+
   // Build labels (for Cover TOC).
   const laterLabels = [
     'Compliance Landscape', 'Project Triggers',
     'Site DA', 'Area Summary', 'SDA & CDA Explained', 'Rv Values', 'SWRv per SDA',
     'BMP Catalog', 'Permeable Pavement Sizing', 'Bioretention Sizing', 'Dry Swale Sizing', 'Tree Credit', 'Rv Provided',
     'DDOT MEP (PROW)',
-    'EISA 438 Intro', 'EISA Direct Determination', 'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
+    'EISA 438 Intro', 'EISA Direct Determination', 'EISA Direct Timestep',
+    'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
     'TC_PATH — Time of Concentration',
     'Peak Discharge — SDA', 'Peak Discharge — CDA',
     'Detention Summary — 2020 CDA',
@@ -306,6 +319,7 @@ function buildAndRender() {
   push('DDOT MEP (PROW)',                renderMepEduPage(project, sdas, bmps, cdas, params));
   push('EISA 438 Intro',                 renderEisaIntroPage(project));
   push('EISA Direct Determination',      renderEisaDirectEduPage(project, direct.pre, direct.post));
+  push('EISA Direct Timestep',           renderEisaTimestepEduPage(project, eisaTimestep));
   push('EISA TR-55',                     renderEisaTr55EduPage(project, tr55.pre, tr55.post));
   push('EISA TR-16 Lookup',              renderEisaTr16EduPage(project, state.parsed, params));
   push('EISA Three-Method Comparison',   renderEisaComparisonEduPage(project, directSummary, tr55Summary, tr16, bmpStorage, project.eisa));

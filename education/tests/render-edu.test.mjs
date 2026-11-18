@@ -507,3 +507,60 @@ test('renderDoeeDetentionBmpEduPage: handles empty rows gracefully', () => {
   const html = renderDoeeDetentionBmpEduPage({ name: 'Empty' }, []);
   assert.ok(html.includes('Detention'));
 });
+
+// ── Task 7.5 — EISA Direct Timestep page ──────────────────────────────────
+
+import { renderEisaTimestepEduPage } from '../src/render-edu.mjs';
+
+test('renderEisaTimestepEduPage: emits all four narrative blocks', () => {
+  const { project, eisaTimestep } = buildEduFixture();
+  const html = renderEisaTimestepEduPage(project, eisaTimestep);
+  assert.match(html, /Overview/);
+  assert.match(html, /Why it matters/);
+  assert.match(html, /Formula/);
+  assert.match(html, /Worked/);
+});
+
+test('renderEisaTimestepEduPage: shows inputs (storm, timestep, areas, loss model)', () => {
+  const { project, eisaTimestep } = buildEduFixture();
+  const html = renderEisaTimestepEduPage(project, eisaTimestep);
+  assert.ok(html.toLowerCase().includes('scs type ii') || html.includes('SCS Type II'));
+  assert.ok(html.includes('horton'));            // loss model used
+  assert.ok(html.toLowerCase().includes('timestep') || html.includes('minute'));
+});
+
+test('renderEisaTimestepEduPage: shows totals (pre/post/net) and peak intensities', () => {
+  const { project, eisaTimestep } = buildEduFixture();
+  const html = renderEisaTimestepEduPage(project, eisaTimestep);
+  // Fixture peakPost = 0.0397 in/step; totals.postCf ≈ 114 cf
+  assert.ok(html.includes('114'));
+  assert.ok(html.toLowerCase().includes('peak'));
+  assert.ok(html.toLowerCase().includes('total'));
+});
+
+test('renderEisaTimestepEduPage: hourly bin table with rain / infil / excess columns', () => {
+  const { project, eisaTimestep } = buildEduFixture();
+  const html = renderEisaTimestepEduPage(project, eisaTimestep);
+  // Hourly aggregated table columns
+  assert.ok(html.toLowerCase().includes('hour'));
+  assert.ok(html.toLowerCase().includes('rain'));
+  assert.ok(html.toLowerCase().includes('infil'));
+  assert.ok(html.toLowerCase().includes('excess'));
+});
+
+test('renderEisaTimestepEduPage: narrative notes timestep is more conservative than Direct', () => {
+  const { project, eisaTimestep } = buildEduFixture();
+  const html = renderEisaTimestepEduPage(project, eisaTimestep);
+  // "more conservative" is the pedagogy point
+  assert.ok(html.toLowerCase().includes('conservative'));
+});
+
+test('renderEisaTimestepEduPage: empty trace renders without crashing', () => {
+  const html = renderEisaTimestepEduPage(
+    { name: 'Empty' },
+    { timeSteps: [], areaSf: { pre: 0, post: 0 }, bmpSvCf: 0, bmpSvUsedCf: 0,
+      stepMin: 6, peaks: { preIn: 0, postIn: 0, postWithBmpIn: 0 },
+      totals: { preCf: 0, postCf: 0, netPostCf: 0 }, lossModelUsed: 'horton' },
+  );
+  assert.ok(html.includes('EISA'));
+});

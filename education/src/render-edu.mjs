@@ -1316,6 +1316,95 @@ export function renderPeakDischargeCdaEduPage(project, peakCda) {
   });
 }
 
+// ── Task 7.5 — EISA Direct Timestep pedagogy page ─────────────────────────
+
+export function renderEisaTimestepEduPage(project, eisaTimestep) {
+  const trace = eisaTimestep || {};
+  const steps = trace.timeSteps || [];
+  const stormIn = steps.reduce((s, t) => s + (t.rainIn || 0), 0);
+  const stepMin = trace.stepMin
+    ?? (steps.length > 1 ? steps[1].tMin - steps[0].tMin : 6);
+  const hourCount = steps.length
+    ? Math.max(1, Math.ceil((steps[steps.length - 1].tMin + stepMin) / 60))
+    : 0;
+
+  const overview = renderOverview(
+    'The timestep engine distributes the 1.7″ EISA storm over 24 hours using the SCS Type-II hyetograph, runs Horton infiltration minute-by-minute (with SCS-CN loss as fallback), and sums excess runoff to a project volume.',
+  );
+  const why = renderWhy(`
+    <p>The single-storm Direct Determination (previous page) assumes the full 1.7″ arrives instantaneously and compares it against the 24-hour integrated Horton infiltration. The timestep version resolves the storm's intensity profile — during the SCS Type-II peak (~hour 12 of the design storm), rainfall rate briefly exceeds Horton's declining infiltration capacity, producing excess even on HSG A/B soils that the single-storm model treats as fully infiltrating.</p>
+    <p>Timestep EISA is therefore <b>more conservative</b> (and more physically honest) for mixed-HSG sites. DOEE accepts either method on federal EISA §438 projects; this deck ships both so reviewers can compare. The timestep volume is the authoritative value when the two disagree because it accounts for sub-hourly intensity, which the single-storm method averages away.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">Hyetograph: P_t = SCS_Type_II(t/24) · P_total   <i>— TR-55 Chapter 4 at ${stepMin}-min steps</i></div>
+    <div class="cs-formula-line">Horton rate: f(t) = f_min + (f_max − f_min)·e^(−k·t)   <i>(in/hr)</i></div>
+    <div class="cs-formula-line">Excess at step: max(0, i_t − f_t) · Δt   <i>where i_t = rain rate (in/hr)</i></div>
+    <div class="cs-formula-line">Volume: Σ excess_t · A / 12   <i>— integrated over pervious post-dev area</i></div>
+    <div class="cs-formula-line">BMP storage: cumulative budget drawn down step-by-step until exhausted</div>
+  `);
+  const inputsKv = renderKvTable([
+    ['Design storm (in)',         fmtN(stormIn, 2)],
+    ['Timestep (min)',            String(stepMin)],
+    ['Hyetograph',                'SCS Type II (NRCS TR-55 Table 5-1)'],
+    ['Loss model',                trace.lossModelUsed || '—'],
+    ['Pre area (sf)',             fmtN(trace.areaSf?.pre ?? 0, 0)],
+    ['Post area (sf)',            fmtN(trace.areaSf?.post ?? 0, 0)],
+    ['BMP storage available (cf)', fmtN(trace.bmpSvCf ?? 0, 0)],
+    ['BMP storage used (cf)',      fmtN(trace.bmpSvUsedCf ?? 0, 0)],
+  ]);
+  const summaryKv = renderKvTable([
+    ['Peak pre excess (in/step)',      fmtN(trace.peaks?.preIn, 4)],
+    ['Peak post excess (in/step)',     fmtN(trace.peaks?.postIn, 4)],
+    ['Peak post-with-BMP (in/step)',   fmtN(trace.peaks?.postWithBmpIn, 4)],
+    ['Total pre runoff (cf)',          fmtN(trace.totals?.preCf, 0)],
+    ['Total post runoff (cf)',         fmtN(trace.totals?.postCf, 0)],
+    ['Net post after BMP (cf)',        fmtN(trace.totals?.netPostCf, 0)],
+  ]);
+  let hourlyBlock = '';
+  if (steps.length) {
+    const hours = Array.from({ length: hourCount }, () => ({
+      rainIn: 0, infilIn: 0, excessPreIn: 0, excessPostIn: 0,
+      bmpStorageUsedCf: 0, netPostIn: 0,
+    }));
+    for (const s of steps) {
+      const h = Math.min(hourCount - 1, Math.floor((s.tMin || 0) / 60));
+      const b = hours[h];
+      b.rainIn           += s.rainIn || 0;
+      b.infilIn          += s.infilIn || 0;
+      b.excessPreIn      += s.excessPreIn || 0;
+      b.excessPostIn     += s.excessPostIn || 0;
+      b.bmpStorageUsedCf += s.bmpStorageUsedCf || 0;
+      b.netPostIn        += s.netPostIn || 0;
+    }
+    const hdrs = ['Hour', 'Rain (in)', 'Infil (in)', 'Excess Pre (in)',
+                  'Excess Post (in)', 'BMP used (cf)', 'Net Post (in)'];
+    const rows = hours.map((b, h) => [
+      String(h),
+      fmtN(b.rainIn, 2), fmtN(b.infilIn, 2),
+      fmtN(b.excessPreIn, 2), fmtN(b.excessPostIn, 2),
+      fmtN(b.bmpStorageUsedCf, 0), fmtN(b.netPostIn, 2),
+    ]);
+    hourlyBlock = renderBlock(
+      `HOURLY SUMMARY (${hourCount} × 1 hr, aggregated from ${steps.length} ${stepMin}-min steps)`,
+      renderDataTable(hdrs, rows),
+    );
+  } else {
+    hourlyBlock = renderBlock('HOURLY SUMMARY', '<p>No timesteps generated — storm or area is zero.</p>');
+  }
+  const worked = renderWorked(
+    renderBlock('INPUTS', inputsKv) +
+    renderBlock('PEAKS AND TOTALS', summaryKv) +
+    hourlyBlock,
+  );
+  const body = overview + why + formula + worked;
+  return renderSheetShell({
+    title: 'EISA §438 — Direct Determination Timestep',
+    sub:   `${project.name || ''} · ${fmtN(stormIn, 2)}″ design storm`,
+    body,
+    footer: 'EISA §438 TG (EPA, Dec 2009) · SCS Type II hyetograph · Horton infiltration',
+  });
+}
+
 // ── Task 7.4 — DOEE Detention-BMP (2020 methodology) page ─────────────────
 
 export function renderDoeeDetentionBmpEduPage(project, detentionBmp) {
