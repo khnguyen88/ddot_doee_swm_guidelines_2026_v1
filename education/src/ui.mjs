@@ -5,11 +5,14 @@ import {
   siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
   eisaDirectVolumeTraceCf, tr55VolumeTraceCf,
 } from './calc.mjs';
-import { rvProvidedPerSda, rvProvidedPerBmp } from './aggregate.mjs';
+import {
+  rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup,
+} from './aggregate.mjs';
 import { tr16LookupQ } from './tr16-exhibit.mjs';
 import {
   renderCoverPage, renderComplianceLandscapePage, renderProjectTriggersPage,
   renderSiteDaPage, renderSdaCdaExplainedPage, renderRvValuesPage, renderSwrvPerSdaPage,
+  renderAreaSummaryEduPage,
   renderBmpCatalogPage, renderPpSizingPage, renderBioSizingPage, renderDrySwaleSizingPage,
   renderTreeCreditPage, renderRvProvidedPage,
   renderMepEduPage, renderEisaIntroPage,
@@ -165,11 +168,19 @@ async function loadDemo(which = 'minnesota') {
 }
 
 function buildAndRender() {
-  const { project, sdas, cdas, bmps, params } = state.parsed;
+  const { project, sdas, cdas, bmps, params, sdaExisting, sdaProposed,
+          cdaExisting, cdaProposed } = state.parsed;
 
   // Core aggregates (reused across pages).
   const agg = siteAggregateLandCover(sdas);
   const detention = detentionSummary(sdas, params.detention.p2In, params.detention.p15In, params.detentionCn);
+
+  // Area_Summary rollup (used by the Area Summary pedagogy page).
+  const areaSummary = areaSummaryRollup(
+    sdaExisting || [], sdaProposed || [],
+    cdaExisting || [], cdaProposed || [],
+    {},
+  );
 
   // Per-SDA SWRv compliance rows.
   const bySda = {};
@@ -234,7 +245,7 @@ function buildAndRender() {
   // Build labels (for Cover TOC).
   const laterLabels = [
     'Compliance Landscape', 'Project Triggers',
-    'Site DA', 'SDA & CDA Explained', 'Rv Values', 'SWRv per SDA',
+    'Site DA', 'Area Summary', 'SDA & CDA Explained', 'Rv Values', 'SWRv per SDA',
     'BMP Catalog', 'Permeable Pavement Sizing', 'Bioretention Sizing', 'Dry Swale Sizing', 'Tree Credit', 'Rv Provided',
     'DDOT MEP (PROW)',
     'EISA 438 Intro', 'EISA Direct Determination', 'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
@@ -253,6 +264,7 @@ function buildAndRender() {
   push('Compliance Landscape',           renderComplianceLandscapePage(project));
   push('Project Triggers',               renderProjectTriggersPage(project));
   push('Site DA',                        renderSiteDaPage(project, agg));
+  push('Area Summary',                   renderAreaSummaryEduPage(project, areaSummary));
   push('SDA & CDA Explained',            renderSdaCdaExplainedPage(project));
   push('Rv Values',                      renderRvValuesPage(params));
   push('SWRv per SDA',                   renderSwrvPerSdaPage(project, sdas, params));

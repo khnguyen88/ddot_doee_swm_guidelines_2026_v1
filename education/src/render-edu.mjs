@@ -224,6 +224,51 @@ export function renderSdaCdaExplainedPage(project) {
   });
 }
 
+export function renderAreaSummaryEduPage(project, areaSummary) {
+  const overview = renderOverview(
+    'Area_Summary reconciles pre- vs post-development land cover per SDA and rolls the SWRv target up next to each row so a reviewer can trace compliance back to the LOD on one page.',
+  );
+  const why = renderWhy(`
+    <p>21 DCMR §599 requires the SWRv target be met <b>within each SDA independently</b> — a project cannot average compliance across SDAs. Area_Summary is the audit trail: if existing and proposed areas don't tie out per SDA, the SWRv numbers don't match the LOD and the submission bounces at DOEE intake.</p>
+    <p>The <b>Post BMP</b> column captures a subtlety of the DOEE schema: BMPs occupy land, so their footprint lives on the proposed condition as its own land-use row (Rv = 0). The pre/post area totals should tie out within ±1 sf rounding; the <i>Match?</i> column flags any row that drifts.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">A_pre(sda)  = Σ A_pre_i    <i>— summed over land-use rows i inside the SDA</i></div>
+    <div class="cs-formula-line">A_post(sda) = Σ A_post_i + Σ A_bmp_j</div>
+    <div class="cs-formula-line">Match(sda) = |A_pre − A_post| ≤ 1 sf</div>
+    <div class="cs-formula-line">SWRv(sda)  = (P / 12) · Σ (A_post_i · Rv_i)   <i>per SDA; P = project rainfall</i></div>
+  `);
+  const rows = (areaSummary?.sdaRows || []).map(r => [
+    r.sdaId,
+    fmtN(r.preImp),  fmtN(r.preComp),  fmtN(r.preNat),
+    fmtN(r.postImp), fmtN(r.postComp), fmtN(r.postNat), fmtN(r.postBmp),
+    fmtN(r.swrvReq, 0),
+    r.areaMatch === 'OK' ? '✓ OK' : r.areaMatch === 'MISMATCH' ? '⚠ MISMATCH' : '—',
+  ]);
+  const headers = ['SDA', 'Pre Imp', 'Pre Comp', 'Pre Nat',
+                   'Post Imp', 'Post Comp', 'Post Nat', 'Post BMP',
+                   'SWRv (cf)', 'Match?'];
+  const cdaRows = (areaSummary?.cdaRows || []).map(r => [
+    r.cdaId, r.sdaId || '—',
+    fmtN(r.preTotal), fmtN(r.postTotal), fmtN(r.maxBmpCredit, 0),
+    r.areaMatch === 'OK' ? '✓ OK' : r.areaMatch === 'MISMATCH' ? '⚠ MISMATCH' : '—',
+  ]);
+  const cdaHeaders = ['CDA', 'SDA', 'Pre (sf)', 'Post (sf)', 'Max BMP Credit (cf)', 'Match?'];
+  const worked = renderWorked(
+    renderBlock('PER-SDA — Pre vs Post reconciliation + SWRv required',
+      rows.length ? renderDataTable(headers, rows) : '<p>No SDA rows in this project.</p>') +
+    renderBlock('PER-CDA — Max BMP Credit (DOEE 1.7″ cap)',
+      cdaRows.length ? renderDataTable(cdaHeaders, cdaRows) : '<p>No CDA rows in this project.</p>'),
+  );
+  const body = overview + why + formula + worked;
+  return renderSheetShell({
+    title: 'Area Summary — Pre vs Post Reconciliation',
+    sub:   project.name || '',
+    body,
+    footer: '21 DCMR §599 · DOEE Compliance Calculator Area_Summary sheet · ±1 sf tolerance',
+  });
+}
+
 export function renderRvValuesPage(params) {
   const overview = renderOverview(
     'Rv (runoff coefficient) is the fraction of rainfall that becomes runoff for a given land cover. These coefficients are DOEE-published values applied in the SWRv formula.',

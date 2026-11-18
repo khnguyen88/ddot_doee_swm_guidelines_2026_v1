@@ -299,3 +299,49 @@ test('renderArithmeticTrace: emits <pre> with four-line pattern per step', () =>
   assert.ok(html.includes('0.204 in'));
   assert.ok(html.includes('Initial abstraction'));
 });
+
+// ── Task 7.1 — Area_Summary pedagogy page ──────────────────────────────────
+
+import { renderAreaSummaryEduPage } from '../src/render-edu.mjs';
+import { buildEduFixture } from './fixtures/edu-fixture.mjs';
+
+test('renderAreaSummaryEduPage: emits all four narrative blocks', () => {
+  const { project, areaSummary } = buildEduFixture();
+  const html = renderAreaSummaryEduPage(project, areaSummary);
+  assert.match(html, /Overview/);
+  assert.match(html, /Why it matters/);
+  assert.match(html, /Formula/);
+  assert.match(html, /Worked/);
+});
+
+test('renderAreaSummaryEduPage: renders a per-SDA table with pre+post+SWRv columns', () => {
+  const { project, areaSummary } = buildEduFixture();
+  const html = renderAreaSummaryEduPage(project, areaSummary);
+  assert.ok(html.includes('<table'));
+  assert.ok(html.includes('SDA'));
+  assert.ok(html.includes('Pre Imp'));
+  assert.ok(html.includes('Post Imp'));
+  assert.ok(html.includes('Post BMP'));
+  assert.ok(html.includes('SWRv'));
+});
+
+test('renderAreaSummaryEduPage: includes a Match? column for area reconciliation', () => {
+  const { project, areaSummary } = buildEduFixture();
+  const html = renderAreaSummaryEduPage(project, areaSummary);
+  assert.match(html, /Match\?/);
+});
+
+test('renderAreaSummaryEduPage: shows the SDA-1 row from the fixture', () => {
+  const { project, areaSummary } = buildEduFixture();
+  const html = renderAreaSummaryEduPage(project, areaSummary);
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('21 DCMR'));           // regulatory anchor
+});
+
+test('renderAreaSummaryEduPage: empty rollup renders without crashing', () => {
+  const html = renderAreaSummaryEduPage(
+    { name: 'Empty' },
+    { sdaRows: [], cdaRows: [] },
+  );
+  assert.ok(html.includes('Area Summary'));
+});
