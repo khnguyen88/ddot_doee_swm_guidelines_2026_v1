@@ -9,6 +9,7 @@ import {
   bioFreeboardFt, drySwaleFreeboardFt,
   eisaDirectRunoffDepth, HORTON_INFIL_LOSS_B, HORTON_INFIL_LOSS_C,
   tr55RunoffDepth, CN as CN_TABLE,
+  tcSheetFlow, tcShallowFlow, tcChannelFlow,
 } from './calc.mjs';
 import { rvProvidedPerSda, rvProvidedPerBmp, swrvComplianceTableRows } from './aggregate.mjs';
 import { tr16LookupQ, TR16_CN_LIST } from './tr16-exhibit.mjs';
@@ -1219,6 +1220,80 @@ export function renderEisaComparisonEduPage(project, direct, tr55, tr16, bmpStor
     body,
     footer: 'EISA §438 TG (EPA, Dec 2009)',
     landscape: true,
+  });
+}
+
+// ── Task 7.2 — TC_PATH (Time of Concentration) pedagogy page ──────────────
+
+function _segTt(seg) {
+  if (seg.type === 'sheet')   return tcSheetFlow(seg);
+  if (seg.type === 'shallow') return tcShallowFlow(seg);
+  if (seg.type === 'channel') return tcChannelFlow(seg);
+  return null;
+}
+
+function _segCoefficient(seg) {
+  if (seg.type === 'sheet')   return seg.n != null ? fmtN(seg.n, 3) : '—';
+  if (seg.type === 'shallow') return seg.surface || '—';
+  if (seg.type === 'channel') return seg.velocity != null ? `V=${fmtN(seg.velocity, 2)} fps` : '—';
+  return '—';
+}
+
+export function renderTcPathEduPage(project, tcPaths) {
+  const overview = renderOverview(
+    'Time of Concentration (Tc) is how long runoff takes to travel from the hydraulically most distant point of a drainage area to its outlet — the key TR-55 input for peak discharge.',
+  );
+  const why = renderWhy(`
+    <p>Peak unit discharge <code>qu</code> drops as Tc grows. A short Tc on a small, heavily paved site inflates the design peak — DOEE and TR-55 cap Tc at a <b>6-minute (0.1 hr) floor</b> to prevent unrealistic flows on tiny watersheds. There is no upper cap; a complex overland path legitimately earns a slower, lower peak.</p>
+    <p>Tc is split into <b>three flow regimes</b> (NRCS TR-55 Chapter 3): sheet flow over short pervious stretches (≤ 100 ft), shallow concentrated flow in rills or paved channels, and channel flow in pipes or defined watercourses. Each regime has its own velocity model and travel-time equation — the engineer identifies where one regime ends and the next begins along the path.</p>
+  `);
+  const formula = renderFormula(`
+    <div class="cs-formula-line">Sheet:   Tt = 0.007 · (n·L)^0.8 / (P2^0.5 · s^0.4)   <i>— Manning kinematic; L ≤ 100 ft</i></div>
+    <div class="cs-formula-line">Shallow: V = k · √s,  Tt = L / (3600·V)              <i>— k from paved/unpaved table</i></div>
+    <div class="cs-formula-line">Channel: Tt = L / (3600·V)                            <i>— V user-supplied</i></div>
+    <div class="cs-formula-line">Tc = Σ Tt,   Tc_final = max(Tc, 0.1 hr)              <i>— 6-min floor applies to both direct and segmented</i></div>
+  `);
+  const segHeaders = ['#', 'Type', 'L (ft)', 's', 'n / surface / V', 'Tt (min)'];
+  const traces = (tcPaths || []).map(path => {
+    const segs = path.segments || [];
+    const segRows = segs.map((s, i) => {
+      const tt = _segTt(s);
+      return [
+        String(i + 1),
+        s.type || '—',
+        s.length != null ? fmtN(s.length, 0) : '—',
+        s.slope != null ? fmtN(s.slope, 4) : '—',
+        _segCoefficient(s),
+        tt != null ? fmtN(tt, 3) : '—',
+      ];
+    });
+    // Footer: direct-entry (if any) and final Tc
+    segRows.push([
+      'Tc', path.tcDirectMin != null ? 'direct entry' : 'Σ Tt',
+      '', '', '',
+      path.tcMin != null ? fmtN(path.tcMin, 3) : '—',
+    ]);
+    const kv = renderKvTable([
+      ['Path ID',              path.pathId || '—'],
+      ['Name',                 path.name   || '—'],
+      ['Direct Tc (min)',      path.tcDirectMin != null ? fmtN(path.tcDirectMin, 3) : '—'],
+      ['Computed Tc (min)',    path.tcMin != null ? fmtN(path.tcMin, 3) : '—'],
+      ['Computed Tc (hr)',     path.tcMin != null ? fmtN(path.tcMin / 60, 3) : '—'],
+    ]);
+    return renderBlock(
+      `${path.pathId || 'Path'} — ${path.name || ''}`,
+      kv + renderDataTable(segHeaders, segRows),
+    );
+  }).join('');
+  const worked = renderWorked(
+    traces || '<p>No Tc paths defined in this project.</p>',
+  );
+  const body = overview + why + formula + worked;
+  return renderSheetShell({
+    title: 'TC_PATH — Time of Concentration',
+    sub:   project.name || '',
+    body,
+    footer: 'NRCS TR-55 Chapter 3 · Sheet / Shallow / Channel regimes · Tc floor 0.1 hr',
   });
 }
 

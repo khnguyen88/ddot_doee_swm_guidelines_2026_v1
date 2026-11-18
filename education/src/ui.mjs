@@ -4,6 +4,7 @@ import { parseWorkbook } from './parse.mjs';
 import {
   siteAggregateLandCover, siteSwrv, detentionSummary, swrvVolume,
   eisaDirectVolumeTraceCf, tr55VolumeTraceCf,
+  tcFinalMin,
 } from './calc.mjs';
 import {
   rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup,
@@ -17,6 +18,7 @@ import {
   renderTreeCreditPage, renderRvProvidedPage,
   renderMepEduPage, renderEisaIntroPage,
   renderEisaDirectEduPage, renderEisaTr55EduPage, renderEisaTr16EduPage, renderEisaComparisonEduPage,
+  renderTcPathEduPage,
   renderDetentionEduPage, renderSiteComplianceEduPage,
   renderTr16AppendixPages, renderGlossaryPage,
 } from './render-edu.mjs';
@@ -182,6 +184,11 @@ function buildAndRender() {
     {},
   );
 
+  // TC paths with computed Tc (minutes). Used by the TC_PATH pedagogy page.
+  const tcPathsWithTc = (state.parsed.tcPaths || []).map(p => ({
+    ...p, tcMin: tcFinalMin(p.tcDirectMin, p.segments),
+  }));
+
   // Per-SDA SWRv compliance rows.
   const bySda = {};
   for (const row of sdas) {
@@ -249,6 +256,7 @@ function buildAndRender() {
     'BMP Catalog', 'Permeable Pavement Sizing', 'Bioretention Sizing', 'Dry Swale Sizing', 'Tree Credit', 'Rv Provided',
     'DDOT MEP (PROW)',
     'EISA 438 Intro', 'EISA Direct Determination', 'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
+    'TC_PATH — Time of Concentration',
     // Site Compliance (portrait) before Detention (landscape) so the deck
     // ends on a landscape sheet — Chromium inserts a blank transition page
     // when portrait follows landscape in print output.
@@ -280,6 +288,7 @@ function buildAndRender() {
   push('EISA TR-55',                     renderEisaTr55EduPage(project, tr55.pre, tr55.post));
   push('EISA TR-16 Lookup',              renderEisaTr16EduPage(project, state.parsed, params));
   push('EISA Three-Method Comparison',   renderEisaComparisonEduPage(project, directSummary, tr55Summary, tr16, bmpStorage, project.eisa));
+  push('TC_PATH — Time of Concentration', renderTcPathEduPage(project, tcPathsWithTc));
   push('Site Compliance',                renderSiteComplianceEduPage(project, complianceRows));
   push('Detention 2-yr/15-yr',           renderDetentionEduPage(project, detention, params.detention.p2In, params.detention.p15In));
   renderTr16AppendixPages().forEach((html, i) => push(`Appendix A — TR-16 (${i+1})`, html));

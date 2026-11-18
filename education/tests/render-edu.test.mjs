@@ -345,3 +345,49 @@ test('renderAreaSummaryEduPage: empty rollup renders without crashing', () => {
   );
   assert.ok(html.includes('Area Summary'));
 });
+
+// ── Task 7.2 — TC_PATH pedagogy page ───────────────────────────────────────
+
+import { renderTcPathEduPage } from '../src/render-edu.mjs';
+
+test('renderTcPathEduPage: emits all four narrative blocks', () => {
+  const { project, tcPaths } = buildEduFixture();
+  const html = renderTcPathEduPage(project, tcPaths);
+  assert.match(html, /Overview/);
+  assert.match(html, /Why it matters/);
+  assert.match(html, /Formula/);
+  assert.match(html, /Worked/);
+});
+
+test('renderTcPathEduPage: lists each segment type + Tc total row', () => {
+  const { project, tcPaths } = buildEduFixture();
+  const html = renderTcPathEduPage(project, tcPaths);
+  // fixture contains sheet + shallow + channel on at least one path
+  assert.ok(html.includes('sheet'));
+  assert.ok(html.includes('shallow'));
+  assert.ok(html.includes('channel'));
+  // Tc final row (header or label)
+  assert.ok(html.toLowerCase().includes('tc'));
+  assert.ok(html.includes('Tt'));
+});
+
+test('renderTcPathEduPage: cites TR-55 and the 0.1 hr Tc floor', () => {
+  const { project, tcPaths } = buildEduFixture();
+  const html = renderTcPathEduPage(project, tcPaths);
+  assert.ok(html.includes('TR-55'));
+  assert.ok(html.includes('0.1'));            // Tc floor language
+});
+
+test('renderTcPathEduPage: renders each path by name + pathId', () => {
+  const { project, tcPaths } = buildEduFixture();
+  const html = renderTcPathEduPage(project, tcPaths);
+  assert.ok(html.includes('Primary flow path'));
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('CDA-1'));
+});
+
+test('renderTcPathEduPage: handles empty paths list gracefully', () => {
+  const html = renderTcPathEduPage({ name: 'Empty' }, []);
+  assert.ok(html.includes('Time of Concentration'));
+  assert.ok(html.toLowerCase().includes('no'));   // empty-state message
+});
