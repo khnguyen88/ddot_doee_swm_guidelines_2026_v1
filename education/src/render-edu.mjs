@@ -1223,6 +1223,99 @@ export function renderEisaComparisonEduPage(project, direct, tr55, tr16, bmpStor
   });
 }
 
+// ── Task 7.3 — Peak Discharge pedagogy (SDA + CDA) ────────────────────────
+
+const _SQFT_PER_ACRE = 43560;
+
+function _peakFormulaBlock() {
+  return renderFormula(`
+    <div class="cs-formula-line">Composite CN = Σ(A_i · CN_i) / Σ A_i   <i>— per drainage area, area-weighted</i></div>
+    <div class="cs-formula-line">S  = 1000 / CN − 10                     <i>— potential maximum retention (in)</i></div>
+    <div class="cs-formula-line">Ia = 0.2 · S                             <i>— initial abstraction</i></div>
+    <div class="cs-formula-line">Q  = (P − Ia)² / (P + 0.8·S)             <i>if P > Ia, else 0 — SCS runoff depth</i></div>
+    <div class="cs-formula-line">log(qu) = C0 + C1·log(Tc) + C2·log²(Tc)  <i>— TR-55 Exhibit 4-II, Ia/P-bracketed</i></div>
+    <div class="cs-formula-line">Qp = qu · A_mi² · Q                      <i>— peak discharge (cfs)</i></div>
+  `);
+}
+
+function _peakWorkedTable(rows, { idLabel, showSdaId }) {
+  const headers = [
+    idLabel,
+    ...(showSdaId ? ['SDA'] : []),
+    'DA (ac)', 'Tc (hr)',
+    'CN Pre', 'CN Post',
+    'Ia/P (2-yr post)', 'qu (2-yr post)',
+    'Qp Pre 2-yr (cfs)', 'Qp Post 2-yr (cfs)',
+    'Qp Pre 15-yr (cfs)', 'Qp Post 15-yr (cfs)',
+    'Trigger?',
+  ];
+  const dataRows = rows.map(r => {
+    const triggered = r.qpPost15yr > r.qpPre15yr;
+    return [
+      r.areaId,
+      ...(showSdaId ? [r.sdaId || '—'] : []),
+      fmtN((r.areaSf || 0) / _SQFT_PER_ACRE, 3),
+      fmtN(r.tcHr, 3),
+      fmtN(r.cnPre, 1),
+      fmtN(r.cnPost, 1),
+      fmtN(r.iaOverP2yrPost, 3),
+      fmtN(r.qu2yrPost, 0),
+      fmtN(r.qpPre2yr, 2),
+      fmtN(r.qpPost2yr, 2),
+      fmtN(r.qpPre15yr, 2),
+      fmtN(r.qpPost15yr, 2),
+      triggered ? 'YES' : 'no',
+    ];
+  });
+  return renderDataTable(headers, dataRows);
+}
+
+export function renderPeakDischargeSdaEduPage(project, peakSda) {
+  const overview = renderOverview(
+    'Peak Discharge at the SDA level compares pre- vs post-development design flows (2-yr and 15-yr storms) to decide whether DOEE detention is triggered on this SDA.',
+  );
+  const why = renderWhy(`
+    <p>21 DCMR §599 and the DOEE Guidebook §2.4 compare pre- and post-development peak Q at the <b>SDA level</b> to decide whether detention is required. If Post Qp exceeds Pre Qp for the 15-yr storm, detention is triggered on that SDA. The SDA is the compliance unit — a project may trigger detention on one SDA and not another.</p>
+    <p>The Qp numbers here use the <b>detention CN table</b> (Natural = 70, Compacted = 74, Impervious = 98, BMP = 98) — more conservative than the SWRv Rv table because peak-flow design is intentionally conservative on the post side. TR-55 Graphical Method (Exhibit 4-II) looks up <code>qu</code> from Tc and Ia/P.</p>
+  `);
+  const worked = renderWorked(
+    peakSda && peakSda.length
+      ? _peakWorkedTable(peakSda, { idLabel: 'SDA', showSdaId: false })
+      : '<p>No peak discharge rows (TR-55 parameters missing from PARAMS sheet).</p>',
+  );
+  const body = overview + why + _peakFormulaBlock() + worked;
+  return renderSheetShell({
+    title: 'Peak Discharge — SDA (Detention Trigger)',
+    sub:   project.name || '',
+    body,
+    footer: 'TR-55 Graphical Method (Exhibit 4-II) · DOEE Guidebook §2.4 · 21 DCMR §599',
+    landscape: true,
+  });
+}
+
+export function renderPeakDischargeCdaEduPage(project, peakCda) {
+  const overview = renderOverview(
+    'Peak Discharge at the CDA level is the post-development design flow a BMP\'s outlet structure must accept and the input to the 2020 detention-BMP methodology on the next page.',
+  );
+  const why = renderWhy(`
+    <p>Where the SDA peak decides the regulatory question (does this project need detention?), the CDA peak answers the physical one: <b>what flow and runoff depth must the BMP handle?</b> The CDA Qp sets outlet-structure sizing; the CDA post-development runoff depth Q feeds the 2020 methodology's adjusted-CN math — a BMP's stored volume Sv is subtracted from this Q to produce the Q_adj and CN_adj used for the detention trigger comparison.</p>
+    <p>Each CDA row joins back to its parent SDA so a reviewer can trace a BMP's catchment up to the compliance unit.</p>
+  `);
+  const worked = renderWorked(
+    peakCda && peakCda.length
+      ? _peakWorkedTable(peakCda, { idLabel: 'CDA', showSdaId: true })
+      : '<p>No peak discharge rows (TR-55 parameters missing from PARAMS sheet).</p>',
+  );
+  const body = overview + why + _peakFormulaBlock() + worked;
+  return renderSheetShell({
+    title: 'Peak Discharge — CDA (BMP Sizing Input)',
+    sub:   project.name || '',
+    body,
+    footer: 'TR-55 Graphical Method (Exhibit 4-II) · DOEE 2020 Detention-BMP methodology',
+    landscape: true,
+  });
+}
+
 // ── Task 7.2 — TC_PATH (Time of Concentration) pedagogy page ──────────────
 
 function _segTt(seg) {

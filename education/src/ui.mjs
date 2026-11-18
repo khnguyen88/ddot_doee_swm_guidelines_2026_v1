@@ -8,6 +8,7 @@ import {
 } from './calc.mjs';
 import {
   rvProvidedPerSda, rvProvidedPerBmp, areaSummaryRollup,
+  peakDischargeRollup,
 } from './aggregate.mjs';
 import { tr16LookupQ } from './tr16-exhibit.mjs';
 import {
@@ -19,6 +20,7 @@ import {
   renderMepEduPage, renderEisaIntroPage,
   renderEisaDirectEduPage, renderEisaTr55EduPage, renderEisaTr16EduPage, renderEisaComparisonEduPage,
   renderTcPathEduPage,
+  renderPeakDischargeSdaEduPage, renderPeakDischargeCdaEduPage,
   renderDetentionEduPage, renderSiteComplianceEduPage,
   renderTr16AppendixPages, renderGlossaryPage,
 } from './render-edu.mjs';
@@ -189,6 +191,17 @@ function buildAndRender() {
     ...p, tcMin: tcFinalMin(p.tcDirectMin, p.segments),
   }));
 
+  // Peak discharge rollups per SDA / CDA (TR-55 Graphical Method).
+  // Empty when PARAMS!tr55 is missing the minimum 2 bracket rows.
+  const peakSda = (params.tr55 && params.tr55.length >= 2)
+    ? peakDischargeRollup(sdaExisting || [], sdaProposed || [],
+                          state.parsed.tcPaths || [], params)
+    : [];
+  const peakCda = (params.tr55 && params.tr55.length >= 2)
+    ? peakDischargeRollup(cdaExisting || [], cdaProposed || [],
+                          state.parsed.tcPaths || [], params, 'cdaId')
+    : [];
+
   // Per-SDA SWRv compliance rows.
   const bySda = {};
   for (const row of sdas) {
@@ -257,6 +270,7 @@ function buildAndRender() {
     'DDOT MEP (PROW)',
     'EISA 438 Intro', 'EISA Direct Determination', 'EISA TR-55', 'EISA TR-16 Lookup', 'EISA Three-Method Comparison',
     'TC_PATH — Time of Concentration',
+    'Peak Discharge — SDA', 'Peak Discharge — CDA',
     // Site Compliance (portrait) before Detention (landscape) so the deck
     // ends on a landscape sheet — Chromium inserts a blank transition page
     // when portrait follows landscape in print output.
@@ -289,6 +303,8 @@ function buildAndRender() {
   push('EISA TR-16 Lookup',              renderEisaTr16EduPage(project, state.parsed, params));
   push('EISA Three-Method Comparison',   renderEisaComparisonEduPage(project, directSummary, tr55Summary, tr16, bmpStorage, project.eisa));
   push('TC_PATH — Time of Concentration', renderTcPathEduPage(project, tcPathsWithTc));
+  push('Peak Discharge — SDA',           renderPeakDischargeSdaEduPage(project, peakSda));
+  push('Peak Discharge — CDA',           renderPeakDischargeCdaEduPage(project, peakCda));
   push('Site Compliance',                renderSiteComplianceEduPage(project, complianceRows));
   push('Detention 2-yr/15-yr',           renderDetentionEduPage(project, detention, params.detention.p2In, params.detention.p15In));
   renderTr16AppendixPages().forEach((html, i) => push(`Appendix A — TR-16 (${i+1})`, html));

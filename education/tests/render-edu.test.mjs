@@ -391,3 +391,73 @@ test('renderTcPathEduPage: handles empty paths list gracefully', () => {
   assert.ok(html.includes('Time of Concentration'));
   assert.ok(html.toLowerCase().includes('no'));   // empty-state message
 });
+
+// ── Task 7.3 — Peak Discharge pedagogy pages (SDA + CDA) ───────────────────
+
+import {
+  renderPeakDischargeSdaEduPage, renderPeakDischargeCdaEduPage,
+} from '../src/render-edu.mjs';
+
+test('renderPeakDischargeSdaEduPage: emits all four narrative blocks', () => {
+  const { project, peakSda } = buildEduFixture();
+  const html = renderPeakDischargeSdaEduPage(project, peakSda);
+  assert.match(html, /Overview/);
+  assert.match(html, /Why it matters/);
+  assert.match(html, /Formula/);
+  assert.match(html, /Worked/);
+});
+
+test('renderPeakDischargeSdaEduPage: per-SDA table with Qp pre/post for 2-yr and 15-yr', () => {
+  const { project, peakSda } = buildEduFixture();
+  const html = renderPeakDischargeSdaEduPage(project, peakSda);
+  assert.ok(html.includes('SDA-1'));
+  assert.ok(html.includes('2-yr'));
+  assert.ok(html.includes('15-yr'));
+  assert.ok(html.includes('Tc'));
+  assert.ok(html.includes('CN'));
+  // qu and Qp column labels
+  assert.ok(html.toLowerCase().includes('qu'));
+  assert.ok(html.includes('Qp'));
+});
+
+test('renderPeakDischargeSdaEduPage: trigger column marks YES/NO on the 15-yr storm', () => {
+  const { project, peakSda } = buildEduFixture();
+  const html = renderPeakDischargeSdaEduPage(project, peakSda);
+  // Fixture SDA-1: Qpost15 (1.22) > Qpre15 (1.08) → Trigger = YES.
+  assert.ok(html.toLowerCase().includes('trigger'));
+  assert.ok(html.includes('Yes') || html.includes('YES'));
+});
+
+test('renderPeakDischargeSdaEduPage: Why block cites the detention trigger', () => {
+  const { project, peakSda } = buildEduFixture();
+  const html = renderPeakDischargeSdaEduPage(project, peakSda);
+  assert.ok(html.toLowerCase().includes('detention'));
+  assert.ok(html.includes('21 DCMR') || html.includes('DOEE'));
+});
+
+test('renderPeakDischargeSdaEduPage: handles empty rows gracefully', () => {
+  const html = renderPeakDischargeSdaEduPage({ name: 'Empty' }, []);
+  assert.ok(html.includes('Peak Discharge'));
+});
+
+test('renderPeakDischargeCdaEduPage: emits all four narrative blocks + CDA rows', () => {
+  const { project, peakCda } = buildEduFixture();
+  const html = renderPeakDischargeCdaEduPage(project, peakCda);
+  assert.match(html, /Overview/);
+  assert.match(html, /Why it matters/);
+  assert.match(html, /Formula/);
+  assert.match(html, /Worked/);
+  assert.ok(html.includes('CDA-1'));
+  assert.ok(html.includes('SDA-1'));         // joined SDA id on CDA page
+});
+
+test('renderPeakDischargeCdaEduPage: Why block references the BMP accepting the post Q', () => {
+  const { project, peakCda } = buildEduFixture();
+  const html = renderPeakDischargeCdaEduPage(project, peakCda);
+  assert.ok(html.toLowerCase().includes('bmp'));
+});
+
+test('renderPeakDischargeCdaEduPage: empty rows gracefully', () => {
+  const html = renderPeakDischargeCdaEduPage({ name: 'Empty' }, []);
+  assert.ok(html.includes('Peak Discharge'));
+});
