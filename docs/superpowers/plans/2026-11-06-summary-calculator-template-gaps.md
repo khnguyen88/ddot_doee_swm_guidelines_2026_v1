@@ -2205,5 +2205,6 @@ git push origin main
 - `education` spec: Four-Block pedagogy for all six features, reusing this plan's calc.mjs functions.
   — **shipped 2026-11-18** via `docs/superpowers/specs/2026-11-18-education-new-features-design.md` and `docs/superpowers/plans/2026-11-18-education-new-features.md`.
 - `populator` spec: mappings into DOEE/DDOT output workbooks that carry TC / peak / detention cells.
+  — **retired 2026-11-19 with no code change** — see `docs/superpowers/notes/2026-11-19-populator-new-features-investigation.md`. None of the four official DOEE/DDOT workbooks expose input cells for Tc, peak Q, or EISA timestep; the 2020 detention methodology is already handled end-to-end by DOEE's own in-sheet formulas (BMP Sv populated by existing `general-retention.mjs` mapping cascades through SUMIF → adjusted-CN VLOOKUP → trigger flag).
 - Formula-drift validator scripts: `scripts/validate_doee_calc_parity.py`, `scripts/validate_formula_shapes.py`, `tests/test_calc_mjs_against_doee_hand_calcs.py`.
   — **shipped 2026-11-19** via `docs/superpowers/specs/2026-11-18-formula-drift-validators-design.md` and `docs/superpowers/plans/2026-11-18-formula-drift-validators.md`. CI workflow `.github/workflows/formula-drift.yml` runs all three on PR.
