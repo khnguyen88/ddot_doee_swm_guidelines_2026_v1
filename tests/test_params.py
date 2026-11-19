@@ -215,6 +215,11 @@ def test_params_bmp_sizing_rules_rows(wb):
     assert ws.cell(row=bio_std_row, column=5).value == 1.5   # min media
 
 
+# NOTE: This hand-rolled check is kept as a belt-and-suspenders guard.
+# The runtime drift check that parses DOEE's actual cells lives at:
+#   scripts/validate_doee_calc_parity.py
+# (covered by tests/test_validate_doee_calc_parity.py).
+# The docstring citations below remain the human-readable reference.
 def test_params_bmp_matches_doee_calc_2020(wb):
     """Lock PARAMS_BMP to the official DOEE SWMP-BMP Calculator (2020-11-30).
 
