@@ -2203,5 +2203,7 @@ git push origin main
 ## Related follow-ons (NOT in this plan — see spec §8)
 
 - `education` spec: Four-Block pedagogy for all six features, reusing this plan's calc.mjs functions.
+  — **shipped 2026-11-18** via `docs/superpowers/specs/2026-11-18-education-new-features-design.md` and `docs/superpowers/plans/2026-11-18-education-new-features.md`.
 - `populator` spec: mappings into DOEE/DDOT output workbooks that carry TC / peak / detention cells.
 - Formula-drift validator scripts: `scripts/validate_doee_calc_parity.py`, `scripts/validate_formula_shapes.py`, `tests/test_calc_mjs_against_doee_hand_calcs.py`.
+  — **shipped 2026-11-19** via `docs/superpowers/specs/2026-11-18-formula-drift-validators-design.md` and `docs/superpowers/plans/2026-11-18-formula-drift-validators.md`. CI workflow `.github/workflows/formula-drift.yml` runs all three on PR.
