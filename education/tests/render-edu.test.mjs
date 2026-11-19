@@ -420,12 +420,23 @@ test('renderPeakDischargeSdaEduPage: per-SDA table with Qp pre/post for 2-yr and
   assert.ok(html.includes('Qp'));
 });
 
-test('renderPeakDischargeSdaEduPage: trigger column marks YES/NO on the 15-yr storm', () => {
+test('renderPeakDischargeSdaEduPage: trigger columns mark YES/NO on 2-yr AND 15-yr storms', () => {
   const { project, peakSda } = buildEduFixture();
   const html = renderPeakDischargeSdaEduPage(project, peakSda);
-  // Fixture SDA-1: Qpost15 (1.22) > Qpre15 (1.08) → Trigger = YES.
-  assert.ok(html.toLowerCase().includes('trigger'));
-  assert.ok(html.includes('Yes') || html.includes('YES'));
+  // Both pre-2020 trigger columns must be present and distinct.
+  assert.ok(html.includes('2-yr Trigger?'), 'expected "2-yr Trigger?" column header');
+  assert.ok(html.includes('15-yr Trigger?'), 'expected "15-yr Trigger?" column header');
+  // Fixture SDA-1: Qpost15 (1.22) > Qpre15 (1.08) → 15-yr Trigger = YES.
+  assert.ok(html.includes('YES'));
+});
+
+test('renderPeakDischargeSdaEduPage: Why block reconciles pre-2020 vs 2020 methodology', () => {
+  const { project, peakSda } = buildEduFixture();
+  const html = renderPeakDischargeSdaEduPage(project, peakSda);
+  // Cross-reference to the 2020 CN-based trigger on the Detention-BMP page.
+  assert.ok(html.includes('pre-2020'));
+  assert.ok(html.includes('2020'));
+  assert.ok(html.includes('CN_adj'));
 });
 
 test('renderPeakDischargeSdaEduPage: Why block cites the detention trigger', () => {

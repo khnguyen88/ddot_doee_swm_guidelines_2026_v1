@@ -10,6 +10,7 @@ import {
   eisaDirectRunoffDepth, HORTON_INFIL_LOSS_B, HORTON_INFIL_LOSS_C,
   tr55RunoffDepth, CN as CN_TABLE,
   tcSheetFlow, tcShallowFlow, tcChannelFlow,
+  SQFT_PER_ACRE,
 } from './calc.mjs';
 import { rvProvidedPerSda, rvProvidedPerBmp, swrvComplianceTableRows } from './aggregate.mjs';
 import { tr16LookupQ, TR16_CN_LIST } from './tr16-exhibit.mjs';
@@ -1225,15 +1226,13 @@ export function renderEisaComparisonEduPage(project, direct, tr55, tr16, bmpStor
 
 // ── Task 7.3 — Peak Discharge pedagogy (SDA + CDA) ────────────────────────
 
-const _SQFT_PER_ACRE = 43560;
-
 function _peakFormulaBlock() {
   return renderFormula(`
     <div class="cs-formula-line">Composite CN = Σ(A_i · CN_i) / Σ A_i   <i>— per drainage area, area-weighted</i></div>
     <div class="cs-formula-line">S  = 1000 / CN − 10                     <i>— potential maximum retention (in)</i></div>
     <div class="cs-formula-line">Ia = 0.2 · S                             <i>— initial abstraction</i></div>
     <div class="cs-formula-line">Q  = (P − Ia)² / (P + 0.8·S)             <i>if P > Ia, else 0 — SCS runoff depth</i></div>
-    <div class="cs-formula-line">log(qu) = C0 + C1·log(Tc) + C2·log²(Tc)  <i>— TR-55 Exhibit 4-II, Ia/P-bracketed</i></div>
+    <div class="cs-formula-line">log(qu) = C0 + C1·log(Tc) + C2·log²(Tc)  <i>— C0, C1, C2 linearly interpolated between adjacent Ia/P rows of TR-55 Exhibit 4-II</i></div>
     <div class="cs-formula-line">Qp = qu · A_mi² · Q                      <i>— peak discharge (cfs)</i></div>
   `);
 }
@@ -1246,15 +1245,17 @@ function _peakWorkedTable(rows, { idLabel, showSdaId }) {
     'CN Pre', 'CN Post',
     'Ia/P (2-yr post)', 'qu (2-yr post)',
     'Qp Pre 2-yr (cfs)', 'Qp Post 2-yr (cfs)',
+    '2-yr Trigger?',
     'Qp Pre 15-yr (cfs)', 'Qp Post 15-yr (cfs)',
-    'Trigger?',
+    '15-yr Trigger?',
   ];
   const dataRows = rows.map(r => {
-    const triggered = r.qpPost15yr > r.qpPre15yr;
+    const trig2  = r.qpPost2yr  > r.qpPre2yr;
+    const trig15 = r.qpPost15yr > r.qpPre15yr;
     return [
       r.areaId,
       ...(showSdaId ? [r.sdaId || '—'] : []),
-      fmtN((r.areaSf || 0) / _SQFT_PER_ACRE, 3),
+      fmtN((r.areaSf || 0) / SQFT_PER_ACRE, 3),
       fmtN(r.tcHr, 3),
       fmtN(r.cnPre, 1),
       fmtN(r.cnPost, 1),
@@ -1262,9 +1263,10 @@ function _peakWorkedTable(rows, { idLabel, showSdaId }) {
       fmtN(r.qu2yrPost, 0),
       fmtN(r.qpPre2yr, 2),
       fmtN(r.qpPost2yr, 2),
+      trig2 ? 'YES' : 'NO',
       fmtN(r.qpPre15yr, 2),
       fmtN(r.qpPost15yr, 2),
-      triggered ? 'YES' : 'no',
+      trig15 ? 'YES' : 'NO',
     ];
   });
   return renderDataTable(headers, dataRows);
@@ -1275,8 +1277,9 @@ export function renderPeakDischargeSdaEduPage(project, peakSda) {
     'Peak Discharge at the SDA level compares pre- vs post-development design flows (2-yr and 15-yr storms) to decide whether DOEE detention is triggered on this SDA.',
   );
   const why = renderWhy(`
-    <p>21 DCMR §599 and the DOEE Guidebook §2.4 compare pre- and post-development peak Q at the <b>SDA level</b> to decide whether detention is required. If Post Qp exceeds Pre Qp for the 15-yr storm, detention is triggered on that SDA. The SDA is the compliance unit — a project may trigger detention on one SDA and not another.</p>
-    <p>The Qp numbers here use the <b>detention CN table</b> (Natural = 70, Compacted = 74, Impervious = 98, BMP = 98) — more conservative than the SWRv Rv table because peak-flow design is intentionally conservative on the post side. TR-55 Graphical Method (Exhibit 4-II) looks up <code>qu</code> from Tc and Ia/P.</p>
+    <p>21 DCMR §599 and the DOEE Guidebook §2.4 compare pre- and post-development peak Q at the <b>SDA level</b> to decide whether detention is required. If Post Qp exceeds Pre Qp for the 2-yr or 15-yr storm, detention is triggered on that SDA. The SDA is the compliance unit — a project may trigger detention on one SDA and not another.</p>
+    <p>The Qp numbers here use the <b>detention CN table</b> (Natural = 70, Compacted = 74, Impervious = 98, BMP = 98) — more conservative than the SWRv Rv table because peak-flow design is intentionally conservative on the post side. DOEE collapses the four HSG columns into one conservative value (Natural = 70, Compacted = 74, Impervious = 98, BMP = 98) for the peak-flow trigger check, independent of the site's soil group. TR-55 Graphical Method (Exhibit 4-II) looks up <code>qu</code> from Tc and Ia/P.</p>
+    <p>This peak-flow comparison (post vs. pre) is the <b>pre-2020 trigger rule</b>. Under DOEE's current 2020 methodology (see Detention — 2020 CDA page), the trigger is instead <code>CN_adj &gt; CN_pre</code>, where <code>CN_adj</code> is derived from the post-development runoff depth after subtracting BMP retention. Projects that meet their SWRv target under the 2020 rule often no longer trigger a separate detention facility.</p>
   `);
   const worked = renderWorked(
     peakSda && peakSda.length
@@ -1299,7 +1302,7 @@ export function renderPeakDischargeCdaEduPage(project, peakCda) {
   );
   const why = renderWhy(`
     <p>Where the SDA peak decides the regulatory question (does this project need detention?), the CDA peak answers the physical one: <b>what flow and runoff depth must the BMP handle?</b> The CDA Qp sets outlet-structure sizing; the CDA post-development runoff depth Q feeds the 2020 methodology's adjusted-CN math — a BMP's stored volume Sv is subtracted from this Q to produce the Q_adj and CN_adj used for the detention trigger comparison.</p>
-    <p>Each CDA row joins back to its parent SDA so a reviewer can trace a BMP's catchment up to the compliance unit.</p>
+    <p>Each CDA row joins back to its parent SDA so a reviewer can trace a BMP's catchment up to the compliance unit. The next page shows how DOEE's 2020 methodology subtracts <code>Sv × 12 / A_CDA</code> from this <code>Q_post_in</code> to compute the adjusted CN, which replaces the pre-2020 Qp comparison as the trigger.</p>
   `);
   const worked = renderWorked(
     peakCda && peakCda.length
@@ -1336,6 +1339,7 @@ export function renderEisaTimestepEduPage(project, eisaTimestep) {
     <p>Timestep EISA is therefore <b>more conservative</b> (and more physically honest) for mixed-HSG sites. DOEE accepts either method on federal EISA §438 projects; this deck ships both so reviewers can compare. The timestep volume is the authoritative value when the two disagree because it accounts for sub-hourly intensity, which the single-storm method averages away.</p>
   `);
   const formula = renderFormula(`
+    <div class="cs-formula-line">Duration: 24 hr (SCS Type-II)</div>
     <div class="cs-formula-line">Hyetograph: P_t = SCS_Type_II(t/24) · P_total   <i>— TR-55 Chapter 4 at ${stepMin}-min steps</i></div>
     <div class="cs-formula-line">Horton rate: f(t) = f_min + (f_max − f_min)·e^(−k·t)   <i>(in/hr)</i></div>
     <div class="cs-formula-line">Excess at step: max(0, i_t − f_t) · Δt   <i>where i_t = rain rate (in/hr)</i></div>
@@ -1344,6 +1348,7 @@ export function renderEisaTimestepEduPage(project, eisaTimestep) {
   `);
   const inputsKv = renderKvTable([
     ['Design storm (in)',         fmtN(stormIn, 2)],
+    ['Duration (hr)',             '24'],
     ['Timestep (min)',            String(stepMin)],
     ['Hyetograph',                'SCS Type II (NRCS TR-55 Table 5-1)'],
     ['Loss model',                trace.lossModelUsed || '—'],
@@ -1468,6 +1473,7 @@ export function renderDoeeDetentionBmpEduPage(project, detentionBmp) {
     sub:   project.name || '',
     body,
     footer: 'DOEE Guidebook (2020 revision) · 2-yr trigger when CN_adj > 70; 15-yr when CN_adj > CN_pre',
+    landscape: true,
   });
 }
 
