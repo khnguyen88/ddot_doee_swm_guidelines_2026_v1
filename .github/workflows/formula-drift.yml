@@ -1,0 +1,48 @@
+name: formula-drift
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workbook/**'
+      - 'summary_calculator/src/calc.mjs'
+      - 'summary_calculator/src/aggregate.mjs'
+      - 'scripts/validate_doee_calc_parity.py'
+      - 'scripts/validate_formula_shapes.py'
+      - 'tests/test_calc_mjs_against_doee_hand_calcs.py'
+      - 'tests/test_validate_doee_calc_parity.py'
+      - 'tests/test_validate_formula_shapes.py'
+      - '.github/workflows/formula-drift.yml'
+  pull_request:
+    paths:
+      - 'workbook/**'
+      - 'summary_calculator/src/calc.mjs'
+      - 'summary_calculator/src/aggregate.mjs'
+      - 'scripts/validate_doee_calc_parity.py'
+      - 'scripts/validate_formula_shapes.py'
+      - 'tests/test_calc_mjs_against_doee_hand_calcs.py'
+      - 'tests/test_validate_doee_calc_parity.py'
+      - 'tests/test_validate_formula_shapes.py'
+      - '.github/workflows/formula-drift.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate DOEE spreadsheet parity
+        run: python scripts/validate_doee_calc_parity.py -v
+
+      - name: Validate formula shapes
+        run: python scripts/validate_formula_shapes.py -v
+
+      - name: Run JS hand-calc parity tests
+        run: python -m pytest tests/test_calc_mjs_against_doee_hand_calcs.py -v
